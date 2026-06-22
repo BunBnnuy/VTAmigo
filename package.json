@@ -1,0 +1,48 @@
+{
+  "name": "aicompanion",
+  "version": "1.0.0",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "install:all": "cd backend && npm install && cd ../frontend && npm install",
+    "dev": "concurrently --kill-others-on-fail \"node backend/index.js\" \"cd frontend && npm run dev\" \"wait-on http://localhost:5173 && start chrome http://localhost:5173\"",
+    "build": "cd frontend && npm run build",
+    "dist:win": "npm run build && electron-builder --win"
+  },
+  "dependencies": {
+    "cheerio": "^1.2.0",
+    "cors": "^2.8.6",
+    "express": "^5.2.1",
+    "ws": "^8.21.0"
+  },
+  "devDependencies": {
+    "concurrently": "^10.0.3",
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3",
+    "wait-on": "^9.0.10"
+  },
+  "build": {
+    "appId": "com.aicompanion.twitch",
+    "productName": "AI Companion",
+    "asar": true,
+    "files": [
+      "electron/**",
+      "backend/**",
+      "frontend/dist/**",
+      "!backend/node_modules/**",
+      "!**/node_modules/.cache/**"
+    ],
+    "win": {
+      "target": [{ "target": "nsis", "arch": ["x64"] }]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "shortcutName": "AI Companion"
+    },
+    "directories": {
+      "buildResources": "build",
+      "output": "dist-electron"
+    }
+  }
+}

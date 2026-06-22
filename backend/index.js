@@ -1,0 +1,251 @@
+const express = require("express");
+const cors = require("cors");
+const http = require("http");
+const path = require("path");
+const { WebSocketServer, WebSocket } = require("ws");
+const { queryClaudeCLI } = require("./claude");
+const { TwitchIRCClient } = require("./twitch");
+const { EventSubClient } = require("./eventsub");
+const { TikTokChatClient } = require("./tiktok");
+const { fetchRandomStory } = require("./reddit");
+const vtube = require("./vtube");
+const phonemes = require("./phonemes");
+const animations = require("./animations");
+
+const PORT = 3001;
+const app = express();
+app.use(cors());
+app.use(express.json());
+
+const server = http.createServer(app);
+const wss = new WebSocketServer({ server, path: "/chat" });
+
+// Active clients (one of each at a time)
+let twitchClient = null;
+let eventSubClient = null;
+let tiktokClient = null;
+
+// Broadcast to all connected frontend clients
+function broadcast(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN) ws.send(msg);
+  });
+}
+
+// POST /respond — run Claude CLI with a batch of messages
+app.post("/respond", async (req, res) => {
+  const { messages, style, basePrompt, provider } = req.body;
+  if (!messages || !Array.isArray(messages) || messages.length === 0) {
+    return res.status(400).json({ error: "messages array is required" });
+  }
+
+  try {
+    const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider || "claude");
+    res.json({ response });
+  } catch (err) {
+    if (err.message === "CLI_NOT_FOUND") {
+      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
+    }
+    console.error("[ai]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /connect — connect to a Twitch channel
+app.post("/connect", (req, res) => {
+  const { channel, token, username, clientId } = req.body;
+  if (!channel) return res.status(400).json({ error: "channel is required" });
+
+  if (twitchClient) twitchClient.disconnect();
+  if (eventSubClient) { eventSubClient.disconnect(); eventSubClient = null; }
+
+  twitchClient = new TwitchIRCClient({
+    channel,
+    token,
+    username,
+    onMessage: (msg) => broadcast({ type: "chat", msg }),
+    onStatus: (status) => broadcast({ type: "status", status }),
+  });
+  twitchClient.connect();
+
+  // EventSub for silent redeems — only if clientId + token provided
+  if (clientId && token) {
+    eventSubClient = new EventSubClient({
+      channel,
+      clientId,
+      token,
+      onRedeem: (redeem) => broadcast({ type: "chat", msg: redeem }),
+      onEvent: (event) => broadcast({ type: "twitch_event", event }),
+      onStatus: (status) => {
+        console.log("[eventsub]", status);
+        broadcast({ type: "status", status });
+      },
+    });
+    eventSubClient.connect();
+  }
+
+  res.json({ ok: true, channel, eventSub: !!(clientId && token) });
+});
+
+// POST /disconnect — disconnect from Twitch
+app.post("/disconnect", (req, res) => {
+  if (twitchClient) { twitchClient.disconnect(); twitchClient = null; }
+  if (eventSubClient) { eventSubClient.disconnect(); eventSubClient = null; }
+  res.json({ ok: true });
+});
+
+// POST /connect-tiktok — connect to a TikTok Live channel
+app.post("/connect-tiktok", (req, res) => {
+  const { username } = req.body;
+  if (!username) return res.status(400).json({ error: "username is required" });
+
+  if (tiktokClient) tiktokClient.disconnect();
+
+  tiktokClient = new TikTokChatClient({
+    username,
+    onMessage: (msg) => broadcast({ type: "chat", msg }),
+    onStatus: (status) => broadcast({ type: "tiktok_status", status }),
+  });
+  tiktokClient.connect();
+
+  res.json({ ok: true, username });
+});
+
+// POST /disconnect-tiktok — disconnect from TikTok Live
+app.post("/disconnect-tiktok", (req, res) => {
+  if (tiktokClient) { tiktokClient.disconnect(); tiktokClient = null; }
+  res.json({ ok: true });
+});
+
+// POST /reddit-story — scrape and return a random story (no Claude)
+app.post("/reddit-story", async (req, res) => {
+  const { subreddits } = req.body || {};
+  try {
+    const story = await fetchRandomStory(subreddits?.length ? subreddits : undefined);
+    res.json({ story });
+  } catch (err) {
+    console.error("[reddit]", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// POST /reddit-thoughts — Claude reacts to the last paragraph of a story
+app.post("/reddit-thoughts", async (req, res) => {
+  const { paragraph, title, subreddit, basePrompt, provider } = req.body || {};
+  if (!paragraph) return res.status(400).json({ error: "paragraph is required" });
+  try {
+    const response = await queryClaudeCLI([], "auto", basePrompt || "", null, null, { paragraph, title, subreddit }, provider || "claude");
+    res.json({ response });
+  } catch (err) {
+    if (err.message === "CLI_NOT_FOUND") {
+      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
+    }
+    if (err.message === "TIMEOUT") return res.status(504).json({ error: "Claude CLI timed out" });
+    console.error("[reddit-thoughts]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /event-response — generate an immediate Claude reaction to a Twitch event
+app.post("/event-response", async (req, res) => {
+  const { event, basePrompt, provider } = req.body;
+  if (!event) return res.status(400).json({ error: "event is required" });
+  try {
+    const response = await queryClaudeCLI([], "auto", basePrompt || "", event, null, null, provider || "claude");
+    res.json({ response });
+  } catch (err) {
+    if (err.message === "CLI_NOT_FOUND") {
+      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
+    }
+    console.error("[ai/event]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /health
+app.get("/health", (req, res) => res.json({ ok: true }));
+
+
+// ── VTube Studio endpoints ────────────────────────────────────────────────────
+
+// GET /vtube/status — { connected, authenticated }
+app.get("/vtube/status", (req, res) => res.json(vtube.getStatus()));
+
+// POST /vtube/config — update VTS connection settings and reconnect if URL changed
+app.post("/vtube/config", (req, res) => {
+  const { url, pluginName, mouthParam, sensitivity } = req.body;
+  if (url || pluginName) vtube.setConfig({ url, pluginName });
+  if (mouthParam) phonemes.setMouthParam(mouthParam);
+  if (sensitivity != null) phonemes.setSensitivity(Number(sensitivity));
+  res.json({ ok: true });
+});
+
+// POST /vtube/reconnect — manual reconnect trigger
+app.post("/vtube/reconnect", (req, res) => {
+  vtube.disconnect();
+  vtube.connect();
+  res.json({ ok: true });
+});
+
+// ── Lip-sync endpoints ────────────────────────────────────────────────────────
+
+// POST /vtube/thinking — { active: boolean } — eyes close while Claude generates
+app.post("/vtube/thinking", (req, res) => {
+  if (req.body.active) animations.startThinking();
+  else animations.stopThinking();
+  res.json({ ok: true });
+});
+
+// ── Lip-sync endpoints ────────────────────────────────────────────────────────
+
+// POST /lipsync/start — { text, durationMs }
+app.post("/lipsync/start", (req, res) => {
+  const { text, durationMs } = req.body;
+  if (!text || !durationMs) return res.status(400).json({ error: "text and durationMs required" });
+  animations.startSpeaking();
+  phonemes.schedulePhonemes(text, Number(durationMs));
+  res.json({ ok: true });
+});
+
+// POST /lipsync/stop — cancel timeline and reset mouth
+app.post("/lipsync/stop", (req, res) => {
+  phonemes.cancelSchedule();
+  animations.stopSpeaking();
+  res.json({ ok: true });
+});
+
+// Serve built frontend in production (Electron packaged app)
+const isProd = !process.env.VITE_DEV && !process.defaultApp;
+if (isProd) {
+  const distPath = path.join(__dirname, "../frontend/dist");
+  app.use(express.static(distPath));
+  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+}
+
+wss.on("connection", (ws) => {
+  console.log("[ws] frontend connected");
+  ws.on("close", () => console.log("[ws] frontend disconnected"));
+});
+
+server.on("error", (err) => {
+  if (err.code === "EADDRINUSE") {
+    console.warn(`[server] Port ${PORT} already in use — reusing existing backend`);
+  } else {
+    console.error("[server] Fatal error:", err.message);
+    process.exit(1);
+  }
+});
+
+server.listen(PORT, () => {
+  console.log(`[server] listening on http://localhost:${PORT}`);
+});

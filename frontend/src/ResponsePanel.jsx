@@ -1,0 +1,124 @@
+import React, { useEffect, useRef } from "react";
+
+function formatTime(ts) {
+  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+}
+
+export default function ResponsePanel({ responses, loading }) {
+  const bottomRef = useRef(null);
+
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [responses]);
+
+  return (
+    <div style={styles.panel}>
+      <div style={styles.header}>
+        <span style={styles.title}>Claude Responses</span>
+        {loading && <span style={styles.thinking}>thinking…</span>}
+      </div>
+      <div style={styles.list}>
+        {responses.length === 0 && (
+          <div style={styles.empty}>Responses will appear here once chat triggers one.</div>
+        )}
+        {responses.map((r) => (
+          <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--purple)" }}>
+            <div style={styles.cardTime}>
+              {formatTime(r.timestamp)}
+              {r.eventLabel && <span style={styles.eventLabel}> · {r.eventLabel}</span>}
+            </div>
+            <div style={r.error ? styles.errorText : styles.responseText}>{r.text}</div>
+            {r.messageCount && (
+              <div style={styles.meta}>{r.messageCount} mensajes</div>
+            )}
+          </div>
+        ))}
+        {loading && (
+          <div style={{ ...styles.card, borderColor: "var(--border)" }}>
+            <div style={styles.skeleton} />
+            <div style={{ ...styles.skeleton, width: "60%", marginTop: 6 }} />
+          </div>
+        )}
+        <div ref={bottomRef} />
+      </div>
+    </div>
+  );
+}
+
+const styles = {
+  panel: {
+    display: "flex",
+    flexDirection: "column",
+    height: "100%",
+    overflow: "hidden",
+  },
+  header: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "12px 14px",
+    borderBottom: "1px solid var(--border)",
+  },
+  title: {
+    fontWeight: 700,
+    fontSize: 13,
+    color: "var(--purple-light)",
+  },
+  thinking: {
+    fontSize: 12,
+    color: "var(--text-muted)",
+    fontStyle: "italic",
+    animation: "pulse 1.2s ease-in-out infinite",
+  },
+  list: {
+    flex: 1,
+    overflowY: "auto",
+    padding: "12px 14px",
+    display: "flex",
+    flexDirection: "column",
+    gap: 10,
+  },
+  empty: {
+    color: "var(--text-muted)",
+    textAlign: "center",
+    marginTop: 40,
+    fontSize: 13,
+  },
+  card: {
+    background: "var(--surface2)",
+    border: "1px solid",
+    borderRadius: 8,
+    padding: "10px 12px",
+  },
+  cardTime: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+    marginBottom: 6,
+  },
+  responseText: {
+    color: "var(--text)",
+    lineHeight: 1.6,
+    fontSize: 14,
+  },
+  errorText: {
+    color: "var(--red)",
+    lineHeight: 1.6,
+    fontSize: 13,
+  },
+  meta: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+    marginTop: 6,
+  },
+  eventLabel: {
+    color: "var(--yellow)",
+    fontWeight: 600,
+  },
+  skeleton: {
+    height: 14,
+    background: "var(--border)",
+    borderRadius: 4,
+    width: "85%",
+    animation: "pulse 1.2s ease-in-out infinite",
+  },
+};
