@@ -13,6 +13,10 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 - **Mic transcription** — includes your voice in the AI context via SpeechRecognition
 - **Configurable batching** — groups messages in a time window before sending to the AI
 - **Response styles** — Auto, Chatbot, or Narrator
+- **Screen question watcher** — detects trivia/quiz questions on screen (local Windows OCR + AI vision), posts them to chat for voting, and answers as co-host
+- **Auto-click** — clicks the chosen answer on screen via OCR, with fallbacks (first option, window center) so the game never gets stuck
+- **Auto-navigation (Majotori)** — after each round, clicks through the results screen back to the main menu and starts the next Solo Trivia round automatically
+- **YouTube peek** — periodically comments on the YouTube video open in Chrome
 
 ## Requirements
 
@@ -21,6 +25,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 - For ChatGPT: an OpenAI API key in the `OPENAI_API_KEY` environment variable (a ChatGPT subscription does not include API usage)
 - A Chromium-based browser for mic transcription (Web Speech API)
 - (Optional) [VTube Studio](https://denchisoft.com/) with the Plugin API enabled
+- (Optional) Windows 10/11 with an OCR language pack for the screen question watcher (uses the built-in `Windows.Media.Ocr` engine via PowerShell)
 
 ## Setup
 
@@ -63,6 +68,9 @@ All settings are available in the in-app Settings panel:
 | TTS voice / speed / volume | Speech synthesis settings |
 | Mic device / language / label | Voice transcription settings |
 | VTube Studio URL / plugin / mouth param | Lip-sync connection settings |
+| Screen watcher | Scan interval, chat voting window, target process, and capture region |
+| Auto-click | Click the AI's answer or the chat's top vote |
+| Auto-navigation | Click through Majotori's results screen and start the next Solo Trivia round |
 
 ### Environment variables
 
@@ -86,7 +94,10 @@ AICompanion/
 │   ├── reddit.js     # Reddit scraper
 │   ├── vtube.js      # VTube Studio WebSocket
 │   ├── phonemes.js   # Phoneme-based lip-sync scheduler
-│   └── animations.js # Thinking / speaking animation states
+│   ├── animations.js # Thinking / speaking animation states
+│   ├── screenwatch.js  # Screen question watcher + auto-navigation
+│   ├── screenwatch.ps1 # Screen/window capture + OCR (Windows.Media.Ocr)
+│   └── screenclick.ps1 # OCR-located mouse clicks on answer options
 ├── frontend/         # Vite + React UI
 │   └── src/
 │       ├── App.jsx
