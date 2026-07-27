@@ -4,7 +4,7 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export default function ResponsePanel({ responses, loading }) {
+export default function ResponsePanel({ responses, loading, onSendToChat, botConnected }) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -14,7 +14,7 @@ export default function ResponsePanel({ responses, loading }) {
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
-        <span style={styles.title}>Claude Responses</span>
+        <span style={styles.title}>AI Responses</span>
         {loading && <span style={styles.thinking}>thinking…</span>}
       </div>
       <div style={styles.list}>
@@ -28,9 +28,20 @@ export default function ResponsePanel({ responses, loading }) {
               {r.eventLabel && <span style={styles.eventLabel}> · {r.eventLabel}</span>}
             </div>
             <div style={r.error ? styles.errorText : styles.responseText}>{r.text}</div>
-            {r.messageCount && (
-              <div style={styles.meta}>{r.messageCount} mensajes</div>
-            )}
+            <div style={styles.cardFooter}>
+              {r.messageCount && (
+                <span style={styles.meta}>{r.messageCount} mensajes</span>
+              )}
+              {!r.error && onSendToChat && (
+                <button
+                  style={{ ...styles.sendBtn, opacity: botConnected ? 1 : 0.4 }}
+                  title={botConnected ? "Send to Twitch chat" : "Bot not connected"}
+                  onClick={() => botConnected && onSendToChat(r.text)}
+                >
+                  💬 Send
+                </button>
+              )}
+            </div>
           </div>
         ))}
         {loading && (
@@ -105,10 +116,24 @@ const styles = {
     lineHeight: 1.6,
     fontSize: 13,
   },
+  cardFooter: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginTop: 6,
+  },
   meta: {
     fontSize: 11,
     color: "var(--text-muted)",
-    marginTop: 6,
+  },
+  sendBtn: {
+    background: "var(--purple)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 4,
+    padding: "2px 8px",
+    fontSize: 11,
+    cursor: "pointer",
   },
   eventLabel: {
     color: "var(--yellow)",

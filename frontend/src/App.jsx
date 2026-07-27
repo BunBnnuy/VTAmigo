@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   token: "",
   clientId: "",
   tiktokUsername: "",
+  extraChannels: [],
   batchWindow: 20,
   maxMessages: 20,
   style: "auto",
@@ -32,6 +33,20 @@ const DEFAULT_SETTINGS = {
   micDeviceId: "",
   micLang: "es-ES",
   micLabel: "Streamer",
+  botUsername: "",
+  botToken: "",
+  autoSendToChat: false,
+  youtubePeekEnabled: false,
+  youtubePeekInterval: 5,
+  screenWatchEnabled: false,
+  screenWatchInterval: 4,
+  screenWatchWindow: 20,
+  screenWatchRegion: "",
+  screenWatchProcess: "",
+  screenClickEnabled: false,
+  screenClickTarget: "ai",
+  screenAutoNavigate: false,
+  ignoredUsers: "jonejo_ia, streamelements, nightbot, moobot, fossabot, streamlabs, soundalerts, wizebot, botisimo, coebot, sery_bot, kofistreambot, commanderroot, virgoproz, aparatchik, logviewer, electricallongboard, anotherttvviewer, twitchraidshadow",
 };
 
 const WS_URL = "ws://localhost:3001/chat";
@@ -81,15 +96,23 @@ export default function App() {
   const [micError, setMicError] = useState(null);
   const [micModelStatus, setMicModelStatus] = useState("idle");
   const [micSpeaking, setMicSpeaking] = useState(false);
+  const [botStatus, setBotStatus] = useState("disconnected");
   const [micLastText, setMicLastText] = useState("");
+  const [extraChannelStatus, setExtraChannelStatus] = useState({});
+  const [screenWatch, setScreenWatch] = useState({ state: "off", question: null, remaining: 0 });
 
   const wsRef = useRef(null);
+  const seenMsgIds = useRef(new Set());
   const bufferRef = useRef([]);
   const batchTimerRef = useRef(null);
   const burstTimerRef = useRef(null);
   const idleCountRef = useRef(0);
   const idleThresholdRef = useRef(null); // set on first empty batch from settings
   const countdownIntervalRef = useRef(null);
+  const youtubePeekTimerRef = useRef(null);
+  const screenCollectRef = useRef(null); // { question, options, messages } while collecting chat
+  const screenTimerRef = useRef(null);
+  const screenCountdownRef = useRef(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
 
@@ -98,10 +121,47 @@ export default function App() {
     tts.onStateChange = () => setTtsPlaying(tts.playing);
   }, []);
 
+  const connectExtraChannel = useCallback(async (channel) => {
+    const { token, botUsername, botToken } = settingsRef.current;
+    try {
+      await fetch("/connect-extra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel, token, botUsername, botToken }),
+      });
+      setExtraChannelStatus((prev) => ({
+        ...prev,
+        [channel]: { read: "connecting", bot: botUsername ? "connecting" : "none" },
+      }));
+    } catch {
+      setExtraChannelStatus((prev) => ({ ...prev, [channel]: { read: "error", bot: "error" } }));
+    }
+  }, []);
+
+  const disconnectExtraChannel = useCallback(async (channel) => {
+    try {
+      await fetch("/disconnect-extra", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ channel }),
+      });
+    } catch {}
+    setExtraChannelStatus((prev) => {
+      const next = { ...prev };
+      delete next[channel];
+      return next;
+    });
+  }, []);
+
   // Auto-connect on startup if channels are saved
   useEffect(() => {
     if (settingsRef.current.channel) handleConnect();
+    else connectWS();
     if (settingsRef.current.tiktokUsername) handleTikTokConnect();
+    (settingsRef.current.extraChannels || []).forEach((ch) => connectExtraChannel(ch));
+    return () => {
+      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Voice transcription — wire up transcript handler and sync settings
@@ -227,9 +287,28 @@ export default function App() {
       };
       setResponses((prev) => [...prev.slice(-49), entry]);
       if (data.error) {
-        // No TTS will play — stop thinking now
         stopThinking();
       } else {
+        if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
+          fetch("/say", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          }).then(async (r) => {
+            if (!r.ok) {
+              const d = await r.json().catch(() => ({}));
+              console.warn("[bot/say]", d.error || r.status);
+            }
+          }).catch((e) => console.warn("[bot/say]", e.message));
+          // Also send to extra channels
+          (settingsRef.current.extraChannels || []).forEach((ch) => {
+            fetch("/say", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text, channel: ch }),
+            }).catch(() => {});
+          });
+        }
         tts.enqueue(text);
         // Thinking stops when TTS fires onstart → /lipsync/start → startSpeaking()
       }
@@ -314,6 +393,235 @@ export default function App() {
     }
   }, []);
 
+  const triggerYouTubePeek = useCallback(async () => {
+    try {
+      const res = await fetch("/youtube-narrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ basePrompt: settingsRef.current.basePrompt }),
+      });
+      const data = await res.json();
+      const text = data.response || data.error || "Sin respuesta";
+      setResponses((prev) => [...prev.slice(-49), {
+        id: uid(),
+        timestamp: Date.now(),
+        text,
+        error: !!data.error,
+        eventLabel: "📺 YouTube Peek",
+      }]);
+      if (!data.error) tts.enqueue(text);
+    } catch (err) {
+      console.error("[youtube-peek]", err.message);
+    }
+  }, []);
+
+  // YouTube peek timer — restart whenever enabled/interval changes
+  useEffect(() => {
+    clearInterval(youtubePeekTimerRef.current);
+    if (!settings.youtubePeekEnabled) return;
+    const ms = (settings.youtubePeekInterval || 5) * 60 * 1000;
+    youtubePeekTimerRef.current = setInterval(triggerYouTubePeek, ms);
+    return () => clearInterval(youtubePeekTimerRef.current);
+  }, [settings.youtubePeekEnabled, settings.youtubePeekInterval, triggerYouTubePeek]);
+
+  // ── Screen question watcher ───────────────────────────────────────────────
+
+  // Push watcher config to backend whenever settings change (also on startup)
+  useEffect(() => {
+    fetch("/screenwatch/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        enabled: settings.screenWatchEnabled,
+        intervalSec: settings.screenWatchInterval,
+        region: settings.screenWatchRegion,
+        processName: settings.screenWatchProcess,
+        autoNavigate: settings.screenAutoNavigate,
+      }),
+    }).catch(() => {});
+    if (!settings.screenWatchEnabled) {
+      clearTimeout(screenTimerRef.current);
+      clearInterval(screenCountdownRef.current);
+      screenCollectRef.current = null;
+      setScreenWatch({ state: "off", question: null, remaining: 0 });
+    } else {
+      setScreenWatch((s) => (s.state === "off" ? { state: "watching", question: null, remaining: 0 } : s));
+    }
+  }, [settings.screenWatchEnabled, settings.screenWatchInterval, settings.screenWatchRegion, settings.screenWatchProcess, settings.screenAutoNavigate]);
+
+  const answerScreenQuestion = useCallback(async () => {
+    clearInterval(screenCountdownRef.current);
+    const collect = screenCollectRef.current;
+    screenCollectRef.current = null;
+    if (!collect) return;
+
+    setScreenWatch({ state: "answering", question: collect.question, remaining: 0 });
+    setLoading(true);
+    let data = {};
+    try {
+      const res = await fetch("/screen-answer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          question: collect.question,
+          options: collect.options,
+          messages: collect.messages,
+          basePrompt: settingsRef.current.basePrompt,
+          provider: settingsRef.current.provider || "claude",
+          windowSec: settingsRef.current.screenWatchWindow || 20,
+        }),
+      });
+      data = await res.json();
+      const text = data.response || data.error || "Sin respuesta";
+      setResponses((prev) => [...prev.slice(-49), {
+        id: uid(),
+        timestamp: Date.now(),
+        text,
+        error: !!data.error,
+        eventLabel: `🎯 Respuesta — ${collect.question.slice(0, 60)}`,
+        messageCount: collect.messages.length || null,
+      }]);
+      if (!data.error) {
+        tts.enqueue(text);
+        if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
+          fetch("/say", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          }).catch(() => {});
+        }
+      }
+
+    } catch (err) {
+      setResponses((prev) => [...prev.slice(-49), {
+        id: uid(), timestamp: Date.now(), text: `Error de red: ${err.message}`, error: true,
+      }]);
+    } finally {
+      // Auto-click the chosen option (AI's pick or chat's top vote), then
+      // the backend clicks again after 3-5 s to advance to the next question.
+      // Runs even when the AI errored, nobody picked anything, or the request
+      // itself failed: fall back to the first option so the game never stays
+      // stuck on the question.
+      if (settingsRef.current.screenClickEnabled) {
+        let idx = settingsRef.current.screenClickTarget === "chat"
+          ? (data.topVoteIndex ?? data.choiceIndex)
+          : (data.choiceIndex ?? data.topVoteIndex);
+        if (idx == null || collect.options[idx] == null) idx = 0;
+        if (collect.options[idx] != null) {
+          fetch("/screenwatch/click", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              optionText: collect.options[idx],
+              processName: settingsRef.current.screenWatchProcess,
+              region: settingsRef.current.screenWatchRegion,
+            }),
+          }).then(async (r) => {
+            if (!r.ok) {
+              const d = await r.json().catch(() => ({}));
+              setResponses((prev) => [...prev.slice(-49), {
+                id: uid(), timestamp: Date.now(), text: `No pude hacer clic: ${d.error || r.status}`, error: true, eventLabel: "🖱️ Auto-click",
+              }]);
+            }
+          }).catch(() => {});
+        }
+      }
+      setLoading(false);
+      setScreenWatch({
+        state: settingsRef.current.screenWatchEnabled ? "watching" : "off",
+        question: null,
+        remaining: 0,
+      });
+    }
+  }, []);
+
+  const handleScreenQuestion = useCallback((question, options) => {
+    if (screenCollectRef.current) return; // already collecting for another question
+    const windowSec = settingsRef.current.screenWatchWindow || 20;
+    screenCollectRef.current = { question, options, messages: [] };
+    setScreenWatch({ state: "collecting", question, remaining: windowSec });
+
+    // Show the detected question in the response panel right away
+    const optionText = options
+      .map((o, i) => `${String.fromCharCode(65 + i)} ) ${o}`)
+      .join("\n");
+    setResponses((prev) => [...prev.slice(-49), {
+      id: uid(),
+      timestamp: Date.now(),
+      text: `${question}\n\n${optionText}\n\nEsperando al chat ${windowSec}s…`,
+      error: false,
+      eventLabel: "🖥️ Pregunta detectada en pantalla",
+    }]);
+
+    // Post the question to chat so viewers can vote (Twitch caps ~500 chars)
+    if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
+      const inline = options.map((o, i) => `${String.fromCharCode(65 + i)} ) ${o}`).join("  ");
+      let chatMsg = `❓ ${question}  ${inline}  — ¡vota A/B/C/D! (${windowSec}s)`;
+      if (chatMsg.length > 490) chatMsg = chatMsg.slice(0, 487) + "…";
+      fetch("/say", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: chatMsg }),
+      }).catch(() => {});
+      (settingsRef.current.extraChannels || []).forEach((ch) => {
+        fetch("/say", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: chatMsg, channel: ch }),
+        }).catch(() => {});
+      });
+    }
+
+    clearTimeout(screenTimerRef.current);
+    screenTimerRef.current = setTimeout(answerScreenQuestion, windowSec * 1000);
+
+    clearInterval(screenCountdownRef.current);
+    let remaining = windowSec;
+    screenCountdownRef.current = setInterval(() => {
+      remaining -= 1;
+      setScreenWatch((s) =>
+        s.state === "collecting" ? { ...s, remaining: Math.max(remaining, 0) } : s
+      );
+    }, 1000);
+  }, [answerScreenQuestion]);
+
+  // Manual scan: read the screen right now and look for a question. If one is
+  // found, the backend broadcasts screen_question and the normal flow starts.
+  const triggerScreenScan = useCallback(async () => {
+    setLoading(true);
+    try {
+      const res = await fetch("/screenwatch/scan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          region: settingsRef.current.screenWatchRegion,
+          processName: settingsRef.current.screenWatchProcess,
+        }),
+      });
+      const data = await res.json();
+      if (data.error) throw new Error(data.error);
+      if (data.hasQuestion) {
+        // Start the flow directly — no dependency on the WS broadcast
+        // (handleScreenQuestion ignores duplicates if the broadcast also lands)
+        handleScreenQuestion(data.question, data.options || []);
+      } else {
+        setResponses((prev) => [...prev.slice(-49), {
+          id: uid(),
+          timestamp: Date.now(),
+          text: "No encontré ninguna pregunta con opciones en la pantalla.",
+          error: false,
+          eventLabel: "🖥️ Escaneo manual",
+        }]);
+      }
+    } catch (err) {
+      setResponses((prev) => [...prev.slice(-49), {
+        id: uid(), timestamp: Date.now(), text: `Error: ${err.message}`, error: true, eventLabel: "🖥️ Escaneo manual",
+      }]);
+    } finally {
+      setLoading(false);
+    }
+  }, [handleScreenQuestion]);
+
   const triggerEventResponse = useCallback(async (event) => {
     setLoading(true);
     try {
@@ -379,6 +687,15 @@ export default function App() {
         const data = JSON.parse(evt.data);
         if (data.type === "chat") {
           const msg = data.msg;
+          const ignoredUsers = (settingsRef.current.ignoredUsers || "")
+            .split(",").map((u) => u.trim().toLowerCase()).filter(Boolean);
+          if (ignoredUsers.includes((msg.username || "").toLowerCase())) return;
+          if (seenMsgIds.current.has(msg.id)) return;
+          seenMsgIds.current.add(msg.id);
+          if (seenMsgIds.current.size > 500) {
+            const first = seenMsgIds.current.values().next().value;
+            seenMsgIds.current.delete(first);
+          }
           setMessages((prev) => [...prev.slice(-199), msg]);
           bufferRef.current.push({
             username: msg.username,
@@ -386,6 +703,11 @@ export default function App() {
             isRedeem: msg.isRedeem || false,
             rewardTitle: msg.rewardTitle || null,
           });
+
+          // While a screen question is open, also collect messages for it
+          if (screenCollectRef.current) {
+            screenCollectRef.current.messages.push({ username: msg.username, text: msg.text });
+          }
 
           // Burst detection: lots of hype → wait for silence then fire
           const isHype = HYPE_KEYWORDS.some((kw) => msg.text.toLowerCase().includes(kw));
@@ -397,10 +719,34 @@ export default function App() {
           }
         } else if (data.type === "status") {
           setConnStatus(data.status.type);
+        } else if (data.type === "bot_status") {
+          setBotStatus(data.status.type);
         } else if (data.type === "tiktok_status") {
           const t = data.status.type;
           setTiktokStatus(t);
           setTiktokConnected(t === "connected");
+        } else if (data.type === "extra_status") {
+          setExtraChannelStatus((prev) => ({
+            ...prev,
+            [data.channel]: { ...prev[data.channel], read: data.status.type },
+          }));
+        } else if (data.type === "extra_bot_status") {
+          setExtraChannelStatus((prev) => ({
+            ...prev,
+            [data.channel]: { ...prev[data.channel], bot: data.status.type },
+          }));
+        } else if (data.type === "screen_question") {
+          handleScreenQuestion(data.question, data.options || []);
+        } else if (data.type === "screenwatch_status") {
+          if (data.status.type === "error") {
+            setScreenWatch((s) =>
+              s.state === "collecting" || s.state === "answering"
+                ? s
+                : { state: "error", question: null, remaining: 0, message: data.status.message }
+            );
+          } else if (data.status.type === "watching") {
+            setScreenWatch((s) => (s.state === "error" ? { state: "watching", question: null, remaining: 0 } : s));
+          }
         } else if (data.type === "twitch_event") {
           const event = data.event;
           // Show event as a special entry in the chat feed
@@ -420,7 +766,7 @@ export default function App() {
         // ignore parse errors
       }
     };
-  }, [triggerResponse]);
+  }, [triggerResponse, handleScreenQuestion]);
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
@@ -434,7 +780,13 @@ export default function App() {
       await fetch("/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel, token, clientId: settingsRef.current.clientId }),
+        body: JSON.stringify({
+          channel,
+          token,
+          clientId: settingsRef.current.clientId,
+          botUsername: settingsRef.current.botUsername,
+          botToken: settingsRef.current.botToken,
+        }),
       });
       connectWS();
       startCountdown();
@@ -495,11 +847,34 @@ export default function App() {
       clearInterval(countdownIntervalRef.current);
       startCountdown();
     }
+    // Reconnect only the bot client if credentials changed — avoids disrupting the main WS
+    if (newSettings.botUsername && newSettings.botToken &&
+      (newSettings.botUsername !== prev.botUsername || newSettings.botToken !== prev.botToken)
+    ) {
+      fetch("/connect-bot", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channel: newSettings.channel,
+          botUsername: newSettings.botUsername,
+          botToken: newSettings.botToken,
+        }),
+      }).catch(() => {});
+    }
     // Reconnect TikTok if username changed
     if (newSettings.tiktokUsername !== prev.tiktokUsername) {
       handleTikTokDisconnect().then(() => {
         if (newSettings.tiktokUsername) handleTikTokConnect();
       });
+    }
+    // Diff extra channels — disconnect removed, connect added
+    const prevExtra = new Set(prev.extraChannels || []);
+    const nextExtra = new Set(newSettings.extraChannels || []);
+    for (const ch of prevExtra) {
+      if (!nextExtra.has(ch)) disconnectExtraChannel(ch);
+    }
+    for (const ch of nextExtra) {
+      if (!prevExtra.has(ch)) connectExtraChannel(ch);
     }
   };
 
@@ -583,7 +958,21 @@ export default function App() {
 
         {/* Right: response history */}
         <div style={styles.rightPanel}>
-          <ResponsePanel responses={responses} loading={loading} />
+          <ResponsePanel
+            responses={responses}
+            loading={loading}
+            botConnected={botStatus === "connected"}
+            onSendToChat={(text) => fetch("/say", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text }),
+            }).then(async (r) => {
+              if (!r.ok) {
+                const d = await r.json().catch(() => ({}));
+                alert(`Bot error: ${d.error || r.status}`);
+              }
+            }).catch((e) => alert(`Bot error: ${e.message}`))}
+          />
         </div>
       </div>
 
@@ -625,6 +1014,42 @@ export default function App() {
           </div>
         )}
 
+        {/* Extra channel statuses */}
+        {(settings.extraChannels || []).map((ch) => {
+          const st = extraChannelStatus[ch] || {};
+          const readOk = st.read === "connected";
+          const readPending = st.read === "connecting";
+          return (
+            <div key={ch} style={styles.statusGroup}>
+              <span style={{
+                ...styles.dot,
+                background: readOk ? "var(--green)" : readPending ? "var(--yellow)" : "var(--text-muted)",
+              }} />
+              <span style={styles.statusText}>#{ch}</span>
+              <button
+                style={{ ...styles.iconBtn, fontSize: 10, padding: "2px 6px" }}
+                onClick={() => disconnectExtraChannel(ch)}
+                title={`Disconnect #${ch}`}
+              >
+                ✕
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Bot status */}
+        {settings.botUsername && (
+          <div style={styles.statusGroup}>
+            <span style={{
+              ...styles.dot,
+              background: botStatus === "connected" ? "var(--green)" : botStatus === "connecting" ? "var(--yellow)" : "var(--red)",
+            }} />
+            <span style={styles.statusText}>
+              Bot: {botStatus === "connected" ? settings.botUsername : botStatus === "connecting" ? "conectando…" : "desconectado"}
+            </span>
+          </div>
+        )}
+
         {/* VTube Studio status */}
         <div style={styles.statusGroup}>
           <span
@@ -655,6 +1080,29 @@ export default function App() {
             </button>
           )}
         </div>
+
+        {/* Screen watch status */}
+        {settings.screenWatchEnabled && (
+          <div style={styles.statusGroup}>
+            <span style={{
+              ...styles.dot,
+              background:
+                screenWatch.state === "collecting" ? "var(--yellow)"
+                : screenWatch.state === "answering" ? "var(--purple)"
+                : screenWatch.state === "error" ? "var(--red)"
+                : "var(--green)",
+            }} />
+            <span style={styles.statusText}>
+              {screenWatch.state === "collecting"
+                ? `🖥️ Pregunta — leyendo chat ${screenWatch.remaining}s`
+                : screenWatch.state === "answering"
+                ? "🖥️ Respondiendo pregunta…"
+                : screenWatch.state === "error"
+                ? `🖥️ ${screenWatch.message || "Error de captura"}`
+                : "🖥️ Vigilando pantalla"}
+            </span>
+          </div>
+        )}
 
         {/* Countdown */}
         {countdown !== null && (
@@ -755,6 +1203,22 @@ export default function App() {
             title="Contar una historia de Reddit"
           >
             📖 Historia
+          </button>
+          <button
+            style={{ ...styles.iconBtn, color: "#ff6b6b" }}
+            onClick={() => triggerYouTubePeek()}
+            disabled={loading}
+            title="Narrar lo que hay en la pestaña de YouTube"
+          >
+            📺 YouTube
+          </button>
+          <button
+            style={{ ...styles.iconBtn, color: "#4ecdc4" }}
+            onClick={() => triggerScreenScan()}
+            disabled={loading}
+            title="Leer la pantalla ahora y buscar una pregunta con opciones"
+          >
+            🖥️ Pregunta
           </button>
         </div>
       </div>

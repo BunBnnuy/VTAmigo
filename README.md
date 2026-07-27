@@ -5,7 +5,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 ## Features
 
 - **Twitch & TikTok Live** chat reading
-- **AI responses** via Claude CLI or Grok CLI (switchable from settings)
+- **AI responses** via Claude CLI, Grok CLI, or ChatGPT through the OpenAI API (switchable from settings)
 - **Text-to-Speech** with configurable voice, speed, and volume
 - **VTube Studio lip-sync** — mouth animation driven by phoneme timing
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems
@@ -18,6 +18,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 
 - [Node.js](https://nodejs.org/) 18+
 - [Claude CLI](https://github.com/anthropics/claude-code) (`npm install -g @anthropic-ai/claude-code`) **or** [Grok CLI](https://x.ai/) installed at `C:\Users\<you>\.grok\bin\grok.exe`
+- For ChatGPT: an OpenAI API key in the `OPENAI_API_KEY` environment variable (a ChatGPT subscription does not include API usage)
 - A Chromium-based browser for mic transcription (Web Speech API)
 - (Optional) [VTube Studio](https://denchisoft.com/) with the Plugin API enabled
 
@@ -51,7 +52,7 @@ All settings are available in the in-app Settings panel:
 
 | Setting | Description |
 |---|---|
-| AI Provider | Switch between Claude and Grok |
+| AI Provider | Switch between Claude, Grok, and ChatGPT |
 | Twitch channel / OAuth token / Client-ID | Connect to Twitch chat and EventSub |
 | TikTok username | Connect to a TikTok Live chat |
 | Batch window | Seconds to collect messages before sending to AI |
@@ -69,6 +70,8 @@ All settings are available in the in-app Settings panel:
 |---|---|---|
 | `CLAUDE_PATH` | WinGet install path | Path to the `claude.exe` binary |
 | `GROK_PATH` | `C:\Users\<you>\.grok\bin\grok.exe` | Path to the `grok.exe` binary |
+| `OPENAI_API_KEY` | â€” | API key for the ChatGPT/OpenAI provider |
+| `OPENAI_MODEL` | `gpt-4.1-mini` | Optional OpenAI model override |
 
 ## Project structure
 

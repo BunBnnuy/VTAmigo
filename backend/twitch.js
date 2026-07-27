@@ -103,8 +103,11 @@ class TwitchIRCClient {
         if (line.includes(":Welcome, GLHF!")) {
           this.onStatus({ type: "connected", channel: this.channel });
         }
-        if (line.includes("NOTICE") && line.includes("Login authentication failed")) {
-          this.onStatus({ type: "auth_error" });
+        if (line.includes("NOTICE")) {
+          console.log(`[twitch/${this.username}] NOTICE:`, line);
+          if (line.includes("Login authentication failed") || line.includes("Login unsuccessful")) {
+            this.onStatus({ type: "auth_error" });
+          }
         }
       }
     });
@@ -122,6 +125,14 @@ class TwitchIRCClient {
     ws.on("error", (err) => {
       this.onStatus({ type: "error", message: err.message });
     });
+  }
+
+  say(text) {
+    if (this.ws && this.ws.readyState === 1 /* OPEN */) {
+      this.ws.send(`PRIVMSG #${this.channel} :${text}`);
+      return true;
+    }
+    return false;
   }
 
   disconnect() {

@@ -3,7 +3,8 @@ const cors = require("cors");
 const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
-const { queryClaudeCLI } = require("./claude");
+const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer } = require("./claude");
+const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
 const { EventSubClient } = require("./eventsub");
 const { TikTokChatClient } = require("./tiktok");
@@ -22,8 +23,13 @@ const wss = new WebSocketServer({ server, path: "/chat" });
 
 // Active clients (one of each at a time)
 let twitchClient = null;
+let botClient = null;
 let eventSubClient = null;
 let tiktokClient = null;
+
+// Extra channel clients — keyed by channel name
+const extraReadClients = {};
+const extraBotClients = {};
 
 // Broadcast to all connected frontend clients
 function broadcast(data) {
@@ -44,6 +50,9 @@ app.post("/respond", async (req, res) => {
     const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider || "claude");
     res.json({ response });
   } catch (err) {
+    if (err.message === "OPENAI_API_KEY_MISSING") {
+      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
+    }
     if (err.message === "CLI_NOT_FOUND") {
       const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
@@ -56,13 +65,109 @@ app.post("/respond", async (req, res) => {
   }
 });
 
+// POST /connect-bot — (re)connect only the bot client, no WS disruption
+app.post("/connect-bot", (req, res) => {
+  const { channel, botUsername, botToken } = req.body;
+  if (!channel || !botUsername || !botToken) {
+    return res.status(400).json({ error: "channel, botUsername, and botToken are required" });
+  }
+  if (botClient) { botClient.disconnect(); botClient = null; }
+  botClient = new TwitchIRCClient({
+    channel,
+    token: botToken,
+    username: botUsername,
+    onMessage: () => {},
+    onStatus: (status) => {
+      console.log("[bot]", status.type);
+      broadcast({ type: "bot_status", status });
+    },
+  });
+  botClient.connect();
+  res.json({ ok: true });
+});
+
+// POST /say — send a message to chat as the bot user
+// Optional { channel } routes to an extra channel's bot client instead of the primary
+app.post("/say", (req, res) => {
+  const { text, channel } = req.body;
+  if (!text) return res.status(400).json({ error: "text is required" });
+
+  if (channel) {
+    const ch = channel.toLowerCase().replace(/^#/, "");
+    const client = extraBotClients[ch];
+    if (!client) return res.status(503).json({ error: `No bot connected to #${ch}` });
+    const sent = client.say(text);
+    if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
+    return res.json({ ok: true });
+  }
+
+  if (!botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
+  const sent = botClient.say(text);
+  if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
+  res.json({ ok: true });
+});
+
+// POST /connect-extra — connect a read + bot client for an additional channel
+app.post("/connect-extra", (req, res) => {
+  const { channel, token, botUsername, botToken } = req.body;
+  if (!channel) return res.status(400).json({ error: "channel is required" });
+  const ch = channel.toLowerCase().replace(/^#/, "");
+
+  if (extraReadClients[ch]) { extraReadClients[ch].disconnect(); delete extraReadClients[ch]; }
+  if (extraBotClients[ch]) { extraBotClients[ch].disconnect(); delete extraBotClients[ch]; }
+
+  extraReadClients[ch] = new TwitchIRCClient({
+    channel: ch,
+    token,
+    onMessage: (msg) => broadcast({ type: "chat", msg: { ...msg, extraChannel: ch } }),
+    onStatus: (status) => broadcast({ type: "extra_status", channel: ch, status }),
+  });
+  extraReadClients[ch].connect();
+
+  if (botUsername && botToken) {
+    extraBotClients[ch] = new TwitchIRCClient({
+      channel: ch,
+      token: botToken,
+      username: botUsername,
+      onMessage: () => {},
+      onStatus: (status) => broadcast({ type: "extra_bot_status", channel: ch, status }),
+    });
+    extraBotClients[ch].connect();
+  }
+
+  res.json({ ok: true, channel: ch });
+});
+
+// POST /disconnect-extra — disconnect an extra channel
+app.post("/disconnect-extra", (req, res) => {
+  const { channel } = req.body;
+  if (!channel) return res.status(400).json({ error: "channel is required" });
+  const ch = channel.toLowerCase().replace(/^#/, "");
+  if (extraReadClients[ch]) { extraReadClients[ch].disconnect(); delete extraReadClients[ch]; }
+  if (extraBotClients[ch]) { extraBotClients[ch].disconnect(); delete extraBotClients[ch]; }
+  res.json({ ok: true });
+});
+
 // POST /connect — connect to a Twitch channel
 app.post("/connect", (req, res) => {
-  const { channel, token, username, clientId } = req.body;
+  const { channel, token, username, clientId, botUsername, botToken } = req.body;
   if (!channel) return res.status(400).json({ error: "channel is required" });
 
   if (twitchClient) twitchClient.disconnect();
+  if (botClient) { botClient.disconnect(); botClient = null; }
   if (eventSubClient) { eventSubClient.disconnect(); eventSubClient = null; }
+
+  // Bot client — separate user that can send messages
+  if (botUsername && botToken) {
+    botClient = new TwitchIRCClient({
+      channel,
+      token: botToken,
+      username: botUsername,
+      onMessage: () => {}, // don't echo bot's own messages
+      onStatus: (status) => broadcast({ type: "bot_status", status }),
+    });
+    botClient.connect();
+  }
 
   twitchClient = new TwitchIRCClient({
     channel,
@@ -95,6 +200,7 @@ app.post("/connect", (req, res) => {
 // POST /disconnect — disconnect from Twitch
 app.post("/disconnect", (req, res) => {
   if (twitchClient) { twitchClient.disconnect(); twitchClient = null; }
+  if (botClient) { botClient.disconnect(); botClient = null; }
   if (eventSubClient) { eventSubClient.disconnect(); eventSubClient = null; }
   res.json({ ok: true });
 });
@@ -142,6 +248,9 @@ app.post("/reddit-thoughts", async (req, res) => {
     const response = await queryClaudeCLI([], "auto", basePrompt || "", null, null, { paragraph, title, subreddit }, provider || "claude");
     res.json({ response });
   } catch (err) {
+    if (err.message === "OPENAI_API_KEY_MISSING") {
+      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
+    }
     if (err.message === "CLI_NOT_FOUND") {
       const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
@@ -160,6 +269,9 @@ app.post("/event-response", async (req, res) => {
     const response = await queryClaudeCLI([], "auto", basePrompt || "", event, null, null, provider || "claude");
     res.json({ response });
   } catch (err) {
+    if (err.message === "OPENAI_API_KEY_MISSING") {
+      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
+    }
     if (err.message === "CLI_NOT_FOUND") {
       const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
@@ -168,6 +280,149 @@ app.post("/event-response", async (req, res) => {
       return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
     }
     console.error("[ai/event]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /youtube-narrate — Claude looks at the YouTube tab and narrates what's playing
+app.post("/youtube-narrate", async (req, res) => {
+  const { basePrompt } = req.body || {};
+  try {
+    const response = await queryYouTubeNarration(basePrompt || "");
+    res.json({ response });
+  } catch (err) {
+    if (err.message === "OPENAI_API_KEY_MISSING") {
+      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
+    }
+    if (err.message === "CLI_NOT_FOUND") {
+      return res.status(503).json({ error: "Claude CLI not found — make sure it is installed and on your PATH" });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: "Claude CLI timed out while narrating YouTube" });
+    }
+    console.error("[youtube-narrate]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// ── Screen question watcher ──────────────────────────────────────────────────
+
+// POST /screenwatch/config — { enabled, intervalSec, region: "x,y,w,h" | "", processName, autoNavigate }
+app.post("/screenwatch/config", (req, res) => {
+  const { enabled, intervalSec, region, processName, autoNavigate } = req.body || {};
+  if (enabled) {
+    screenwatch.start({
+      intervalSec,
+      region,
+      processName,
+      autoNavigate,
+      onQuestion: (q) =>
+        broadcast({ type: "screen_question", ...q, id: `sq-${Date.now()}`, timestamp: Date.now() }),
+      onStatus: (status) => broadcast({ type: "screenwatch_status", status }),
+    });
+  } else {
+    screenwatch.stop();
+  }
+  res.json({ ok: true, running: screenwatch.isRunning() });
+});
+
+// POST /screenwatch/scan — manual one-shot: capture now, extract a question,
+// and if found broadcast it so the normal collect-and-answer flow kicks in
+app.post("/screenwatch/scan", async (req, res) => {
+  const { region, processName } = req.body || {};
+  try {
+    const result = await screenwatch.scanOnce({ region, processName });
+    if (result.hasQuestion) {
+      broadcast({
+        type: "screen_question",
+        question: result.question,
+        options: result.options,
+        id: `sq-${Date.now()}`,
+        timestamp: Date.now(),
+      });
+    }
+    res.json({ ok: true, ...result });
+  } catch (err) {
+    if (err.message === "WINDOW_NOT_FOUND") {
+      return res.status(404).json({ error: `No se encontró la ventana de ${processName}` });
+    }
+    if (err.message === "OCR_UNAVAILABLE") {
+      return res.status(503).json({ error: "OCR no disponible en este Windows" });
+    }
+    if (err.message === "CLI_NOT_FOUND") {
+      return res.status(503).json({ error: "Claude CLI not found — make sure it is installed and on your PATH" });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: "Claude CLI timed out (>60s)" });
+    }
+    console.error("[screenwatch/scan]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /screenwatch/click — locate an option's text on screen, click it, then
+// after 3-5 s click again to advance. { optionText, processName, region, dryRun }
+app.post("/screenwatch/click", async (req, res) => {
+  const { optionText, processName, region, dryRun } = req.body || {};
+  if (!optionText) return res.status(400).json({ error: "optionText is required" });
+  try {
+    const result = await screenwatch.clickOption({ optionText, processName, region, dryRun: !!dryRun });
+    console.log("[screenwatch/click]", result.replace(/\r?\n/g, " | "));
+    res.json({ ok: true, result });
+  } catch (err) {
+    if (err.message === "WINDOW_NOT_FOUND") {
+      return res.status(404).json({ error: `No se encontró la ventana de ${processName}` });
+    }
+    if (err.message === "TEXT_NOT_FOUND") {
+      return res.status(404).json({ error: `No encontré "${optionText}" en la pantalla` });
+    }
+    if (err.message === "OCR_UNAVAILABLE") {
+      return res.status(503).json({ error: "OCR no disponible en este Windows" });
+    }
+    console.error("[screenwatch/click]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// POST /screenwatch/test — broadcast a sample question to try the full flow
+app.post("/screenwatch/test", (req, res) => {
+  broadcast({
+    type: "screen_question",
+    id: `sq-test-${Date.now()}`,
+    timestamp: Date.now(),
+    question: "¿Cuál es el planeta más grande del sistema solar?",
+    options: ["Marte", "Júpiter", "Saturno", "La Tierra"],
+  });
+  res.json({ ok: true });
+});
+
+// POST /screen-answer — answer a detected on-screen question using collected chat
+app.post("/screen-answer", async (req, res) => {
+  const { question, options, messages, basePrompt, provider, windowSec } = req.body || {};
+  if (!question) return res.status(400).json({ error: "question is required" });
+  try {
+    const result = await queryScreenAnswer({
+      question,
+      options: Array.isArray(options) ? options : [],
+      messages: Array.isArray(messages) ? messages : [],
+      basePrompt: basePrompt || "",
+      provider: provider || "claude",
+      windowSec: Number(windowSec) || 20,
+    });
+    // { response, choiceIndex, topVoteIndex }
+    res.json(result);
+  } catch (err) {
+    if (err.message === "OPENAI_API_KEY_MISSING") {
+      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
+    }
+    if (err.message === "CLI_NOT_FOUND") {
+      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
+    }
+    console.error("[screen-answer]", err.message);
     res.status(500).json({ error: err.message });
   }
 });

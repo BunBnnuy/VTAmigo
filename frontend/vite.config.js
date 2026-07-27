@@ -16,6 +16,13 @@ export default defineConfig({
       "/vtube": "http://localhost:3001",
       "/lipsync": "http://localhost:3001",
       "/transcribe": "http://localhost:3001",
+      "/youtube-narrate": "http://localhost:3001",
+      "/connect-tiktok": "http://localhost:3001",
+      "/disconnect-tiktok": "http://localhost:3001",
+      "/connect-bot": "http://localhost:3001",
+      "/say": "http://localhost:3001",
+      "/screenwatch": "http://localhost:3001",
+      "/screen-answer": "http://localhost:3001",
     },
   },
 });

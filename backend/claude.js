@@ -1,4 +1,5 @@
 const { spawn } = require("child_process");
+const path = require("path");
 
 const TIMEOUT_MS = 60000;
 
@@ -113,32 +114,59 @@ const CLAUDE_EXE =
   process.env.CLAUDE_PATH ||
   "C:\\Users\\beton\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Anthropic.ClaudeCode_Microsoft.Winget.Source_8wekyb3d8bbwe\\claude.exe";
 
-async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event = null, story = null, thoughts = null, provider = "claude") {
-  const prompt = event
-    ? buildEventPrompt(event, basePrompt)
-    : story
-    ? buildStoryPrompt(story, basePrompt)
-    : thoughts
-    ? buildThoughtsPrompt(thoughts, basePrompt)
-    : buildPrompt(messages, style, basePrompt);
+// Shared CLI runner — spawns `claude -p` (or grok) and resolves with stdout
+const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
+function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS } = {}) {
+  if (!process.env.OPENAI_API_KEY) return Promise.reject(new Error("OPENAI_API_KEY_MISSING"));
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+  return fetch("https://api.openai.com/v1/responses", {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ model: OPENAI_MODEL, input: prompt }),
+    signal: controller.signal,
+  })
+    .then(async (response) => {
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(body?.error?.message || `OpenAI API request failed (${response.status})`);
+      if (!body.output_text?.trim()) throw new Error("OpenAI API returned an empty response");
+      return body.output_text.trim();
+    })
+    .catch((err) => {
+      if (err.name === "AbortError") throw new Error("TIMEOUT");
+      throw err;
+    })
+    .finally(() => clearTimeout(timer));
+}
+
+function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS } = {}) {
+  if (provider === "chatgpt") return runOpenAI(prompt, { timeoutMs });
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
 
     const exe = provider === "grok" ? GROK_EXE : CLAUDE_EXE;
+    const args = ["-p", prompt];
+    if (model && provider === "claude") args.push("--model", model);
 
-    const proc = spawn(exe, ["-p", prompt], {
+    const proc = spawn(exe, args, {
       shell: false,
       windowsHide: true,
+      ...(cwd ? { cwd } : {}),
     });
 
     const timer = setTimeout(() => {
       timedOut = true;
       proc.kill();
       reject(new Error("TIMEOUT"));
-    }, TIMEOUT_MS);
+    }, timeoutMs);
 
     proc.stdout.on("data", (chunk) => {
       stdout += chunk.toString();
@@ -178,4 +206,175 @@ async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event =
   });
 }
 
-module.exports = { queryClaudeCLI };
+async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event = null, story = null, thoughts = null, provider = "claude") {
+  const prompt = event
+    ? buildEventPrompt(event, basePrompt)
+    : story
+    ? buildStoryPrompt(story, basePrompt)
+    : thoughts
+    ? buildThoughtsPrompt(thoughts, basePrompt)
+    : buildPrompt(messages, style, basePrompt);
+
+  return runCLI(prompt, { provider });
+}
+
+// Use Windows UI Automation to enumerate ALL Chrome windows (including background ones)
+// and find the one with YouTube as the active tab.
+function getYouTubeTitleFromAllWindows() {
+  return new Promise((resolve) => {
+    const script = `
+Add-Type -AssemblyName UIAutomationClient
+Add-Type -AssemblyName UIAutomationTypes
+$root = [System.Windows.Automation.AutomationElement]::RootElement
+$cond = New-Object System.Windows.Automation.PropertyCondition(
+  [System.Windows.Automation.AutomationElement]::ClassNameProperty, 'Chrome_WidgetWin_1'
+)
+$windows = $root.FindAll([System.Windows.Automation.TreeScope]::Children, $cond)
+$found = $windows | ForEach-Object {
+  $_.GetCurrentPropertyValue([System.Windows.Automation.AutomationElement]::NameProperty)
+} | Where-Object { $_ -like '*YouTube*' } | Select-Object -First 1
+if ($found) { $found } else { '' }
+`.trim();
+
+    const ps = spawn(
+      "powershell",
+      ["-NoProfile", "-NonInteractive", "-Command", script],
+      { shell: false, windowsHide: true }
+    );
+    let out = "";
+    ps.stdout.on("data", (c) => { out += c.toString(); });
+    ps.on("close", () => resolve(out.trim()));
+    ps.on("error", () => resolve(""));
+  });
+}
+
+async function queryYouTubeNarration(basePrompt) {
+  const rawTitle = await getYouTubeTitleFromAllWindows();
+  // Strip " - YouTube - Google Chrome" → keep just the video title
+  const videoTitle = rawTitle
+    .replace(/ - YouTube.*$/i, "")
+    .replace(/ - Google Chrome\s*$/i, "")
+    .trim();
+
+  if (!videoTitle) {
+    throw new Error("No se encontró ninguna pestaña de YouTube abierta en Chrome.");
+  }
+
+  const base = (basePrompt || DEFAULT_BASE_PROMPT).trim();
+  const prompt = `${base}
+
+El streamer está viendo en YouTube: "${videoTitle}".
+
+Comenta brevemente en 1–3 oraciones como co-presentador del stream: de qué trata, por qué puede ser interesante, o una reacción natural. Sé espontáneo, como si lo comentaras en directo.`;
+
+  return runCLI(prompt);
+}
+
+// ── Screen question detection (screenwatch) ───────────────────────────────────
+
+// Vision pass: ask Haiku (cheap + fast) to extract a question + options from
+// the screenshot. The CLI reads the image itself; cwd is set to the image dir
+// so the read is auto-allowed in headless mode.
+async function extractScreenQuestion(imagePath) {
+  const prompt = `Lee la imagen "${path.basename(imagePath)}" que está en el directorio actual.
+
+Determina si en la pantalla hay una pregunta tipo trivia/quiz/encuesta con opciones de respuesta visibles (por ejemplo un juego de preguntas, un quiz o una encuesta).
+
+Responde ÚNICAMENTE con JSON válido, sin texto adicional ni markdown:
+{"hasQuestion": true, "question": "texto exacto de la pregunta", "options": ["opción 1", "opción 2"]}
+
+En "options" pon solo el texto de cada opción, sin letras ni números de enumeración (nada de "A)", "1.", etc.).
+
+Si no hay ninguna pregunta con opciones claras (chat, menús, gameplay normal, código, etc. NO cuentan), responde:
+{"hasQuestion": false, "question": "", "options": []}`;
+
+  const raw = await runCLI(prompt, { model: "haiku", cwd: path.dirname(imagePath) });
+  const match = raw.match(/\{[\s\S]*\}/);
+  if (!match) throw new Error(`Vision extraction returned no JSON: ${raw.slice(0, 200)}`);
+  const parsed = JSON.parse(match[0]);
+  return {
+    hasQuestion: !!parsed.hasQuestion,
+    question: String(parsed.question || "").trim(),
+    options: Array.isArray(parsed.options)
+      ? parsed.options
+          .map((o) => String(o).trim().replace(/^([a-j]|\d{1,2})[\).:\-]\s+/i, ""))
+          .filter(Boolean)
+      : [],
+  };
+}
+
+// Fuzzy-match chat messages to options: letter ("a"), number ("2"), or option text
+function tallyVotes(options, messages) {
+  const letters = "abcdefghij";
+  const counts = options.map(() => 0);
+  for (const m of messages) {
+    const text = (m.text || "").toLowerCase().trim();
+    if (!text) continue;
+    const short = text.replace(/[^a-z0-9áéíóúñü]/gi, "");
+    for (let i = 0; i < options.length; i++) {
+      const opt = options[i].toLowerCase().trim();
+      const optShort = opt.replace(/[^a-z0-9áéíóúñü]/gi, "");
+      if (
+        short === letters[i] ||
+        short === String(i + 1) ||
+        (opt.length >= 4 && text.includes(opt)) ||
+        (short.length >= 4 && optShort.includes(short))
+      ) {
+        counts[i]++;
+        break;
+      }
+    }
+  }
+  return counts;
+}
+
+async function queryScreenAnswer({ question, options, messages, basePrompt, provider = "claude", windowSec = 20 }) {
+  const base = (basePrompt || DEFAULT_BASE_PROMPT).trim();
+  const letters = "ABCDEFGHIJ";
+
+  const optionLines = options.map((o, i) => `${letters[i]}) ${o}`).join("\n");
+
+  const counts = tallyVotes(options, messages);
+  const totalVotes = counts.reduce((a, b) => a + b, 0);
+  const voteLines = totalVotes > 0
+    ? "Votos del chat:\n" + counts
+        .map((c, i) => (c > 0 ? `${letters[i]}) ${options[i]} — ${c} ${c === 1 ? "voto" : "votos"}` : null))
+        .filter(Boolean)
+        .join("\n")
+    : "";
+
+  const chatLines = messages.length > 0
+    ? messages.slice(-30).map((m) => `${m.username}: ${m.text}`).join("\n")
+    : "(el chat no dijo nada)";
+
+  const prompt = `${base}
+
+En el stream apareció esta pregunta en pantalla (quiz/trivia):
+
+Pregunta: ${question}
+Opciones:
+${optionLines}
+
+Esperé ${windowSec} segundos para que el chat opinara. Esto dijeron:
+${chatLines}
+${voteLines ? `\n${voteLines}\n` : ""}
+Da tu respuesta final como co-presentador: di qué opción eliges y por qué, en 1–3 oraciones. Ten en cuenta lo que dijo el chat, pero usa tu propio conocimiento — si crees que el chat se equivoca, dilo con gracia. Empieza tu respuesta EXACTAMENTE con la letra de la opción elegida entre corchetes, por ejemplo "[B] " y después tu comentario. Responde ahora.`;
+
+  const raw = await runCLI(prompt, { provider });
+
+  // Pull the leading "[B]" marker out of the spoken text
+  let choiceIndex = null;
+  let response = raw;
+  const marker = raw.match(/^\s*\[([A-J])\]\s*/i);
+  if (marker) {
+    const idx = letters.indexOf(marker[1].toUpperCase());
+    if (idx >= 0 && idx < options.length) choiceIndex = idx;
+    response = raw.slice(marker[0].length).trim() || raw;
+  }
+
+  const topVoteIndex = totalVotes > 0 ? counts.indexOf(Math.max(...counts)) : null;
+
+  return { response, choiceIndex, topVoteIndex };
+}
+
+module.exports = { queryClaudeCLI, queryYouTubeNarration, extractScreenQuestion, queryScreenAnswer };

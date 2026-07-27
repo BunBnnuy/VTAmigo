@@ -53,6 +53,9 @@ export default function ChatFeed({ messages }) {
         return (
           <div key={m.id} style={{ ...styles.row, ...(m.isRedeem ? styles.redeemRow : {}) }}>
             <span style={styles.time}>{formatTime(m.timestamp)}</span>
+            {m.extraChannel && (
+              <span style={styles.channelBadge}>#{m.extraChannel}</span>
+            )}
             {m.isRedeem && (
               <span style={styles.redeemBadge} title={m.rewardTitle || "Canje de puntos"}>🎁</span>
             )}
@@ -160,5 +163,14 @@ const styles = {
     fontSize: 11,
     flexShrink: 0,
     opacity: 0.7,
+  },
+  channelBadge: {
+    fontSize: 10,
+    color: "var(--purple-light)",
+    background: "rgba(145, 71, 255, 0.15)",
+    borderRadius: 4,
+    padding: "1px 5px",
+    flexShrink: 0,
+    fontWeight: 600,
   },
 };
