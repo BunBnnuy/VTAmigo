@@ -6,6 +6,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 
 - **Twitch & TikTok Live** chat reading
 - **AI responses** via Claude CLI, Grok CLI, or ChatGPT through the OpenAI API (switchable from settings)
+- **Persistent memory** — Claude and Grok each keep a long-lived CLI session (resumed across app restarts) so the co-host remembers past conversations; delete `backend/.agent-sessions.json` to reset
 - **Text-to-Speech** with configurable voice, speed, and volume
 - **VTube Studio lip-sync** — mouth animation driven by phoneme timing
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems
