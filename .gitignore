@@ -5,3 +5,4 @@ frontend/dist/
 dist-electron/
 *.log
 .env
+backend/.agent-sessions.json

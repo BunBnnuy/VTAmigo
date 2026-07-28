@@ -1,5 +1,7 @@
 const { spawn } = require("child_process");
 const path = require("path");
+const fs = require("fs");
+const { randomUUID } = require("crypto");
 
 const TIMEOUT_MS = 60000;
 
@@ -145,15 +147,96 @@ function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS } = {}) {
     .finally(() => clearTimeout(timer));
 }
 
-function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS } = {}) {
+// Per-provider persistent sessions: the first query opens the session with
+// --session-id, later queries --resume it so the co-host remembers the whole
+// stream. Claude and grok each get their own. IDs live in a JSON file next to
+// the backend so memory survives restarts — delete the file (or a provider's
+// entry) to give the bot a clean slate.
+const SESSIONS_FILE = path.join(__dirname, ".agent-sessions.json");
+
+function loadSessions() {
+  const fresh = () => ({ id: randomUUID(), started: false });
+  let saved = {};
+  try {
+    saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf8"));
+  } catch {
+    // Missing or unreadable file → start fresh sessions
+  }
+  const restore = (p) =>
+    saved[p] && typeof saved[p].id === "string"
+      ? { id: saved[p].id, started: !!saved[p].started }
+      : fresh();
+  return { claude: restore("claude"), grok: restore("grok") };
+}
+
+function saveSessions() {
+  try {
+    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
+  } catch (err) {
+    console.error("Failed to save agent sessions:", err.message);
+  }
+}
+
+const sessions = loadSessions();
+
+// A session can't be resumed by two processes at once, so serialize calls
+// per provider with a promise chain.
+const queues = { claude: Promise.resolve(), grok: Promise.resolve() };
+
+function resetSession(provider) {
+  sessions[provider] = { id: randomUUID(), started: false };
+  saveSessions();
+}
+
+function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, session = true } = {}) {
   if (provider === "chatgpt") return runOpenAI(prompt, { timeoutMs });
+  if (!session || !sessions[provider]) {
+    return spawnCLI(prompt, { provider, model, cwd, timeoutMs });
+  }
+
+  const run = queues[provider].then(async () => {
+    const sess = sessions[provider];
+    const sessionArgs = sess.started
+      ? ["--resume", sess.id]
+      : ["--session-id", sess.id];
+    try {
+      const out = await spawnCLI(prompt, { provider, model, cwd, timeoutMs, sessionArgs });
+      if (!sess.started) {
+        sess.started = true;
+        saveSessions();
+      }
+      return out;
+    } catch (err) {
+      // A broken/missing session would otherwise wedge the bot — start a
+      // fresh one and retry once. Timeouts and missing CLIs aren't session
+      // problems, so let those surface.
+      if (sess.started && err.message !== "TIMEOUT" && err.message !== "CLI_NOT_FOUND") {
+        resetSession(provider);
+        const fresh = sessions[provider];
+        const out = await spawnCLI(prompt, {
+          provider, model, cwd, timeoutMs,
+          sessionArgs: ["--session-id", fresh.id],
+        });
+        fresh.started = true;
+        saveSessions();
+        return out;
+      }
+      throw err;
+    }
+  });
+
+  queues[provider] = run.catch(() => {});
+  return run;
+}
+
+function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, sessionArgs = [] } = {}) {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
 
     const exe = provider === "grok" ? GROK_EXE : CLAUDE_EXE;
-    const args = ["-p", prompt];
+    const args = ["-p", prompt, ...sessionArgs];
     if (model && provider === "claude") args.push("--model", model);
 
     const proc = spawn(exe, args, {
@@ -288,7 +371,9 @@ En "options" pon solo el texto de cada opción, sin letras ni números de enumer
 Si no hay ninguna pregunta con opciones claras (chat, menús, gameplay normal, código, etc. NO cuentan), responde:
 {"hasQuestion": false, "question": "", "options": []}`;
 
-  const raw = await runCLI(prompt, { model: "haiku", cwd: path.dirname(imagePath) });
+  // Sessionless on purpose: this is a utility vision pass on a different
+  // model — it shouldn't enter (or wait on) the co-host's conversation.
+  const raw = await runCLI(prompt, { model: "haiku", cwd: path.dirname(imagePath), session: false });
   const match = raw.match(/\{[\s\S]*\}/);
   if (!match) throw new Error(`Vision extraction returned no JSON: ${raw.slice(0, 200)}`);
   const parsed = JSON.parse(match[0]);
