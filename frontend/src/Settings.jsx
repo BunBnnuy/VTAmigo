@@ -7,6 +7,34 @@ export default function Settings({ settings, onSave, onClose }) {
   const [voices, setVoices] = useState([]);
   const [micDevices, setMicDevices] = useState([]);
   const [newExtraChannel, setNewExtraChannel] = useState("");
+  const [elevenVoices, setElevenVoices] = useState([]);
+  const [elevenVoicesStatus, setElevenVoicesStatus] = useState(""); // "", "loading", "error message"
+
+  const loadElevenVoices = async (apiKey) => {
+    if (!apiKey) return;
+    setElevenVoicesStatus("loading");
+    try {
+      const res = await fetch("/tts/elevenlabs/voices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setElevenVoices(data.voices || []);
+      setElevenVoicesStatus("");
+    } catch (err) {
+      setElevenVoices([]);
+      setElevenVoicesStatus(err.message);
+    }
+  };
+
+  // Auto-load ElevenLabs voices when opening settings with a saved key
+  useEffect(() => {
+    if (settings.ttsProvider === "elevenlabs" && settings.elevenLabsKey) {
+      loadElevenVoices(settings.elevenLabsKey);
+    }
+  }, []);
 
   useEffect(() => {
     const load = () => setVoices(tts.getVoices());
@@ -474,16 +502,91 @@ export default function Settings({ settings, onSave, onClose }) {
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>Text-to-Speech</h3>
             <div style={styles.field}>
-              <label>Voice</label>
-              <select value={form.voiceURI} onChange={(e) => set("voiceURI", e.target.value)}>
-                <option value="">System default</option>
-                {voices.map((v) => (
-                  <option key={v.voiceURI} value={v.voiceURI}>
-                    {v.name} ({v.lang})
-                  </option>
-                ))}
+              <label>TTS Provider</label>
+              <select
+                value={form.ttsProvider || "windows"}
+                onChange={(e) => set("ttsProvider", e.target.value)}
+              >
+                <option value="windows">Windows TTS (system voices)</option>
+                <option value="elevenlabs">ElevenLabs (API key required)</option>
               </select>
             </div>
+            {(form.ttsProvider || "windows") === "windows" && (
+              <div style={styles.field}>
+                <label>Voice</label>
+                <select value={form.voiceURI} onChange={(e) => set("voiceURI", e.target.value)}>
+                  <option value="">System default</option>
+                  {voices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {v.name} ({v.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+            {form.ttsProvider === "elevenlabs" && (
+              <>
+                <div style={styles.field}>
+                  <label>ElevenLabs API key</label>
+                  <input
+                    type="password"
+                    value={form.elevenLabsKey || ""}
+                    onChange={(e) => set("elevenLabsKey", e.target.value)}
+                    onBlur={() => loadElevenVoices(form.elevenLabsKey)}
+                    placeholder="sk_xxxxxxxxxxxxxxxxxxxx"
+                  />
+                  <span style={styles.hint}>
+                    Get one at{" "}
+                    <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noreferrer" style={styles.link}>
+                      elevenlabs.io
+                    </a>
+                    {" "}— stored locally, only sent to the local backend. Falls back to Windows TTS if generation fails.
+                  </span>
+                </div>
+                <div style={styles.field}>
+                  <label>ElevenLabs voice</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      value={form.elevenLabsVoiceId || ""}
+                      onChange={(e) => set("elevenLabsVoiceId", e.target.value)}
+                      style={{ flex: 1 }}
+                    >
+                      <option value="">— select a voice —</option>
+                      {elevenVoices.map((v) => (
+                        <option key={v.voice_id} value={v.voice_id}>
+                          {v.name}{v.category ? ` (${v.category})` : ""}
+                        </option>
+                      ))}
+                      {form.elevenLabsVoiceId && !elevenVoices.some((v) => v.voice_id === form.elevenLabsVoiceId) && (
+                        <option value={form.elevenLabsVoiceId}>{form.elevenLabsVoiceId} (saved)</option>
+                      )}
+                    </select>
+                    <button
+                      type="button"
+                      style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
+                      onClick={() => loadElevenVoices(form.elevenLabsKey)}
+                      disabled={!form.elevenLabsKey || elevenVoicesStatus === "loading"}
+                    >
+                      {elevenVoicesStatus === "loading" ? "Loading…" : "↻ Load voices"}
+                    </button>
+                  </div>
+                  {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
+                    <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ {elevenVoicesStatus}</span>
+                  )}
+                </div>
+                <div style={styles.field}>
+                  <label>Or paste a voice ID directly</label>
+                  <input
+                    value={form.elevenLabsVoiceId || ""}
+                    onChange={(e) => set("elevenLabsVoiceId", e.target.value.trim())}
+                    placeholder="21m00Tcm4TlvDq8ikWAM"
+                  />
+                  <span style={styles.hint}>
+                    Useful for library/shared voices that don't appear in "My voices". Find the ID in ElevenLabs → Voices → ⋯ → Copy voice ID.
+                  </span>
+                </div>
+              </>
+            )}
             <div style={styles.row2}>
               <div style={styles.field}>
                 <label>Speed ({form.ttsRate}x)</label>

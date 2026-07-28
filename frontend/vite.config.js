@@ -23,6 +23,8 @@ export default defineConfig({
       "/say": "http://localhost:3001",
       "/screenwatch": "http://localhost:3001",
       "/screen-answer": "http://localhost:3001",
+      "/xp": "http://localhost:3001",
+      "/tts": "http://localhost:3001",
     },
   },
 });

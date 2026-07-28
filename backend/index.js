@@ -12,6 +12,8 @@ const { fetchRandomStory } = require("./reddit");
 const vtube = require("./vtube");
 const phonemes = require("./phonemes");
 const animations = require("./animations");
+const xp = require("./xp");
+const elevenlabs = require("./elevenlabs");
 
 const PORT = 3001;
 const app = express();
@@ -37,6 +39,15 @@ function broadcast(data) {
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) ws.send(msg);
   });
+}
+
+// Broadcast a chat message and award XP for it
+function handleChat(msg) {
+  broadcast({ type: "chat", msg });
+  if (msg.username && msg.text) {
+    const ev = xp.addMessage(msg.username, msg.text, msg.color);
+    if (ev && ev.gained > 0) broadcast({ type: "xp", ...ev });
+  }
 }
 
 // POST /respond — run Claude CLI with a batch of messages
@@ -119,7 +130,7 @@ app.post("/connect-extra", (req, res) => {
   extraReadClients[ch] = new TwitchIRCClient({
     channel: ch,
     token,
-    onMessage: (msg) => broadcast({ type: "chat", msg: { ...msg, extraChannel: ch } }),
+    onMessage: (msg) => handleChat({ ...msg, extraChannel: ch }),
     onStatus: (status) => broadcast({ type: "extra_status", channel: ch, status }),
   });
   extraReadClients[ch].connect();
@@ -173,7 +184,7 @@ app.post("/connect", (req, res) => {
     channel,
     token,
     username,
-    onMessage: (msg) => broadcast({ type: "chat", msg }),
+    onMessage: (msg) => handleChat(msg),
     onStatus: (status) => broadcast({ type: "status", status }),
   });
   twitchClient.connect();
@@ -214,7 +225,7 @@ app.post("/connect-tiktok", (req, res) => {
 
   tiktokClient = new TikTokChatClient({
     username,
-    onMessage: (msg) => broadcast({ type: "chat", msg }),
+    onMessage: (msg) => handleChat(msg),
     onStatus: (status) => broadcast({ type: "tiktok_status", status }),
   });
   tiktokClient.connect();
@@ -427,6 +438,40 @@ app.post("/screen-answer", async (req, res) => {
   }
 });
 
+// ── XP / ranking ─────────────────────────────────────────────────────────────
+
+// GET /xp/ranking?limit=10 — top users by XP
+app.get("/xp/ranking", (req, res) => {
+  res.json({ ranking: xp.getRanking(Number(req.query.limit) || 10) });
+});
+
+// GET /overlay/xp — transparent overlay page (add as OBS browser source)
+app.get("/overlay/xp", (req, res) => {
+  res.sendFile(path.join(__dirname, "overlay", "xp.html"));
+});
+
+// POST /xp/config — { ignoredUsers: "name1, name2" | [] } — users that earn no XP
+app.post("/xp/config", (req, res) => {
+  const { ignoredUsers } = req.body || {};
+  if (ignoredUsers != null) xp.setIgnored(ignoredUsers);
+  res.json({ ok: true });
+});
+
+// POST /xp/reset — wipe all XP data
+app.post("/xp/reset", (req, res) => {
+  xp.reset();
+  res.json({ ok: true });
+});
+
+// POST /xp/test — simulate a chat message to preview the overlay animation
+app.post("/xp/test", (req, res) => {
+  const { username, text, color } = req.body || {};
+  const ev = xp.addMessage(username || "TestUser", text || "hola mundo, este es un mensaje de prueba!", color || "#9147ff");
+  if (!ev) return res.json({ ok: true, ignored: true });
+  broadcast({ type: "xp", ...ev });
+  res.json({ ok: true, ...ev });
+});
+
 // GET /health
 app.get("/health", (req, res) => res.json({ ok: true }));
 
@@ -470,6 +515,43 @@ app.post("/lipsync/start", (req, res) => {
   animations.startSpeaking();
   phonemes.schedulePhonemes(text, Number(durationMs));
   res.json({ ok: true });
+});
+
+// ── ElevenLabs TTS ────────────────────────────────────────────────────────────
+
+// POST /tts/elevenlabs/voices — { apiKey } → { voices: [{ voice_id, name }] }
+app.post("/tts/elevenlabs/voices", async (req, res) => {
+  const { apiKey } = req.body || {};
+  if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
+  try {
+    const voices = await elevenlabs.listVoices(apiKey);
+    res.json({ voices });
+  } catch (err) {
+    if (err.message === "ELEVENLABS_UNAUTHORIZED") {
+      return res.status(401).json({ error: "ElevenLabs rejected the API key" });
+    }
+    console.error("[elevenlabs/voices]", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// POST /tts/elevenlabs — { text, apiKey, voiceId, modelId? } → audio/mpeg
+app.post("/tts/elevenlabs", async (req, res) => {
+  const { text, apiKey, voiceId, modelId } = req.body || {};
+  if (!text) return res.status(400).json({ error: "text is required" });
+  if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
+  if (!voiceId) return res.status(400).json({ error: "voiceId is required" });
+  try {
+    const audio = await elevenlabs.generateSpeech({ text, apiKey, voiceId, modelId });
+    res.set("Content-Type", "audio/mpeg");
+    res.send(audio);
+  } catch (err) {
+    if (err.message === "ELEVENLABS_UNAUTHORIZED") {
+      return res.status(401).json({ error: "ElevenLabs rejected the API key" });
+    }
+    console.error("[elevenlabs/tts]", err.message);
+    res.status(502).json({ error: err.message });
+  }
 });
 
 // POST /lipsync/stop — cancel timeline and reset mouth

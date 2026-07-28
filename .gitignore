@@ -6,3 +6,4 @@ dist-electron/
 *.log
 .env
 backend/.agent-sessions.json
+backend/xp-data.json

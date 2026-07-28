@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>XP Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+
+  /* ── XP bar (bottom center, fades in/out on gain) ─────────────────────── */
+  #xpbar {
+    position: fixed;
+    left: 50%;
+    bottom: 6vh;
+    transform: translateX(-50%) translateY(10px);
+    width: min(420px, 80vw);
+    opacity: 0;
+    transition: opacity 0.35s ease, transform 0.35s ease;
+    pointer-events: none;
+  }
+  #xpbar.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0);
+  }
+  .bar-head {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    margin-bottom: 6px;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  .bar-user {
+    font-weight: 700;
+    font-size: 18px;
+    color: #fff;
+  }
+  .bar-user .lvl {
+    font-size: 13px;
+    font-weight: 600;
+    color: #ffd75e;
+    margin-left: 8px;
+  }
+  .bar-gain {
+    font-size: 14px;
+    font-weight: 700;
+    color: #7ef29a;
+  }
+  .bar-track {
+    height: 16px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .bar-fill {
+    height: 100%;
+    width: 0%;
+    border-radius: 8px;
+    background: linear-gradient(90deg, #9147ff, #c98bff);
+    transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+  .bar-foot {
+    margin-top: 4px;
+    text-align: right;
+    font-size: 12px;
+    font-weight: 600;
+    color: rgba(255,255,255,0.85);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  #levelup {
+    position: absolute;
+    top: -34px;
+    left: 50%;
+    transform: translateX(-50%) scale(0.6);
+    font-size: 22px;
+    font-weight: 800;
+    color: #ffd75e;
+    text-shadow: 0 0 12px rgba(255, 200, 60, 0.9), 0 1px 3px rgba(0,0,0,0.8);
+    opacity: 0;
+    transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  #levelup.show {
+    opacity: 1;
+    transform: translateX(-50%) scale(1);
+  }
+
+  /* ── Ranking panel (top right, hide with ?ranking=0) ──────────────────── */
+  #ranking {
+    position: fixed;
+    top: 3vh;
+    right: 2vw;
+    width: 240px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.4);
+  }
+  #ranking h3 {
+    margin: 0 0 8px;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: #ffd75e;
+  }
+  .rank-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 3px 0;
+    font-size: 14px;
+  }
+  .rank-pos { width: 18px; font-weight: 700; color: rgba(255,255,255,0.6); }
+  .rank-name {
+    flex: 1;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .rank-lvl { font-size: 12px; font-weight: 700; color: #ffd75e; }
+  .rank-xp { font-size: 12px; color: rgba(255,255,255,0.7); }
+</style>
+</head>
+<body>
+  <div id="ranking" hidden>
+    <h3>Ranking</h3>
+    <div id="rank-rows"></div>
+  </div>
+
+  <div id="xpbar">
+    <div id="levelup">LEVEL UP!</div>
+    <div class="bar-head">
+      <span class="bar-user"><span id="bar-name"></span><span class="lvl" id="bar-level"></span></span>
+      <span class="bar-gain" id="bar-gain"></span>
+    </div>
+    <div class="bar-track"><div class="bar-fill" id="bar-fill"></div></div>
+    <div class="bar-foot" id="bar-foot"></div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const showRanking = params.get("ranking") !== "0";
+
+  const bar = document.getElementById("xpbar");
+  const fill = document.getElementById("bar-fill");
+  const nameEl = document.getElementById("bar-name");
+  const levelEl = document.getElementById("bar-level");
+  const gainEl = document.getElementById("bar-gain");
+  const footEl = document.getElementById("bar-foot");
+  const levelupEl = document.getElementById("levelup");
+  const rankingEl = document.getElementById("ranking");
+  const rankRowsEl = document.getElementById("rank-rows");
+
+  // ── Ranking panel ────────────────────────────────────────────────────────
+  async function refreshRanking() {
+    if (!showRanking) return;
+    try {
+      const res = await fetch("/xp/ranking?limit=5");
+      const { ranking } = await res.json();
+      rankingEl.hidden = ranking.length === 0;
+      rankRowsEl.innerHTML = "";
+      ranking.forEach((u, i) => {
+        const row = document.createElement("div");
+        row.className = "rank-row";
+        const pos = document.createElement("span");
+        pos.className = "rank-pos";
+        pos.textContent = i + 1;
+        const name = document.createElement("span");
+        name.className = "rank-name";
+        name.textContent = u.username;
+        name.style.color = u.color || "#fff";
+        const lvl = document.createElement("span");
+        lvl.className = "rank-lvl";
+        lvl.textContent = "Lv " + u.level;
+        const xpTxt = document.createElement("span");
+        xpTxt.className = "rank-xp";
+        xpTxt.textContent = u.xp + " XP";
+        row.append(pos, name, lvl, xpTxt);
+        rankRowsEl.appendChild(row);
+      });
+    } catch { /* backend not ready yet */ }
+  }
+  refreshRanking();
+  setInterval(refreshRanking, 15000);
+
+  // ── XP bar animation queue ───────────────────────────────────────────────
+  const queue = [];
+  let playing = false;
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  async function playEvent(ev) {
+    const pct = (v, total) => Math.min(100, (v / total) * 100);
+
+    nameEl.textContent = ev.username;
+    nameEl.style.color = ev.color || "#fff";
+    levelEl.textContent = "Lv " + ev.prevLevel;
+    gainEl.textContent = "+" + ev.gained + " XP";
+    footEl.textContent = ev.xpIntoLevel + " / " + ev.xpNeeded + " XP";
+
+    // start at previous progress, no transition
+    fill.style.transition = "none";
+    fill.style.width = pct(ev.prevXpIntoLevel, ev.prevXpNeeded) + "%";
+    void fill.offsetWidth; // reflow so the jump isn't animated
+
+    // fade in
+    bar.classList.add("show");
+    await wait(350);
+
+    fill.style.transition = "";
+    if (ev.levelUp) {
+      // fill to 100%, flash LEVEL UP, then reset to new-level progress
+      fill.style.width = "100%";
+      await wait(750);
+      levelupEl.classList.add("show");
+      levelEl.textContent = "Lv " + ev.level;
+      fill.style.transition = "none";
+      fill.style.width = "0%";
+      void fill.offsetWidth;
+      fill.style.transition = "";
+      fill.style.width = pct(ev.xpIntoLevel, ev.xpNeeded) + "%";
+      await wait(1600);
+      levelupEl.classList.remove("show");
+    } else {
+      fill.style.width = pct(ev.xpIntoLevel, ev.xpNeeded) + "%";
+      await wait(750);
+    }
+
+    // hold, then fade out
+    await wait(1600);
+    bar.classList.remove("show");
+    await wait(450);
+  }
+
+  async function pump() {
+    if (playing) return;
+    playing = true;
+    while (queue.length) {
+      await playEvent(queue.shift());
+    }
+    playing = false;
+  }
+
+  // ── WebSocket ────────────────────────────────────────────────────────────
+  function connect() {
+    const ws = new WebSocket("ws://" + location.host + "/chat");
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "xp") {
+        // cap the queue so a busy chat doesn't lag the overlay forever
+        if (queue.length < 5) queue.push(data);
+        pump();
+        refreshRanking();
+      }
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

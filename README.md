@@ -7,7 +7,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 - **Twitch & TikTok Live** chat reading
 - **AI responses** via Claude CLI, Grok CLI, or ChatGPT through the OpenAI API (switchable from settings)
 - **Persistent memory** — Claude and Grok each keep a long-lived CLI session (resumed across app restarts) so the co-host remembers past conversations; delete `backend/.agent-sessions.json` to reset
-- **Text-to-Speech** with configurable voice, speed, and volume
+- **Text-to-Speech** with configurable voice, speed, and volume — Windows TTS (default, free) or ElevenLabs (API key required); ElevenLabs clips drive the lip-sync with their real audio duration and fall back to Windows TTS if generation fails
 - **VTube Studio lip-sync** — mouth animation driven by phoneme timing
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems
 - **Reddit stories** — reads aloud random stories from configurable subreddits when chat is idle
@@ -18,6 +18,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 - **Auto-click** — clicks the chosen answer on screen via OCR, with fallbacks (first option, window center) so the game never gets stuck
 - **Auto-navigation (Majotori)** — after each round, clicks through the results screen back to the main menu and starts the next Solo Trivia round automatically
 - **YouTube peek** — periodically comments on the YouTube video open in Chrome
+- **XP ranking** — every chat message earns XP (message length ÷ 10) with exponentially growing level requirements; progress is saved to `backend/xp-data.json`. Add `http://localhost:3001/overlay/xp` as an OBS browser source: it shows a top-5 ranking (hide with `?ranking=0`) and an animated XP bar that fades in on each gain, fills, and fades out (with a LEVEL UP flash on level-ups). Test it with `POST /xp/test`.
 
 ## Requirements
 
@@ -66,6 +67,8 @@ All settings are available in the in-app Settings panel:
 | Response style | Auto / Chatbot / Narrator |
 | Base prompt | System prompt prepended to every AI request |
 | Reddit subreddits | Sources for idle-chat stories |
+| TTS provider | Windows TTS (system voices) or ElevenLabs |
+| ElevenLabs API key / voice | Pick from your account's voices or paste a voice ID directly |
 | TTS voice / speed / volume | Speech synthesis settings |
 | Mic device / language / label | Voice transcription settings |
 | VTube Studio URL / plugin / mouth param | Lip-sync connection settings |

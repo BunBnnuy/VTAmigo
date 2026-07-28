@@ -25,6 +25,9 @@ const DEFAULT_SETTINGS = {
   voiceURI: "",
   ttsRate: 1,
   ttsVolume: 1,
+  ttsProvider: "windows",
+  elevenLabsKey: "",
+  elevenLabsVoiceId: "",
   vtubeUrl: "ws://localhost:8001",
   vtubePlugin: "Twitch Chat Bot",
   vtubeMouthParam: "MouthOpen",
@@ -227,12 +230,23 @@ export default function App() {
     }).catch(() => {});
   }, [settings.vtubeUrl, settings.vtubePlugin, settings.vtubeMouthParam, settings.vtubeSensitivity]);
 
+  // Push XP ignore list to backend whenever it changes (also on startup)
+  useEffect(() => {
+    fetch("/xp/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ ignoredUsers: settings.ignoredUsers || "" }),
+    }).catch(() => {});
+  }, [settings.ignoredUsers]);
+
   // Apply TTS settings whenever they change
   useEffect(() => {
     tts.setVoice(settings.voiceURI);
     tts.setRate(settings.ttsRate);
     tts.setVolume(settings.ttsVolume);
-  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume]);
+    tts.setProvider(settings.ttsProvider);
+    tts.setElevenLabs({ apiKey: settings.elevenLabsKey, voiceId: settings.elevenLabsVoiceId });
+  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.elevenLabsKey, settings.elevenLabsVoiceId]);
 
   // ── Batch triggering ──────────────────────────────────────────────────────
 

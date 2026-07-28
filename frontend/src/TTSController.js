@@ -1,4 +1,5 @@
-// Web Speech API TTS queue — responses play sequentially, never overlapping.
+// TTS queue — responses play sequentially, never overlapping.
+// Providers: "windows" (Web Speech API, default) or "elevenlabs" (backend proxy → Audio element).
 
 const AVG_CHARS_PER_SEC = 14;
 
@@ -23,6 +24,10 @@ class TTSController {
     this.volume = 1;
     this.rate = 1;
     this.voiceURI = null;
+    this.provider = "windows";
+    this.elevenLabsKey = "";
+    this.elevenLabsVoiceId = "";
+    this.currentAudio = null; // active ElevenLabs Audio element
     this.onStateChange = null; // () => void — called when playing/queue changes
   }
 
@@ -36,16 +41,27 @@ class TTSController {
 
   setVolume(v) {
     this.volume = v;
+    if (this.currentAudio) this.currentAudio.volume = v;
   }
 
   setRate(r) {
     this.rate = r;
   }
 
+  setProvider(p) {
+    this.provider = p || "windows";
+  }
+
+  setElevenLabs({ apiKey, voiceId }) {
+    if (apiKey != null) this.elevenLabsKey = apiKey;
+    if (voiceId != null) this.elevenLabsVoiceId = voiceId;
+  }
+
   setMuted(m) {
     this.muted = m;
     if (m) {
       lipsyncStop();
+      this._stopCurrentAudio();
       this.synth.cancel();
     }
   }
@@ -60,16 +76,32 @@ class TTSController {
 
   skip() {
     lipsyncStop();
-    this.synth.cancel();
-    // onend will fire → _next()
+    if (this.currentAudio) {
+      this._stopCurrentAudio(true); // fires its onDone → _next()
+    } else {
+      this.synth.cancel();
+      // onend will fire → _next()
+    }
   }
 
   clearQueue() {
     lipsyncStop();
     this.queue = [];
+    this._stopCurrentAudio();
     this.synth.cancel();
     this.playing = false;
     this._notify();
+  }
+
+  _stopCurrentAudio(fireDone = false) {
+    const audio = this.currentAudio;
+    if (!audio) return;
+    this.currentAudio = null;
+    audio.onended = null;
+    audio.onerror = null;
+    audio.pause();
+    if (audio.src) URL.revokeObjectURL(audio.src);
+    if (fireDone && audio._onFinished) audio._onFinished();
   }
 
   _next() {
@@ -82,6 +114,14 @@ class TTSController {
     this.playing = true;
     this._notify();
 
+    if (this.provider === "elevenlabs" && this.elevenLabsKey && this.elevenLabsVoiceId) {
+      this._speakElevenLabs(text, onDone);
+    } else {
+      this._speakWindows(text, onDone);
+    }
+  }
+
+  _speakWindows(text, onDone) {
     const utt = new SpeechSynthesisUtterance(text);
     utt.volume = this.volume;
     utt.rate = this.rate;
@@ -109,6 +149,61 @@ class TTSController {
     };
 
     this.synth.speak(utt);
+  }
+
+  async _speakElevenLabs(text, onDone) {
+    let blob;
+    try {
+      const res = await fetch("/tts/elevenlabs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text, apiKey: this.elevenLabsKey, voiceId: this.elevenLabsVoiceId }),
+      });
+      if (!res.ok) throw new Error(`ElevenLabs proxy returned ${res.status}`);
+      blob = await res.blob();
+    } catch (err) {
+      console.warn("[tts] ElevenLabs failed, falling back to Windows TTS:", err.message);
+      this._speakWindows(text, onDone);
+      return;
+    }
+
+    // Muted/skipped while the clip was generating
+    if (this.muted) {
+      if (onDone) onDone();
+      this._next();
+      return;
+    }
+
+    const audio = new Audio(URL.createObjectURL(blob));
+    audio.volume = this.volume;
+    audio.playbackRate = this.rate;
+    this.currentAudio = audio;
+
+    const finish = () => {
+      if (this.currentAudio === audio) {
+        this.currentAudio = null;
+        if (audio.src) URL.revokeObjectURL(audio.src);
+      }
+      lipsyncStop();
+      if (onDone) onDone();
+      this._next();
+    };
+    audio._onFinished = () => {
+      lipsyncStop();
+      if (onDone) onDone();
+      this._next();
+    };
+    audio.onended = finish;
+    audio.onerror = finish;
+
+    try {
+      await audio.play();
+      // Real clip length drives the mouth-sync phoneme timeline
+      const durationMs = Math.round(((audio.duration || text.length / AVG_CHARS_PER_SEC) / this.rate) * 1000);
+      lipsyncStart(text, durationMs);
+    } catch {
+      finish();
+    }
   }
 
   _notify() {
