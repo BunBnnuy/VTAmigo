@@ -5,8 +5,8 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 ## Features
 
 - **Twitch & TikTok Live** chat reading
-- **AI responses** via Claude CLI, Grok CLI, or ChatGPT through the OpenAI API (switchable from settings)
-- **Persistent memory** — Claude and Grok each keep a long-lived CLI session (resumed across app restarts) so the co-host remembers past conversations; delete `backend/.agent-sessions.json` to reset
+- **AI responses** via Claude CLI, Grok CLI, AGY CLI, or ChatGPT through the OpenAI API (switchable from settings)
+- **Persistent memory & Session Export** — Claude, Grok, and AGY CLI each keep a long-lived CLI session (resumed across app restarts) so the co-host remembers past conversations. Export session memory seamlessly between providers (e.g., Grok -> AGY) from Settings. Delete `backend/.agent-sessions.json` to reset.
 - **Text-to-Speech** with configurable voice, speed, and volume — Windows TTS (default, free), ElevenLabs (API key required), or Piper (local offline Spanish voices, CPU-only); ElevenLabs and Piper clips drive the lip-sync with their real audio duration and fall back to Windows TTS if generation fails
 - **VTube Studio lip-sync** — mouth animation driven by phoneme timing
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems
@@ -94,6 +94,9 @@ AICompanion/
 ├── backend/          # Express API server
 │   ├── index.js      # Routes
 │   ├── claude.js     # AI provider (Claude / Grok / AGY CLI) integration
+│   ├── memoryExport.js       # Memory export manager across CLI models
+│   ├── memoryExportWorker.js # Background worker for exporting/importing session memory
+│   ├── piper.js               # Piper TTS engine runner
 │   ├── twitch.js     # Twitch IRC client
 │   ├── eventsub.js   # Twitch EventSub client
 │   ├── tiktok.js     # TikTok Live chat client
