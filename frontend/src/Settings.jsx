@@ -9,6 +9,52 @@ export default function Settings({ settings, onSave, onClose }) {
   const [newExtraChannel, setNewExtraChannel] = useState("");
   const [elevenVoices, setElevenVoices] = useState([]);
   const [elevenVoicesStatus, setElevenVoicesStatus] = useState(""); // "", "loading", "error message"
+  const [piperVoices, setPiperVoices] = useState([]);
+  const [piperStatus, setPiperStatus] = useState(""); // "", "loading", "ok", "missing", "error message"
+  const [exportTarget, setExportTarget] = useState("");
+  const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
+
+  // Poll export progress while a job is running
+  useEffect(() => {
+    if (!exportStatus?.running) return;
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch("/memory/export/status");
+        setExportStatus(await res.json());
+      } catch {
+        // Backend unreachable — keep last known state and retry
+      }
+    }, 700);
+    return () => clearInterval(timer);
+  }, [exportStatus?.running]);
+
+  const startMemoryExport = async (from, to) => {
+    try {
+      const res = await fetch("/memory/export", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ from, to }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setExportStatus({ running: true, pct: 0, stage: "Iniciando…", error: null, mdPath: null });
+    } catch (err) {
+      setExportStatus({ running: false, pct: 0, stage: "", error: err.message, mdPath: null });
+    }
+  };
+
+  const loadPiperVoices = async () => {
+    setPiperStatus("loading");
+    try {
+      const res = await fetch("/tts/piper/voices");
+      const data = await res.json();
+      setPiperVoices(data.voices || []);
+      setPiperStatus(data.installed ? "ok" : "missing");
+    } catch (err) {
+      setPiperVoices([]);
+      setPiperStatus(err.message);
+    }
+  };
 
   const loadElevenVoices = async (apiKey) => {
     if (!apiKey) return;
@@ -34,6 +80,7 @@ export default function Settings({ settings, onSave, onClose }) {
     if (settings.ttsProvider === "elevenlabs" && settings.elevenLabsKey) {
       loadElevenVoices(settings.elevenLabsKey);
     }
+    if (settings.ttsProvider === "piper") loadPiperVoices();
   }, []);
 
   useEffect(() => {
@@ -481,9 +528,80 @@ export default function Settings({ settings, onSave, onClose }) {
               <select value={form.provider || "claude"} onChange={(e) => set("provider", e.target.value)}>
                 <option value="claude">Claude (claude -p)</option>
                 <option value="grok">Grok (grok -p)</option>
+                <option value="agy">AGY CLI (agy -p)</option>
                 <option value="chatgpt">ChatGPT (OpenAI API)</option>
               </select>
             </div>
+            {(() => {
+              const current = form.provider || "claude";
+              const targets = ["claude", "grok", "agy"].filter((p) => p !== current);
+              const target = targets.includes(exportTarget) ? exportTarget : targets[0];
+              const canExport = current !== "chatgpt" && !exportStatus?.running;
+              const label = (p) => p.charAt(0).toUpperCase() + p.slice(1);
+              return (
+                <div style={styles.field}>
+                  <label>Exportar memoria del modelo actual</label>
+                  <div style={{ display: "flex", gap: 8 }}>
+                    <select
+                      value={target || ""}
+                      onChange={(e) => setExportTarget(e.target.value)}
+                      disabled={!canExport}
+                      style={{ flex: 1 }}
+                    >
+                      {targets.map((p) => (
+                        <option key={p} value={p}>{label(p)}</option>
+                      ))}
+                    </select>
+                    <button
+                      type="button"
+                      onClick={() => startMemoryExport(current, target)}
+                      disabled={!canExport || !target}
+                      style={{
+                        background: "var(--surface2)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        opacity: !canExport || !target ? 0.5 : 1,
+                      }}
+                    >
+                      {exportStatus?.running ? "Exportando…" : `📤 Exportar a ${label(target || "")}`}
+                    </button>
+                  </div>
+                  {exportStatus && (exportStatus.running || exportStatus.pct > 0 || exportStatus.error) && (
+                    <div style={{ marginTop: 8 }}>
+                      <div
+                        style={{
+                          height: 10,
+                          background: "var(--surface2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 5,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${exportStatus.pct || 0}%`,
+                            background: exportStatus.error ? "#e05555" : "var(--purple)",
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+                      <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                        {exportStatus.error
+                          ? `❌ ${exportStatus.error}`
+                          : exportStatus.pct >= 100
+                          ? `✅ ${exportStatus.stage}${exportStatus.mdPath ? ` — guardada en ${exportStatus.mdPath}` : ""}`
+                          : `${exportStatus.stage} (${exportStatus.pct || 0}%)`}
+                      </span>
+                    </div>
+                  )}
+                  <span style={styles.hint}>
+                    Copia la memoria de la sesión del modelo seleccionado al otro modelo (se guarda también como .md en
+                    backend/memories/). ChatGPT no tiene sesión persistente, así que no participa.
+                  </span>
+                </div>
+              );
+            })()}
           </section>
 
           <section style={styles.section}>
@@ -505,10 +623,14 @@ export default function Settings({ settings, onSave, onClose }) {
               <label>TTS Provider</label>
               <select
                 value={form.ttsProvider || "windows"}
-                onChange={(e) => set("ttsProvider", e.target.value)}
+                onChange={(e) => {
+                  set("ttsProvider", e.target.value);
+                  if (e.target.value === "piper") loadPiperVoices();
+                }}
               >
                 <option value="windows">Windows TTS (system voices)</option>
                 <option value="elevenlabs">ElevenLabs (API key required)</option>
+                <option value="piper">Piper (local Spanish voices, offline)</option>
               </select>
             </div>
             {(form.ttsProvider || "windows") === "windows" && (
@@ -586,6 +708,40 @@ export default function Settings({ settings, onSave, onClose }) {
                   </span>
                 </div>
               </>
+            )}
+            {form.ttsProvider === "piper" && (
+              <div style={styles.field}>
+                <label>Piper voice</label>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <select
+                    value={form.piperVoice || ""}
+                    onChange={(e) => set("piperVoice", e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Default (es_MX claude, high quality)</option>
+                    {piperVoices.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
+                    onClick={loadPiperVoices}
+                    disabled={piperStatus === "loading"}
+                  >
+                    {piperStatus === "loading" ? "Loading…" : "↻ Load voices"}
+                  </button>
+                </div>
+                {piperStatus === "missing" && (
+                  <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ piper.exe not found in projects\piperttsspanish</span>
+                )}
+                {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
+                  <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ {piperStatus}</span>
+                )}
+                <span style={styles.hint}>
+                  Runs fully offline on CPU — no API key or server needed. Falls back to Windows TTS if generation fails.
+                </span>
+              </div>
             )}
             <div style={styles.row2}>
               <div style={styles.field}>

@@ -4,6 +4,7 @@ const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer } = require("./claude");
+const memoryExport = require("./memoryExport");
 const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
 const { EventSubClient } = require("./eventsub");
@@ -14,6 +15,7 @@ const phonemes = require("./phonemes");
 const animations = require("./animations");
 const xp = require("./xp");
 const elevenlabs = require("./elevenlabs");
+const piper = require("./piper");
 
 const PORT = 3001;
 const app = express();
@@ -74,6 +76,22 @@ app.post("/respond", async (req, res) => {
     console.error("[ai]", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// POST /memory/export — start exporting one provider's session memory to another
+app.post("/memory/export", (req, res) => {
+  const { from, to } = req.body || {};
+  try {
+    memoryExport.startExport(from, to);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /memory/export/status — progress of the current/last export job
+app.get("/memory/export/status", (req, res) => {
+  res.json(memoryExport.getStatus());
 });
 
 // POST /connect-bot — (re)connect only the bot client, no WS disruption
@@ -550,6 +568,33 @@ app.post("/tts/elevenlabs", async (req, res) => {
       return res.status(401).json({ error: "ElevenLabs rejected the API key" });
     }
     console.error("[elevenlabs/tts]", err.message);
+    res.status(502).json({ error: err.message });
+  }
+});
+
+// ── Piper TTS (local CLI) ─────────────────────────────────────────────────────
+
+// GET /tts/piper/voices — { installed, voices: [{ id, name }] }
+app.get("/tts/piper/voices", (req, res) => {
+  res.json({ installed: piper.isInstalled(), voices: piper.listVoices() });
+});
+
+// POST /tts/piper — { text, voice? } → audio/wav
+app.post("/tts/piper", async (req, res) => {
+  const { text, voice } = req.body || {};
+  if (!text) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await piper.generateSpeech({ text, voice });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    if (err.message === "PIPER_NOT_INSTALLED") {
+      return res.status(503).json({ error: "piper.exe not found in projects/piperttsspanish" });
+    }
+    if (err.message === "PIPER_BAD_VOICE") {
+      return res.status(400).json({ error: "Unknown Piper voice (must be a .onnx file in voices/)" });
+    }
+    console.error("[piper/tts]", err.message);
     res.status(502).json({ error: err.message });
   }
 });

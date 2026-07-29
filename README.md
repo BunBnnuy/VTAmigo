@@ -7,7 +7,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 - **Twitch & TikTok Live** chat reading
 - **AI responses** via Claude CLI, Grok CLI, or ChatGPT through the OpenAI API (switchable from settings)
 - **Persistent memory** — Claude and Grok each keep a long-lived CLI session (resumed across app restarts) so the co-host remembers past conversations; delete `backend/.agent-sessions.json` to reset
-- **Text-to-Speech** with configurable voice, speed, and volume — Windows TTS (default, free) or ElevenLabs (API key required); ElevenLabs clips drive the lip-sync with their real audio duration and fall back to Windows TTS if generation fails
+- **Text-to-Speech** with configurable voice, speed, and volume — Windows TTS (default, free), ElevenLabs (API key required), or Piper (local offline Spanish voices, CPU-only); ElevenLabs and Piper clips drive the lip-sync with their real audio duration and fall back to Windows TTS if generation fails
 - **VTube Studio lip-sync** — mouth animation driven by phoneme timing
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems
 - **Reddit stories** — reads aloud random stories from configurable subreddits when chat is idle
@@ -23,7 +23,7 @@ An AI co-host companion for Twitch and TikTok Live streams. It reads chat in rea
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18+
-- [Claude CLI](https://github.com/anthropics/claude-code) (`npm install -g @anthropic-ai/claude-code`) **or** [Grok CLI](https://x.ai/) installed at `C:\Users\<you>\.grok\bin\grok.exe`
+- [Claude CLI](https://github.com/anthropics/claude-code) (`npm install -g @anthropic-ai/claude-code`), [Grok CLI](https://x.ai/), or [AGY CLI](https://antigravity.google/docs/cli) (`agy`)
 - For ChatGPT: an OpenAI API key in the `OPENAI_API_KEY` environment variable (a ChatGPT subscription does not include API usage)
 - A Chromium-based browser for mic transcription (Web Speech API)
 - (Optional) [VTube Studio](https://denchisoft.com/) with the Plugin API enabled
@@ -59,7 +59,7 @@ All settings are available in the in-app Settings panel:
 
 | Setting | Description |
 |---|---|
-| AI Provider | Switch between Claude, Grok, and ChatGPT |
+| AI Provider | Switch between Claude, Grok, AGY CLI, and ChatGPT |
 | Twitch channel / OAuth token / Client-ID | Connect to Twitch chat and EventSub |
 | TikTok username | Connect to a TikTok Live chat |
 | Batch window | Seconds to collect messages before sending to AI |
@@ -67,8 +67,9 @@ All settings are available in the in-app Settings panel:
 | Response style | Auto / Chatbot / Narrator |
 | Base prompt | System prompt prepended to every AI request |
 | Reddit subreddits | Sources for idle-chat stories |
-| TTS provider | Windows TTS (system voices) or ElevenLabs |
+| TTS provider | Windows TTS (system voices), ElevenLabs, or Piper (local offline voices from `projects/piperttsspanish`) |
 | ElevenLabs API key / voice | Pick from your account's voices or paste a voice ID directly |
+| Piper voice | Pick any `.onnx` voice installed in `piperttsspanish/voices` |
 | TTS voice / speed / volume | Speech synthesis settings |
 | Mic device / language / label | Voice transcription settings |
 | VTube Studio URL / plugin / mouth param | Lip-sync connection settings |
@@ -82,7 +83,8 @@ All settings are available in the in-app Settings panel:
 |---|---|---|
 | `CLAUDE_PATH` | WinGet install path | Path to the `claude.exe` binary |
 | `GROK_PATH` | `C:\Users\<you>\.grok\bin\grok.exe` | Path to the `grok.exe` binary |
-| `OPENAI_API_KEY` | â€” | API key for the ChatGPT/OpenAI provider |
+| `AGY_PATH` | `C:\Users\<you>\AppData\Local\agy\bin\agy.exe` | Path to the Google Antigravity `agy.exe` binary |
+| `OPENAI_API_KEY` | — | API key for the ChatGPT/OpenAI provider |
 | `OPENAI_MODEL` | `gpt-4.1-mini` | Optional OpenAI model override |
 
 ## Project structure
@@ -91,7 +93,7 @@ All settings are available in the in-app Settings panel:
 AICompanion/
 ├── backend/          # Express API server
 │   ├── index.js      # Routes
-│   ├── claude.js     # AI provider (Claude / Grok) integration
+│   ├── claude.js     # AI provider (Claude / Grok / AGY CLI) integration
 │   ├── twitch.js     # Twitch IRC client
 │   ├── eventsub.js   # Twitch EventSub client
 │   ├── tiktok.js     # TikTok Live chat client

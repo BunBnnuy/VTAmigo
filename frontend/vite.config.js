@@ -25,6 +25,7 @@ export default defineConfig({
       "/screen-answer": "http://localhost:3001",
       "/xp": "http://localhost:3001",
       "/tts": "http://localhost:3001",
+      "/memory": "http://localhost:3001",
     },
   },
 });

@@ -116,6 +116,12 @@ const CLAUDE_EXE =
   process.env.CLAUDE_PATH ||
   "C:\\Users\\beton\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Anthropic.ClaudeCode_Microsoft.Winget.Source_8wekyb3d8bbwe\\claude.exe";
 
+const AGY_EXE =
+  process.env.AGY_PATH ||
+  (process.env.LOCALAPPDATA
+    ? path.join(process.env.LOCALAPPDATA, "agy", "bin", "agy.exe")
+    : "C:\\Users\\beton\\AppData\\Local\\agy\\bin\\agy.exe");
+
 // Shared CLI runner — spawns `claude -p` (or grok) and resolves with stdout
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
@@ -166,7 +172,7 @@ function loadSessions() {
     saved[p] && typeof saved[p].id === "string"
       ? { id: saved[p].id, started: !!saved[p].started }
       : fresh();
-  return { claude: restore("claude"), grok: restore("grok") };
+  return { claude: restore("claude"), grok: restore("grok"), agy: restore("agy") };
 }
 
 function saveSessions() {
@@ -181,11 +187,20 @@ const sessions = loadSessions();
 
 // A session can't be resumed by two processes at once, so serialize calls
 // per provider with a promise chain.
-const queues = { claude: Promise.resolve(), grok: Promise.resolve() };
+const queues = { claude: Promise.resolve(), grok: Promise.resolve(), agy: Promise.resolve() };
 
 function resetSession(provider) {
   sessions[provider] = { id: randomUUID(), started: false };
   saveSessions();
+}
+
+// Run fn with exclusive access to the given providers' sessions: fn starts
+// after their pending queries finish, and new queries wait until fn settles.
+// Used by the memory exporter so it never races the co-host's own queries.
+function withSessions(providers, fn) {
+  const run = Promise.all(providers.map((p) => queues[p])).then(() => fn(sessions));
+  for (const p of providers) queues[p] = run.catch(() => {});
+  return run;
 }
 
 function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, session = true } = {}) {
@@ -196,9 +211,16 @@ function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeout
 
   const run = queues[provider].then(async () => {
     const sess = sessions[provider];
-    const sessionArgs = sess.started
-      ? ["--resume", sess.id]
-      : ["--session-id", sess.id];
+    let sessionArgs = [];
+    if (provider === "agy") {
+      if (sess.started && sess.id) {
+        sessionArgs = ["--conversation", sess.id];
+      }
+    } else {
+      sessionArgs = sess.started
+        ? ["--resume", sess.id]
+        : ["--session-id", sess.id];
+    }
     try {
       const out = await spawnCLI(prompt, { provider, model, cwd, timeoutMs, sessionArgs });
       if (!sess.started) {
@@ -213,9 +235,12 @@ function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeout
       if (sess.started && err.message !== "TIMEOUT" && err.message !== "CLI_NOT_FOUND") {
         resetSession(provider);
         const fresh = sessions[provider];
+        const freshArgs = provider === "agy"
+          ? (fresh.started && fresh.id ? ["--conversation", fresh.id] : [])
+          : ["--session-id", fresh.id];
         const out = await spawnCLI(prompt, {
           provider, model, cwd, timeoutMs,
-          sessionArgs: ["--session-id", fresh.id],
+          sessionArgs: freshArgs,
         });
         fresh.started = true;
         saveSessions();
@@ -235,9 +260,12 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
     let stderr = "";
     let timedOut = false;
 
-    const exe = provider === "grok" ? GROK_EXE : CLAUDE_EXE;
+    const exe = provider === "grok" ? GROK_EXE : provider === "agy" ? AGY_EXE : CLAUDE_EXE;
     const args = ["-p", prompt, ...sessionArgs];
-    if (model && provider === "claude") args.push("--model", model);
+    if (provider === "agy") {
+      args.push("--output-format", "json");
+    }
+    if (model && (provider === "claude" || provider === "agy")) args.push("--model", model);
 
     const proc = spawn(exe, args, {
       shell: false,
@@ -273,6 +301,20 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
           msg.toLowerCase().includes("commandnotfoundexception");
         if (notFound) return reject(new Error("CLI_NOT_FOUND"));
         return reject(new Error(msg));
+      }
+
+      if (provider === "agy") {
+        try {
+          const parsed = JSON.parse(stdout.trim());
+          if (parsed.conversation_id && sessions.agy) {
+            sessions.agy.id = parsed.conversation_id;
+          }
+          if (parsed.response != null) {
+            return resolve(parsed.response.trim());
+          }
+        } catch {
+          // If JSON parse failed, fall back to plain stdout
+        }
       }
 
       resolve(stdout.trim());
@@ -462,4 +504,12 @@ Da tu respuesta final como co-presentador: di qué opción eliges y por qué, en
   return { response, choiceIndex, topVoteIndex };
 }
 
-module.exports = { queryClaudeCLI, queryYouTubeNarration, extractScreenQuestion, queryScreenAnswer };
+module.exports = {
+  queryClaudeCLI,
+  queryYouTubeNarration,
+  extractScreenQuestion,
+  queryScreenAnswer,
+  withSessions,
+  saveSessions,
+  CLI_PATHS: { claude: CLAUDE_EXE, grok: GROK_EXE, agy: AGY_EXE },
+};

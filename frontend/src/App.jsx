@@ -28,6 +28,7 @@ const DEFAULT_SETTINGS = {
   ttsProvider: "windows",
   elevenLabsKey: "",
   elevenLabsVoiceId: "",
+  piperVoice: "",
   vtubeUrl: "ws://localhost:8001",
   vtubePlugin: "Twitch Chat Bot",
   vtubeMouthParam: "MouthOpen",
@@ -246,7 +247,8 @@ export default function App() {
     tts.setVolume(settings.ttsVolume);
     tts.setProvider(settings.ttsProvider);
     tts.setElevenLabs({ apiKey: settings.elevenLabsKey, voiceId: settings.elevenLabsVoiceId });
-  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.elevenLabsKey, settings.elevenLabsVoiceId]);
+    tts.setPiper({ voice: settings.piperVoice });
+  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.elevenLabsKey, settings.elevenLabsVoiceId, settings.piperVoice]);
 
   // ── Batch triggering ──────────────────────────────────────────────────────
 

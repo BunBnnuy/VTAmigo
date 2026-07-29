@@ -1,5 +1,6 @@
 // TTS queue — responses play sequentially, never overlapping.
-// Providers: "windows" (Web Speech API, default) or "elevenlabs" (backend proxy → Audio element).
+// Providers: "windows" (Web Speech API, default), "elevenlabs" (backend proxy → Audio element),
+// or "piper" (local offline Piper CLI via backend proxy → Audio element).
 
 const AVG_CHARS_PER_SEC = 14;
 
@@ -27,7 +28,8 @@ class TTSController {
     this.provider = "windows";
     this.elevenLabsKey = "";
     this.elevenLabsVoiceId = "";
-    this.currentAudio = null; // active ElevenLabs Audio element
+    this.piperVoice = "";
+    this.currentAudio = null; // active remote-provider Audio element
     this.onStateChange = null; // () => void — called when playing/queue changes
   }
 
@@ -55,6 +57,10 @@ class TTSController {
   setElevenLabs({ apiKey, voiceId }) {
     if (apiKey != null) this.elevenLabsKey = apiKey;
     if (voiceId != null) this.elevenLabsVoiceId = voiceId;
+  }
+
+  setPiper({ voice }) {
+    if (voice != null) this.piperVoice = voice;
   }
 
   setMuted(m) {
@@ -115,7 +121,13 @@ class TTSController {
     this._notify();
 
     if (this.provider === "elevenlabs" && this.elevenLabsKey && this.elevenLabsVoiceId) {
-      this._speakElevenLabs(text, onDone);
+      this._speakRemote(text, onDone, "ElevenLabs", "/tts/elevenlabs", {
+        text, apiKey: this.elevenLabsKey, voiceId: this.elevenLabsVoiceId,
+      });
+    } else if (this.provider === "piper") {
+      this._speakRemote(text, onDone, "Piper", "/tts/piper", {
+        text, voice: this.piperVoice || undefined,
+      });
     } else {
       this._speakWindows(text, onDone);
     }
@@ -151,18 +163,19 @@ class TTSController {
     this.synth.speak(utt);
   }
 
-  async _speakElevenLabs(text, onDone) {
+  // Fetches audio from a backend TTS proxy route and plays it; falls back to Windows TTS on failure.
+  async _speakRemote(text, onDone, label, url, body) {
     let blob;
     try {
-      const res = await fetch("/tts/elevenlabs", {
+      const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text, apiKey: this.elevenLabsKey, voiceId: this.elevenLabsVoiceId }),
+        body: JSON.stringify(body),
       });
-      if (!res.ok) throw new Error(`ElevenLabs proxy returned ${res.status}`);
+      if (!res.ok) throw new Error(`${label} proxy returned ${res.status}`);
       blob = await res.blob();
     } catch (err) {
-      console.warn("[tts] ElevenLabs failed, falling back to Windows TTS:", err.message);
+      console.warn(`[tts] ${label} failed, falling back to Windows TTS:`, err.message);
       this._speakWindows(text, onDone);
       return;
     }
