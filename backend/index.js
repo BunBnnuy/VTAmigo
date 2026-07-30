@@ -1,8 +1,11 @@
 const express = require("express");
 const cors = require("cors");
+const cookieParser = require("cookie-parser");
 const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
+const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader } = require("./auth");
+const { router: adminRouter } = require("./adminAuth");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const memoryExport = require("./memoryExport");
 const screenwatch = require("./screenwatch");
@@ -19,8 +22,37 @@ const piper = require("./piper");
 
 const PORT = 3001;
 const app = express();
-app.use(cors());
+app.use(cors({ origin: true, credentials: true }));
+app.use(cookieParser());
 app.use(express.json({ limit: "5mb" })); // memory .md imports can be large
+
+// Twitch login + admin panel routes are public (or self-protected via their
+// own middleware); everything else requires an approved, logged-in user.
+app.use(authRouter);
+app.use(adminRouter);
+
+// Serve built frontend in production (Electron packaged app / VPS) — public,
+// so the login screen itself can load before the user is authenticated.
+const isProd = !process.env.VITE_DEV && !process.defaultApp;
+const distPath = path.join(__dirname, "../frontend/dist");
+if (isProd) {
+  app.use(express.static(distPath));
+}
+
+// Known API route prefixes that require an approved, logged-in user. Any GET
+// request outside these prefixes is treated as SPA client-side routing (e.g.
+// "/", "/admin") and served the app shell — the SPA itself checks /auth/me
+// and shows the login/pending screen client-side, so this reveals no data.
+const PROTECTED_PREFIXES = [
+  "/respond", "/memory", "/connect", "/disconnect", "/say",
+  "/reddit-story", "/reddit-thoughts", "/event-response", "/youtube-narrate",
+  "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts",
+];
+app.use((req, res, next) => {
+  const isProtected = PROTECTED_PREFIXES.some((p) => req.path === p || req.path.startsWith(p + "/"));
+  if (!isProtected) return next();
+  requireApprovedUser(req, res, next);
+});
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/chat" });
@@ -626,17 +658,23 @@ app.post("/lipsync/stop", (req, res) => {
   res.json({ ok: true });
 });
 
-// Serve built frontend in production (Electron packaged app)
-const isProd = !process.env.VITE_DEV && !process.defaultApp;
+// SPA catch-all — must be registered after every specific API route above so
+// it acts only as a fallback for client-side routes ("/", "/admin"). It stays
+// public: the guard above only blocks PROTECTED_PREFIXES, and the SPA itself
+// does its own client-side /auth/me check.
 if (isProd) {
-  const distPath = path.join(__dirname, "../frontend/dist");
-  app.use(express.static(distPath));
   app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
 }
 
-wss.on("connection", (ws) => {
-  console.log("[ws] frontend connected");
-  ws.on("close", () => console.log("[ws] frontend disconnected"));
+wss.on("connection", (ws, req) => {
+  const user = getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) {
+    console.log("[ws] rejected unauthenticated connection");
+    ws.close(4401, "unauthorized");
+    return;
+  }
+  console.log(`[ws] frontend connected (${user.login})`);
+  ws.on("close", () => console.log(`[ws] frontend disconnected (${user.login})`));
 });
 
 server.on("error", (err) => {

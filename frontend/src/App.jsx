@@ -2,6 +2,8 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import Settings from "./Settings.jsx";
+import Login from "./Login.jsx";
+import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
@@ -74,7 +76,29 @@ function formatEventText(event) {
   }
 }
 
+// Gates the real app behind a Twitch-login + admin-approval check. AppInner
+// (and its WS connection) only mounts once /auth/me reports an approved user.
 export default function App() {
+  const [authState, setAuthState] = useState(null); // null = loading
+
+  const checkAuth = useCallback(() => {
+    apiFetch("/auth/me")
+      .then((r) => r.json())
+      .then(setAuthState)
+      .catch(() => setAuthState({ loggedIn: false }));
+  }, []);
+
+  useEffect(() => { checkAuth(); }, [checkAuth]);
+
+  if (!authState) return null;
+  if (!authState.loggedIn) return <Login />;
+  if (!authState.approved) {
+    return <Pending displayName={authState.displayName} onLoggedOut={checkAuth} />;
+  }
+  return <AppInner />;
+}
+
+function AppInner() {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
@@ -956,6 +980,12 @@ export default function App() {
               Connect
             </button>
           )}
+          <button
+            style={styles.settingsBtn}
+            onClick={() => apiFetch("/auth/logout", { method: "POST" }).finally(() => window.location.reload())}
+          >
+            Log out
+          </button>
         </div>
       </div>
 

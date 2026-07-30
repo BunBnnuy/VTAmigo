@@ -5,33 +5,36 @@
 export function getBackendUrl() {
   try {
     const settings = JSON.parse(localStorage.getItem("settings") || "{}");
-    return (settings.backendUrl || "").trim().replace(/\/+$/, "");
+    const explicit = (settings.backendUrl || "").trim().replace(/\/+$/, "");
+    if (explicit) return explicit;
   } catch {
-    return "";
+    // fall through to dev default below
   }
-}
-
-export function apiUrl(path) {
-  return getBackendUrl() + path;
-}
-
-export function apiFetch(path, options) {
-  return fetch(apiUrl(path), options);
-}
-
-export function wsUrl(path) {
-  const base = getBackendUrl();
-  if (base) return base.replace(/^http/, "ws") + path;
 
   // No explicit backendUrl: same-origin. That's correct both for the packaged
   // Electron build (window loaded from http://localhost:3001, the bundled
   // backend) and for a static build hosted by the backend itself (e.g. the
   // VPS serving both frontend and API from the same origin). The one case
   // that needs a hardcoded fallback is `vite dev`, where the frontend
-  // (:5173) and backend (:3001) are genuinely different origins and fetch()
-  // only reaches the backend via Vite's dev proxy — which doesn't cover the
-  // WebSocket upgrade the same way.
-  if (import.meta.env.DEV) return `ws://localhost:3001${path}`;
-  const proto = window.location.protocol === "https:" ? "wss:" : "ws:";
-  return `${proto}//${window.location.host}${path}`;
+  // (:5173) and backend (:3001) are genuinely different origins. Talking to
+  // the backend directly (rather than through Vite's dev proxy) also keeps
+  // the auth session cookie scoped consistently for both fetch() and the
+  // WebSocket upgrade.
+  if (import.meta.env.DEV) return "http://localhost:3001";
+  return "";
+}
+
+export function apiUrl(path) {
+  return getBackendUrl() + path;
+}
+
+// credentials: "include" so the session cookie rides along even when the
+// backend is a different origin (vite dev, or an explicit backendUrl).
+export function apiFetch(path, options) {
+  return fetch(apiUrl(path), { credentials: "include", ...options });
+}
+
+export function wsUrl(path) {
+  const base = getBackendUrl();
+  return base.replace(/^http/, "ws") + path;
 }
