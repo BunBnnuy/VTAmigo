@@ -20,6 +20,18 @@ sudo journalctl -u vtamigo-backend -f
 - Downloads the Piper Linux binary
 - Clones the `es/` folder from [AIHeaven/piper_unofficial_voices](https://huggingface.co/AIHeaven/piper_unofficial_voices) into `backend/piper/voices`
 
+## VTube Studio lip-sync
+
+VTube Studio only listens on `ws://localhost:8001` on your own PC. Once the backend runs on the VPS instead of locally, "localhost" from the backend's point of view means the VPS itself — the lip-sync connection will fail (`ECONNREFUSED 127.0.0.1:8001`) unless something bridges the two.
+
+Fix: an SSH reverse tunnel that forwards the VPS's `localhost:8001` back to your PC's `localhost:8001`. Run this locally whenever streaming with the client pointed at the VPS:
+
+```powershell
+powershell -File server/vtube-tunnel.ps1
+```
+
+Leave the window open for the stream's duration — it auto-reconnects if the connection drops. No app config changes needed; the backend's `vtubeUrl` setting stays `ws://localhost:8001` as normal, it just now resolves through the tunnel.
+
 ## Notes
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`.
