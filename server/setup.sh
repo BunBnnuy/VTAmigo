@@ -51,12 +51,17 @@ echo "==> Fetching Spanish voices (AIHeaven/piper_unofficial_voices, es/ only)"
 mkdir -p "$PIPER_DIR/voices"
 VOICES_TMP="$(mktemp -d)"
 git lfs install --skip-repo
-GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 --filter=blob:none --sparse \
+# HF's git server doesn't play well with --filter/--sparse partial clones
+# (fails with "error reading section header"), so shallow-clone the whole
+# repo instead — it's small until LFS objects are pulled.
+GIT_LFS_SKIP_SMUDGE=1 git clone --depth 1 --single-branch \
   https://huggingface.co/AIHeaven/piper_unofficial_voices "$VOICES_TMP/repo"
 cd "$VOICES_TMP/repo"
-git sparse-checkout set es
-git lfs pull --include "es/*"
-cp -v es/*.onnx es/*.onnx.json "$PIPER_DIR/voices/" 2>/dev/null || true
+git lfs pull --include "es/*.tar.gz"
+# Each voice ships as a tar.gz containing a flat *.onnx + *.onnx.json pair.
+for archive in es/*.tar.gz; do
+  tar -xzf "$archive" -C "$PIPER_DIR/voices"
+done
 cd "$REPO_DIR"
 rm -rf "$VOICES_TMP"
 
