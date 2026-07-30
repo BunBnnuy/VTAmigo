@@ -8,10 +8,18 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const PIPER_DIR = "C:/Users/beton/projects/piperttsspanish";
-const PIPER_EXE = path.join(PIPER_DIR, "piper", "piper.exe");
-const VOICES_DIR = path.join(PIPER_DIR, "voices");
-const DEFAULT_VOICE = "es_MX-claude-14947-epoch-high.onnx";
+// PIPER_DIR/PIPER_EXE can be overridden via env (used on Linux deployments —
+// see setup/piper.sh). Falls back to the Windows dev layout.
+const PIPER_DIR =
+  process.env.PIPER_DIR ||
+  (process.platform === "win32"
+    ? "C:/Users/beton/projects/piperttsspanish"
+    : path.join(__dirname, "piper"));
+const PIPER_EXE =
+  process.env.PIPER_EXE ||
+  path.join(PIPER_DIR, "piper", process.platform === "win32" ? "piper.exe" : "piper");
+const VOICES_DIR = process.env.PIPER_VOICES_DIR || path.join(PIPER_DIR, "voices");
+const DEFAULT_VOICE = process.env.PIPER_DEFAULT_VOICE || "es_MX-claude-14947-epoch-high.onnx";
 
 function isInstalled() {
   return fs.existsSync(PIPER_EXE);
