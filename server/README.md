@@ -20,6 +20,16 @@ sudo journalctl -u vtamigo-backend -f
 - Downloads the Piper Linux binary
 - Clones the `es/` folder from [AIHeaven/piper_unofficial_voices](https://huggingface.co/AIHeaven/piper_unofficial_voices) into `backend/piper/voices`
 
+## Hosting the frontend too
+
+The backend already serves the built frontend statically when running outside Electron dev mode (see `backend/index.js`'s `isProd` block), so the same domain can serve the whole app instead of running the client locally:
+
+```bash
+bash server/deploy-frontend.sh   # builds frontend/dist and restarts the service
+```
+
+Once deployed, visiting the site directly (e.g. `https://93130123.xyz`) serves the full app — no local `npm run dev`/`dev:remote` needed, and no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
+
 ## VTube Studio lip-sync
 
 VTube Studio only listens on `ws://localhost:8001` on your own PC. Once the backend runs on the VPS instead of locally, "localhost" from the backend's point of view means the VPS itself — the lip-sync connection will fail (`ECONNREFUSED 127.0.0.1:8001`) unless something bridges the two.
@@ -31,6 +41,8 @@ powershell -File server/vtube-tunnel.ps1
 ```
 
 Leave the window open for the stream's duration — it auto-reconnects if the connection drops. No app config changes needed; the backend's `vtubeUrl` setting stays `ws://localhost:8001` as normal, it just now resolves through the tunnel.
+
+This is needed regardless of how you reach the app — whether running the client locally (`npm run dev:remote`, which starts the tunnel automatically) or just opening the hosted site in a browser (in which case run `vtube-tunnel.ps1` on its own, standalone, since there's no `dev:remote` process to bundle it into). Either way, VTube Studio itself still only runs on your PC, so the tunnel is what makes the remote backend able to reach it.
 
 ## Notes
 
