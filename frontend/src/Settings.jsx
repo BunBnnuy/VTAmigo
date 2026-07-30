@@ -14,6 +14,8 @@ export default function Settings({ settings, onSave, onClose }) {
   const [piperStatus, setPiperStatus] = useState(""); // "", "loading", "ok", "missing", "error message"
   const [exportTarget, setExportTarget] = useState("");
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
+  const [importFile, setImportFile] = useState(null); // { name, content }
+  const [importStatus, setImportStatus] = useState(null); // null | {running, error, ok}
 
   // Poll export progress while a job is running
   useEffect(() => {
@@ -41,6 +43,32 @@ export default function Settings({ settings, onSave, onClose }) {
       setExportStatus({ running: true, pct: 0, stage: "Iniciando…", error: null, mdPath: null });
     } catch (err) {
       setExportStatus({ running: false, pct: 0, stage: "", error: err.message, mdPath: null });
+    }
+  };
+
+  const handleMemoryFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => setImportFile({ name: file.name, content: String(reader.result || "") });
+    reader.onerror = () => setImportStatus({ running: false, error: `No se pudo leer ${file.name}` });
+    reader.readAsText(file);
+  };
+
+  const importMemoryFile = async (provider) => {
+    if (!importFile) return;
+    setImportStatus({ running: true, error: null, ok: false });
+    try {
+      const res = await apiFetch("/memory/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider, markdown: importFile.content }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setImportStatus({ running: false, error: null, ok: true });
+    } catch (err) {
+      setImportStatus({ running: false, error: err.message, ok: false });
     }
   };
 
@@ -614,6 +642,43 @@ export default function Settings({ settings, onSave, onClose }) {
                   <span style={styles.hint}>
                     Copia la memoria de la sesión del modelo seleccionado al otro modelo (se guarda también como .md en
                     backend/memories/). ChatGPT no tiene sesión persistente, así que no participa.
+                  </span>
+                </div>
+              );
+            })()}
+            {(() => {
+              const current = form.provider || "claude";
+              const canImport = current !== "chatgpt" && !!importFile && !importStatus?.running;
+              return (
+                <div style={styles.field}>
+                  <label>Importar memoria desde archivo .md</label>
+                  <input type="file" accept=".md,text/markdown" onChange={handleMemoryFile} />
+                  <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+                    <button
+                      type="button"
+                      onClick={() => importMemoryFile(current)}
+                      disabled={!canImport}
+                      style={{
+                        background: "var(--surface2)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        opacity: !canImport ? 0.5 : 1,
+                        flex: 1,
+                      }}
+                    >
+                      {importStatus?.running
+                        ? "Importando…"
+                        : `📥 Cargar${importFile ? ` "${importFile.name}"` : ""} en la sesión actual`}
+                    </button>
+                  </div>
+                  {importStatus && (importStatus.error || importStatus.ok) && (
+                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                      {importStatus.error ? `❌ ${importStatus.error}` : "✅ Memoria integrada en la sesión"}
+                    </span>
+                  )}
+                  <span style={styles.hint}>
+                    Carga un archivo .md (por ejemplo uno exportado antes) como recuerdos del modelo seleccionado
+                    arriba, en su sesión guardada actual. ChatGPT no tiene sesión persistente, así que no participa.
                   </span>
                 </div>
               );

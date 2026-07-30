@@ -504,11 +504,31 @@ Da tu respuesta final como co-presentador: di qué opción eliges y por qué, en
   return { response, choiceIndex, topVoteIndex };
 }
 
+// Loads a hand-picked .md memory file into a provider's live session — same
+// prompt shape as the export worker's inject step, but for a file the user
+// supplies themselves rather than a dump from another provider.
+const IMPORT_PROMPT = (memory) => `Eres el co-presentador de IA de un stream. A continuación tienes una memoria guardada que quiero que integres como si fueran tus propios recuerdos: a partir de ahora conoces estos eventos, viewers, bromas internas y contexto, y los usarás con naturalidad en futuras respuestas.
+
+Responde únicamente "OK" para confirmar que la has integrado.
+
+--- MEMORIA ---
+
+${memory}`;
+
+async function importMemory(markdown, provider = "claude") {
+  if (!markdown || !markdown.trim()) throw new Error("MEMORY_EMPTY");
+  if (!["claude", "grok", "agy"].includes(provider)) {
+    throw new Error("Solo Claude, Grok y AGY tienen sesión persistente");
+  }
+  return runCLI(IMPORT_PROMPT(markdown), { provider, timeoutMs: 180000 });
+}
+
 module.exports = {
   queryClaudeCLI,
   queryYouTubeNarration,
   extractScreenQuestion,
   queryScreenAnswer,
+  importMemory,
   withSessions,
   saveSessions,
   CLI_PATHS: { claude: CLAUDE_EXE, grok: GROK_EXE, agy: AGY_EXE },

@@ -3,7 +3,7 @@ const cors = require("cors");
 const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
-const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer } = require("./claude");
+const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const memoryExport = require("./memoryExport");
 const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
@@ -20,7 +20,7 @@ const piper = require("./piper");
 const PORT = 3001;
 const app = express();
 app.use(cors());
-app.use(express.json());
+app.use(express.json({ limit: "5mb" })); // memory .md imports can be large
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/chat" });
@@ -92,6 +92,26 @@ app.post("/memory/export", (req, res) => {
 // GET /memory/export/status — progress of the current/last export job
 app.get("/memory/export/status", (req, res) => {
   res.json(memoryExport.getStatus());
+});
+
+// POST /memory/import — load a hand-picked .md file into a provider's live session
+app.post("/memory/import", async (req, res) => {
+  const { provider, markdown } = req.body || {};
+  try {
+    const response = await importMemory(markdown, provider || "claude");
+    res.json({ ok: true, response });
+  } catch (err) {
+    if (err.message === "MEMORY_EMPTY") {
+      return res.status(400).json({ error: "El archivo .md está vacío" });
+    }
+    if (err.message === "CLI_NOT_FOUND") {
+      return res.status(503).json({ error: `${provider || "claude"} CLI no encontrado` });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: `${provider || "claude"} CLI tardó demasiado (>60s)` });
+    }
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // POST /connect-bot — (re)connect only the bot client, no WS disruption
