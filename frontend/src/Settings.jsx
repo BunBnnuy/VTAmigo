@@ -134,6 +134,38 @@ export default function Settings({ settings, onSave, onClose }) {
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
 
+  // Settings live in this origin's localStorage only, so moving from e.g. the
+  // local app to a VPS-hosted instance needs an explicit export/import round trip.
+  const [settingsFileStatus, setSettingsFileStatus] = useState(null); // null | {error} | {ok}
+
+  const exportSettings = () => {
+    const blob = new Blob([JSON.stringify(form, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vtamigo-settings-${new Date().toISOString().slice(0, 10)}.json`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const importSettingsFile = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      try {
+        const parsed = JSON.parse(String(reader.result || ""));
+        setForm((f) => ({ ...f, ...parsed }));
+        setSettingsFileStatus({ ok: true });
+      } catch (err) {
+        setSettingsFileStatus({ error: `Archivo inválido: ${err.message}` });
+      }
+    };
+    reader.onerror = () => setSettingsFileStatus({ error: `No se pudo leer ${file.name}` });
+    reader.readAsText(file);
+    e.target.value = ""; // allow re-selecting the same file later
+  };
+
   const addExtraChannel = () => {
     const ch = newExtraChannel.toLowerCase().replace(/^#/, "").trim();
     if (!ch || (form.extraChannels || []).includes(ch)) return;
@@ -154,6 +186,46 @@ export default function Settings({ settings, onSave, onClose }) {
         </div>
 
         <div style={styles.body}>
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Copiar configuración</h3>
+            <div style={styles.field}>
+              <label>Exportar / importar toda la configuración</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={exportSettings}
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", flex: 1 }}
+                >
+                  ⬇️ Descargar .json
+                </button>
+                <label
+                  style={{
+                    background: "var(--surface2)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    borderRadius: 6,
+                  }}
+                >
+                  ⬆️ Cargar .json
+                  <input type="file" accept=".json,application/json" onChange={importSettingsFile} style={{ display: "none" }} />
+                </label>
+              </div>
+              {settingsFileStatus && (
+                <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                  {settingsFileStatus.error ? `❌ ${settingsFileStatus.error}` : "✅ Configuración cargada — revisa los campos y pulsa Save & Apply para guardarla"}
+                </span>
+              )}
+              <span style={styles.hint}>
+                Los ajustes viven en el almacenamiento local del navegador/origen actual, así que no se comparten automáticamente entre el app local y una instancia alojada en el VPS. Descarga aquí, y carga ese archivo en la otra instancia.
+              </span>
+            </div>
+          </section>
+
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>Backend Server</h3>
             <div style={styles.field}>
