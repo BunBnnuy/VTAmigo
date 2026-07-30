@@ -37,9 +37,13 @@ npm run install:all
 
 # 2. Start in development mode (backend + Vite frontend + browser)
 npm run dev
+
+# Or, if you've pointed Settings > Backend URL at a remote server
+# (see server/README.md), skip the local backend:
+npm run dev:remote
 ```
 
-The app opens at `http://localhost:5173`. The backend API runs on port `3001`.
+The app opens at `http://localhost:5173`. The backend API runs on port `3001` (unless `Backend URL` is set in Settings, in which case the client talks to that server instead — use `npm run dev:remote` so it doesn't also start a redundant local backend).
 
 ## Building
 

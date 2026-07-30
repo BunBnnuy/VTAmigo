@@ -6,6 +6,7 @@
   "scripts": {
     "install:all": "cd backend && npm install && cd ../frontend && npm install",
     "dev": "concurrently --kill-others-on-fail \"node backend/index.js\" \"cd frontend && npm run dev\" \"wait-on http://localhost:5173 && start chrome http://localhost:5173\"",
+    "dev:remote": "concurrently --kill-others-on-fail \"cd frontend && npm run dev\" \"wait-on http://localhost:5173 && start chrome http://localhost:5173\"",
     "build": "cd frontend && npm run build",
     "dist:win": "npm run build && electron-builder --win"
   },
