@@ -14,8 +14,11 @@ Write-Host "Starting reverse tunnel: VPS localhost:8001 -> this PC's VTube Studi
 Write-Host "Leave this window open while streaming. Ctrl+C to stop."
 
 while ($true) {
+    # 127.0.0.1, not "localhost" -- on this machine "localhost" resolves to
+    # ::1 (IPv6) first, and VTube Studio only binds IPv4 (0.0.0.0:8001), which
+    # made the forwarded connection hang up mid-handshake instead of reaching it.
     ssh -i $KeyPath `
-        -N -R 8001:localhost:8001 `
+        -N -R 8001:127.0.0.1:8001 `
         -o ServerAliveInterval=30 `
         -o ServerAliveCountMax=3 `
         -o ExitOnForwardFailure=yes `
