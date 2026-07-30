@@ -15,8 +15,21 @@ ENV_FILE="/etc/vtamigo.env"
 
 if ! id "$SERVICE_USER" >/dev/null 2>&1; then
   echo "==> Creating service user '$SERVICE_USER'"
-  useradd --system --no-create-home --shell /usr/sbin/nologin "$SERVICE_USER"
+  # Needs a home dir: Claude/Grok/AGY CLI auth lives under ~/.claude etc.,
+  # and the service reads it as this user (not root).
+  useradd --system --create-home --shell /usr/sbin/nologin "$SERVICE_USER"
 fi
+
+# If the CLI was authenticated as root (e.g. `claude` run manually over SSH),
+# copy that login over so the service user can use it too.
+for f in .claude .claude.json .config/grok .agy; do
+  if [ -e "/root/$f" ] && [ ! -e "/home/$SERVICE_USER/$f" ]; then
+    echo "==> Copying /root/$f to /home/$SERVICE_USER/$f"
+    mkdir -p "/home/$SERVICE_USER/$(dirname "$f")"
+    cp -r "/root/$f" "/home/$SERVICE_USER/$f"
+  fi
+done
+chown -R "$SERVICE_USER":"$SERVICE_USER" "/home/$SERVICE_USER"
 
 chown -R "$SERVICE_USER":"$SERVICE_USER" "$REPO_DIR/backend"
 
