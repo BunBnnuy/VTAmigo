@@ -4,6 +4,7 @@ import ResponsePanel from "./ResponsePanel.jsx";
 import Settings from "./Settings.jsx";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
+import { apiFetch, wsUrl } from "./api.js";
 
 const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
 
@@ -29,6 +30,7 @@ const DEFAULT_SETTINGS = {
   elevenLabsKey: "",
   elevenLabsVoiceId: "",
   piperVoice: "",
+  backendUrl: "",
   vtubeUrl: "ws://localhost:8001",
   vtubePlugin: "Twitch Chat Bot",
   vtubeMouthParam: "MouthOpen",
@@ -53,7 +55,6 @@ const DEFAULT_SETTINGS = {
   ignoredUsers: "jonejo_ia, streamelements, nightbot, moobot, fossabot, streamlabs, soundalerts, wizebot, botisimo, coebot, sery_bot, kofistreambot, commanderroot, virgoproz, aparatchik, logviewer, electricallongboard, anotherttvviewer, twitchraidshadow",
 };
 
-const WS_URL = "ws://localhost:3001/chat";
 const HYPE_KEYWORDS = ["pogchamp", "pog", "omegalul", "lul", "kekw", "lets go", "let's go", "clip it", "letsgo", "hype"];
 const BURST_SILENCE_MS = 3000; // how long silence after burst triggers response
 
@@ -128,7 +129,7 @@ export default function App() {
   const connectExtraChannel = useCallback(async (channel) => {
     const { token, botUsername, botToken } = settingsRef.current;
     try {
-      await fetch("/connect-extra", {
+      await apiFetch("/connect-extra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channel, token, botUsername, botToken }),
@@ -144,7 +145,7 @@ export default function App() {
 
   const disconnectExtraChannel = useCallback(async (channel) => {
     try {
-      await fetch("/disconnect-extra", {
+      await apiFetch("/disconnect-extra", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ channel }),
@@ -208,7 +209,7 @@ export default function App() {
   useEffect(() => {
     const poll = async () => {
       try {
-        const res = await fetch("/vtube/status");
+        const res = await apiFetch("/vtube/status");
         if (res.ok) setVtubeStatus(await res.json());
       } catch {}
     };
@@ -219,7 +220,7 @@ export default function App() {
 
   // Push VTube config to backend whenever relevant settings change
   useEffect(() => {
-    fetch("/vtube/config", {
+    apiFetch("/vtube/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -233,7 +234,7 @@ export default function App() {
 
   // Push XP ignore list to backend whenever it changes (also on startup)
   useEffect(() => {
-    fetch("/xp/config", {
+    apiFetch("/xp/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ignoredUsers: settings.ignoredUsers || "" }),
@@ -273,21 +274,21 @@ export default function App() {
     }
 
     setLoading(true);
-    fetch("/vtube/thinking", {
+    apiFetch("/vtube/thinking", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ active: true }),
     }).catch(() => {});
 
     const stopThinking = () =>
-      fetch("/vtube/thinking", {
+      apiFetch("/vtube/thinking", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ active: false }),
       }).catch(() => {});
 
     try {
-      const res = await fetch("/respond", {
+      const res = await apiFetch("/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ messages: batch, style: settingsRef.current.style, basePrompt: settingsRef.current.basePrompt, provider: settingsRef.current.provider || "claude" }),
@@ -306,7 +307,7 @@ export default function App() {
         stopThinking();
       } else {
         if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
-          fetch("/say", {
+          apiFetch("/say", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text }),
@@ -318,7 +319,7 @@ export default function App() {
           }).catch((e) => console.warn("[bot/say]", e.message));
           // Also send to extra channels
           (settingsRef.current.extraChannels || []).forEach((ch) => {
-            fetch("/say", {
+            apiFetch("/say", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text, channel: ch }),
@@ -345,7 +346,7 @@ export default function App() {
     try {
       const subreddits = (settingsRef.current.subreddits || "")
         .split(",").map((s) => s.trim()).filter(Boolean);
-      const res = await fetch("/reddit-story", {
+      const res = await apiFetch("/reddit-story", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ subreddits }),
@@ -375,7 +376,7 @@ export default function App() {
 
       tts.enqueue(`${story.title}. ${story.text}`, async () => {
         try {
-          const thoughtsRes = await fetch("/reddit-thoughts", {
+          const thoughtsRes = await apiFetch("/reddit-thoughts", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -411,7 +412,7 @@ export default function App() {
 
   const triggerYouTubePeek = useCallback(async () => {
     try {
-      const res = await fetch("/youtube-narrate", {
+      const res = await apiFetch("/youtube-narrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ basePrompt: settingsRef.current.basePrompt }),
@@ -444,7 +445,7 @@ export default function App() {
 
   // Push watcher config to backend whenever settings change (also on startup)
   useEffect(() => {
-    fetch("/screenwatch/config", {
+    apiFetch("/screenwatch/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -475,7 +476,7 @@ export default function App() {
     setLoading(true);
     let data = {};
     try {
-      const res = await fetch("/screen-answer", {
+      const res = await apiFetch("/screen-answer", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -500,7 +501,7 @@ export default function App() {
       if (!data.error) {
         tts.enqueue(text);
         if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
-          fetch("/say", {
+          apiFetch("/say", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ text }),
@@ -524,7 +525,7 @@ export default function App() {
           : (data.choiceIndex ?? data.topVoteIndex);
         if (idx == null || collect.options[idx] == null) idx = 0;
         if (collect.options[idx] != null) {
-          fetch("/screenwatch/click", {
+          apiFetch("/screenwatch/click", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -574,13 +575,13 @@ export default function App() {
       const inline = options.map((o, i) => `${String.fromCharCode(65 + i)} ) ${o}`).join("  ");
       let chatMsg = `❓ ${question}  ${inline}  — ¡vota A/B/C/D! (${windowSec}s)`;
       if (chatMsg.length > 490) chatMsg = chatMsg.slice(0, 487) + "…";
-      fetch("/say", {
+      apiFetch("/say", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: chatMsg }),
       }).catch(() => {});
       (settingsRef.current.extraChannels || []).forEach((ch) => {
-        fetch("/say", {
+        apiFetch("/say", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ text: chatMsg, channel: ch }),
@@ -606,7 +607,7 @@ export default function App() {
   const triggerScreenScan = useCallback(async () => {
     setLoading(true);
     try {
-      const res = await fetch("/screenwatch/scan", {
+      const res = await apiFetch("/screenwatch/scan", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -641,7 +642,7 @@ export default function App() {
   const triggerEventResponse = useCallback(async (event) => {
     setLoading(true);
     try {
-      const res = await fetch("/event-response", {
+      const res = await apiFetch("/event-response", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ event, basePrompt: settingsRef.current.basePrompt, provider: settingsRef.current.provider || "claude" }),
@@ -689,7 +690,7 @@ export default function App() {
     if (wsRef.current) {
       wsRef.current.close();
     }
-    const ws = new WebSocket(WS_URL);
+    const ws = new WebSocket(wsUrl("/chat"));
     wsRef.current = ws;
 
     ws.onopen = () => setConnected(true);
@@ -793,7 +794,7 @@ export default function App() {
       return;
     }
     try {
-      await fetch("/connect", {
+      await apiFetch("/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -818,7 +819,7 @@ export default function App() {
     setCountdown(null);
     if (wsRef.current) wsRef.current.close();
     try {
-      await fetch("/disconnect", { method: "POST" });
+      await apiFetch("/disconnect", { method: "POST" });
     } catch {}
     setConnStatus("disconnected");
     setConnected(false);
@@ -831,7 +832,7 @@ export default function App() {
     if (!tiktokUsername) return;
     try {
       const username = tiktokUsername.replace(/^@/, "");
-      await fetch("/connect-tiktok", {
+      await apiFetch("/connect-tiktok", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username }),
@@ -844,7 +845,7 @@ export default function App() {
 
   const handleTikTokDisconnect = useCallback(async () => {
     try {
-      await fetch("/disconnect-tiktok", { method: "POST" });
+      await apiFetch("/disconnect-tiktok", { method: "POST" });
     } catch {}
     setTiktokStatus("disconnected");
     setTiktokConnected(false);
@@ -867,7 +868,7 @@ export default function App() {
     if (newSettings.botUsername && newSettings.botToken &&
       (newSettings.botUsername !== prev.botUsername || newSettings.botToken !== prev.botToken)
     ) {
-      fetch("/connect-bot", {
+      apiFetch("/connect-bot", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -978,7 +979,7 @@ export default function App() {
             responses={responses}
             loading={loading}
             botConnected={botStatus === "connected"}
-            onSendToChat={(text) => fetch("/say", {
+            onSendToChat={(text) => apiFetch("/say", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
               body: JSON.stringify({ text }),
@@ -1089,7 +1090,7 @@ export default function App() {
           {!vtubeStatus.connected && (
             <button
               style={{ ...styles.iconBtn, fontSize: 10, padding: "2px 6px" }}
-              onClick={() => fetch("/vtube/reconnect", { method: "POST" }).catch(() => {})}
+              onClick={() => apiFetch("/vtube/reconnect", { method: "POST" }).catch(() => {})}
               title="Retry VTube Studio connection"
             >
               ↻

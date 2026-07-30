@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
+import { apiFetch } from "./api.js";
 
 export default function Settings({ settings, onSave, onClose }) {
   const [form, setForm] = useState(settings);
@@ -19,7 +20,7 @@ export default function Settings({ settings, onSave, onClose }) {
     if (!exportStatus?.running) return;
     const timer = setInterval(async () => {
       try {
-        const res = await fetch("/memory/export/status");
+        const res = await apiFetch("/memory/export/status");
         setExportStatus(await res.json());
       } catch {
         // Backend unreachable — keep last known state and retry
@@ -30,7 +31,7 @@ export default function Settings({ settings, onSave, onClose }) {
 
   const startMemoryExport = async (from, to) => {
     try {
-      const res = await fetch("/memory/export", {
+      const res = await apiFetch("/memory/export", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ from, to }),
@@ -46,7 +47,7 @@ export default function Settings({ settings, onSave, onClose }) {
   const loadPiperVoices = async () => {
     setPiperStatus("loading");
     try {
-      const res = await fetch("/tts/piper/voices");
+      const res = await apiFetch("/tts/piper/voices");
       const data = await res.json();
       setPiperVoices(data.voices || []);
       setPiperStatus(data.installed ? "ok" : "missing");
@@ -60,7 +61,7 @@ export default function Settings({ settings, onSave, onClose }) {
     if (!apiKey) return;
     setElevenVoicesStatus("loading");
     try {
-      const res = await fetch("/tts/elevenlabs/voices", {
+      const res = await apiFetch("/tts/elevenlabs/voices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey }),
@@ -125,6 +126,21 @@ export default function Settings({ settings, onSave, onClose }) {
         </div>
 
         <div style={styles.body}>
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Backend Server</h3>
+            <div style={styles.field}>
+              <label>Backend URL</label>
+              <input
+                value={form.backendUrl || ""}
+                onChange={(e) => set("backendUrl", e.target.value)}
+                placeholder="https://93130123.xyz (leave empty for local)"
+              />
+              <span style={styles.hint}>
+                Point this at a remote backend (e.g. your VPS) instead of the one bundled with the app. Leave empty to use the local backend. Restart the app after changing this.
+              </span>
+            </div>
+          </section>
+
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>TikTok Live Connection</h3>
             <div style={styles.field}>
@@ -512,7 +528,7 @@ export default function Settings({ settings, onSave, onClose }) {
                 style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}
                 type="button"
                 onClick={() => {
-                  fetch("/screenwatch/test", { method: "POST" }).catch(() => {});
+                  apiFetch("/screenwatch/test", { method: "POST" }).catch(() => {});
                   onClose();
                 }}
               >
@@ -889,7 +905,7 @@ export default function Settings({ settings, onSave, onClose }) {
                 style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}
                 type="button"
                 onClick={() => {
-                  fetch("/lipsync/start", {
+                  apiFetch("/lipsync/start", {
                     method: "POST",
                     headers: { "Content-Type": "application/json" },
                     body: JSON.stringify({ text: "aaa ooo eee aaa ooo aaa", durationMs: 1200 }),

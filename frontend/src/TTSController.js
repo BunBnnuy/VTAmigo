@@ -2,10 +2,12 @@
 // Providers: "windows" (Web Speech API, default), "elevenlabs" (backend proxy → Audio element),
 // or "piper" (local offline Piper CLI via backend proxy → Audio element).
 
+import { apiFetch, apiUrl } from "./api.js";
+
 const AVG_CHARS_PER_SEC = 14;
 
 function lipsyncStart(text, durationMs) {
-  fetch("/lipsync/start", {
+  apiFetch("/lipsync/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, durationMs }),
@@ -13,7 +15,7 @@ function lipsyncStart(text, durationMs) {
 }
 
 function lipsyncStop() {
-  fetch("/lipsync/stop", { method: "POST" }).catch(() => {});
+  apiFetch("/lipsync/stop", { method: "POST" }).catch(() => {});
 }
 
 class TTSController {
@@ -167,7 +169,7 @@ class TTSController {
   async _speakRemote(text, onDone, label, url, body) {
     let blob;
     try {
-      const res = await fetch(url, {
+      const res = await fetch(apiUrl(url), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),
