@@ -637,13 +637,12 @@ app.post("/lipsync/start", (req, res) => {
   const { text, durationMs } = req.body;
   if (!text || !durationMs) return res.status(400).json({ error: "text and durationMs required" });
 
-  // Route mouth movement to the logged-in user's own tunnel, not whatever
-  // VTS connection happens to be currently configured. If they don't have
-  // an approved tunnel, there's nowhere to send it — skip silently.
+  // If this account has its own approved tunnel device (e.g. a co-streamer's
+  // separate VTS instance), route mouth movement there. Otherwise fall back
+  // to whatever VTS connection is already configured (the default/shared one).
   const device = getApprovedDeviceForUser(req.user.twitchId);
-  if (!device) return res.json({ ok: true, skipped: "no_tunnel" });
+  if (device) vtube.setConfig({ url: `ws://localhost:${device.assignedPort}` });
 
-  vtube.setConfig({ url: `ws://localhost:${device.assignedPort}` });
   animations.startSpeaking();
   phonemes.schedulePhonemes(text, Number(durationMs));
   res.json({ ok: true });
