@@ -113,6 +113,15 @@ export default function Admin() {
     loadUsers();
   };
 
+  const setTier = async (twitchId, tier) => {
+    await apiFetch(`/admin/users/${twitchId}/tier`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ tier }),
+    });
+    loadUsers();
+  };
+
   if (checkingSession) {
     return <div style={styles.wrap} />;
   }
@@ -222,6 +231,7 @@ export default function Admin() {
               <tr>
                 <th style={styles.th}>User</th>
                 <th style={styles.th}>Status</th>
+                <th style={styles.th}>Tier</th>
                 <th style={styles.th}>Since</th>
                 <th style={styles.th}>Today</th>
                 <th style={styles.th}>Week</th>
@@ -240,6 +250,18 @@ export default function Admin() {
                       {u.displayName} <span style={{ opacity: 0.5 }}>({u.login})</span>
                     </td>
                     <td style={styles.td}>{u.approved ? "✅ Approved" : "⏳ Pending"}</td>
+                    <td style={styles.td}>
+                      <select
+                        value={u.tier || "pro"}
+                        onChange={(e) => setTier(u.twitchId, e.target.value)}
+                        style={styles.tierSelect}
+                      >
+                        <option value="free">Free</option>
+                        <option value="basic">Basic</option>
+                        <option value="advanced">Advanced</option>
+                        <option value="pro">Pro</option>
+                      </select>
+                    </td>
                     <td style={styles.td}>{new Date(u.createdAt).toLocaleString()}</td>
                     <td style={styles.td}>{s?.day ?? 0}</td>
                     <td style={styles.td}>{s?.week ?? 0}</td>
@@ -354,6 +376,10 @@ const styles = {
     background: "var(--surface2, #202024)", color: "var(--text, #efeff1)", border: "1px solid var(--border, #2a2a2e)",
   },
   smallBtn: { padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer", color: "#fff", fontWeight: 600, fontSize: 13 },
+  tierSelect: {
+    padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border, #2a2a2e)",
+    background: "#0e0e10", color: "#efeff1", fontSize: 13,
+  },
   table: { borderCollapse: "collapse", width: "100%", maxWidth: 820 },
   th: { textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--border, #2a2a2e)", opacity: 0.7, fontSize: 13 },
   td: { padding: "8px 12px", borderBottom: "1px solid var(--border, #2a2a2e)", fontSize: 14, verticalAlign: "middle" },

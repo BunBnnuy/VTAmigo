@@ -83,6 +83,7 @@ function upsertUser(profile) {
     displayName: profile.displayName,
     profileImageUrl: profile.profileImageUrl,
     approved: false,
+    tier: "free",
     createdAt: new Date().toISOString(),
     approvedAt: null,
   };
@@ -320,6 +321,9 @@ router.get("/auth/me", (req, res) => {
     login: user.login,
     displayName: user.displayName,
     profileImageUrl: user.profileImageUrl,
+    // Users created before tiers existed have no `tier` field — default them
+    // to "pro" so approval status quo (full access) doesn't change under them.
+    tier: user.tier || "pro",
   });
 });
 

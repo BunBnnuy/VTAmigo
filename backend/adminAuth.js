@@ -69,6 +69,19 @@ router.post("/admin/users/:twitchId/approve", requireAdmin, (req, res) => {
   res.json({ ok: true, user });
 });
 
+const VALID_TIERS = ["free", "basic", "advanced", "pro"];
+
+router.post("/admin/users/:twitchId/tier", requireAdmin, (req, res) => {
+  const { tier } = req.body || {};
+  if (!VALID_TIERS.includes(tier)) return res.status(400).json({ error: "Invalid tier" });
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === req.params.twitchId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.tier = tier;
+  writeUsers(users);
+  res.json({ ok: true, user });
+});
+
 router.post("/admin/users/:twitchId/revoke", requireAdmin, (req, res) => {
   const users = readUsers();
   const user = users.find((u) => u.twitchId === req.params.twitchId);

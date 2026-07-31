@@ -3,9 +3,19 @@ import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch } from "./api.js";
 import { useTranslation, SUPPORTED_LANGUAGES } from "./i18n/index.js";
+import { tierLimits, clampToTier } from "./tiers.js";
 
-export default function Settings({ settings, onSave, onClose }) {
-  const [form, setForm] = useState(settings);
+const TIER_NAMES = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "Pro" };
+
+function formatWindowLabel(sec) {
+  if (sec < 60) return `${sec}s`;
+  const min = sec / 60;
+  return `${min} min`;
+}
+
+export default function Settings({ settings, tier, onSave, onClose }) {
+  const [form, setForm] = useState(() => ({ ...settings, ...clampToTier(tier, settings) }));
+  const limits = tierLimits(tier);
   const { t } = useTranslation(form.language);
   const [voices, setVoices] = useState([]);
   const [micDevices, setMicDevices] = useState([]);
@@ -358,27 +368,45 @@ export default function Settings({ settings, onSave, onClose }) {
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t("settings.batching.title")}</h3>
+            <h3 style={styles.sectionTitle}>
+              {t("settings.batching.title")} <span style={styles.comingSoon}>{TIER_NAMES[tier] || tier}</span>
+            </h3>
             <div style={styles.row2}>
               <div style={styles.field}>
                 <label>{t("settings.batching.windowSize")}</label>
-                <input
-                  type="number"
-                  min={5}
-                  max={120}
-                  value={form.batchWindow}
-                  onChange={(e) => set("batchWindow", Number(e.target.value))}
-                />
+                {limits.windowOptions ? (
+                  <select value={form.batchWindow} onChange={(e) => set("batchWindow", Number(e.target.value))}>
+                    {limits.windowOptions.map((sec) => (
+                      <option key={sec} value={sec}>{formatWindowLabel(sec)}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min={5}
+                    max={120}
+                    value={form.batchWindow}
+                    onChange={(e) => set("batchWindow", Number(e.target.value))}
+                  />
+                )}
               </div>
               <div style={styles.field}>
                 <label>{t("settings.batching.maxMessages")}</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={form.maxMessages}
-                  onChange={(e) => set("maxMessages", Number(e.target.value))}
-                />
+                {limits.messageOptions ? (
+                  <select value={form.maxMessages} onChange={(e) => set("maxMessages", Number(e.target.value))}>
+                    {limits.messageOptions.map((n) => (
+                      <option key={n} value={n}>{n}</option>
+                    ))}
+                  </select>
+                ) : (
+                  <input
+                    type="number"
+                    min={1}
+                    max={50}
+                    value={form.maxMessages}
+                    onChange={(e) => set("maxMessages", Number(e.target.value))}
+                  />
+                )}
               </div>
             </div>
             <div style={styles.field}>

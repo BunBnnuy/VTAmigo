@@ -9,7 +9,10 @@ import { voice } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
 import { detectLanguage } from "./i18n/index.js";
+import { tierLimits, clampToTier } from "./tiers.js";
 import logo from "./img/logo.png";
+
+const TIER_LABELS = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "Pro" };
 
 const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
 
@@ -94,10 +97,10 @@ export default function App() {
   if (!authState.approved) {
     return <Pending displayName={authState.displayName} onLoggedOut={checkAuth} />;
   }
-  return <AppInner twitchLogin={authState.login} />;
+  return <AppInner twitchLogin={authState.login} tier={authState.tier || "pro"} />;
 }
 
-function AppInner({ twitchLogin }) {
+function AppInner({ twitchLogin, tier }) {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
@@ -133,6 +136,9 @@ function AppInner({ twitchLogin }) {
   const [botStatus, setBotStatus] = useState("disconnected");
   const [micLastText, setMicLastText] = useState("");
   const [screenWatch, setScreenWatch] = useState({ state: "off", question: null, remaining: 0 });
+  const [nowCooldownUntil, setNowCooldownUntil] = useState(0);
+  const [nowSessionUsed, setNowSessionUsed] = useState(0);
+  const [, forceNowTick] = useState(0);
 
   const wsRef = useRef(null);
   const seenMsgIds = useRef(new Set());
@@ -148,6 +154,8 @@ function AppInner({ twitchLogin }) {
   const screenCountdownRef = useRef(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const tierRef = useRef(tier);
+  tierRef.current = tier;
 
   // TTS state sync
   useEffect(() => {
@@ -264,7 +272,8 @@ function AppInner({ twitchLogin }) {
     clearInterval(countdownIntervalRef.current);
     setCountdown(null);
 
-    const batch = bufferRef.current.splice(0, settingsRef.current.maxMessages);
+    const { maxMessages } = clampToTier(tierRef.current, settingsRef.current);
+    const batch = bufferRef.current.splice(0, maxMessages);
     if (batch.length === 0) {
       if (settingsRef.current.idleRedditStories !== false) {
         const t = settingsRef.current.idleStoryThreshold || 7;
@@ -663,7 +672,7 @@ function AppInner({ twitchLogin }) {
 
   function startCountdown() {
     clearInterval(countdownIntervalRef.current);
-    const windowSec = settingsRef.current.batchWindow;
+    const { batchWindow: windowSec } = clampToTier(tierRef.current, settingsRef.current);
     setCountdown(windowSec);
 
     clearTimeout(batchTimerRef.current);
@@ -883,6 +892,32 @@ function AppInner({ twitchLogin }) {
     tts.setMuted(next);
   };
 
+  // ── "Now" button — tier-gated cooldown / per-session usage limit ───────────
+
+  useEffect(() => {
+    if (!nowCooldownUntil) return;
+    const id = setInterval(() => forceNowTick((t) => t + 1), 1000);
+    return () => clearInterval(id);
+  }, [nowCooldownUntil]);
+
+  const nowLimits = tierLimits(tier);
+  const nowOnCooldown = nowCooldownUntil > Date.now();
+  const nowSessionExhausted = nowSessionUsed >= nowLimits.nowLimitPerSession;
+  const nowRemainingSec = nowOnCooldown ? Math.ceil((nowCooldownUntil - Date.now()) / 1000) : 0;
+  const nowDisabled = loading || nowOnCooldown || nowSessionExhausted;
+  const nowTitle = nowSessionExhausted
+    ? "Ya usaste el botón Now este sesión (límite de tu plan)"
+    : nowOnCooldown
+      ? `Disponible en ${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")}`
+      : "Forzar respuesta ahora";
+
+  const handleNowClick = () => {
+    if (nowDisabled) return;
+    setNowSessionUsed((c) => c + 1);
+    if (nowLimits.nowCooldownMs > 0) setNowCooldownUntil(Date.now() + nowLimits.nowCooldownMs);
+    triggerResponse(true);
+  };
+
   // ── Status badge ──────────────────────────────────────────────────────────
 
   const statusColor = {
@@ -917,7 +952,7 @@ function AppInner({ twitchLogin }) {
           <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
           <span style={styles.brandName}>VTAmigo</span>
           {twitchLogin && (
-            <span style={styles.brandUser}>— logged in as {twitchLogin}</span>
+            <span style={styles.brandUser}>— logged in as {twitchLogin} — {TIER_LABELS[tier] || tier}</span>
           )}
         </div>
         <div style={styles.topRight}>
@@ -1172,12 +1207,12 @@ function AppInner({ twitchLogin }) {
             {muted ? "🔇 Muted" : "🔊 TTS"}
           </button>
           <button
-            style={{ ...styles.iconBtn, color: "var(--text-muted)" }}
-            onClick={() => triggerResponse(true)}
-            disabled={loading}
-            title="Forzar respuesta ahora"
+            style={{ ...styles.iconBtn, color: "var(--text-muted)", opacity: nowDisabled && !loading ? 0.5 : 1 }}
+            onClick={handleNowClick}
+            disabled={nowDisabled}
+            title={nowTitle}
           >
-            ▶ Now
+            ▶ Now{nowOnCooldown ? ` (${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")})` : ""}
           </button>
           <button
             style={{ ...styles.iconBtn, color: "#ff9f43" }}
@@ -1210,6 +1245,7 @@ function AppInner({ twitchLogin }) {
       {showSettings && (
         <Settings
           settings={settings}
+          tier={tier}
           onSave={saveSettings}
           onClose={() => setShowSettings(false)}
         />
