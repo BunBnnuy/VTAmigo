@@ -154,8 +154,18 @@ export default function Settings({ settings, onSave, onClose }) {
     reader.onload = () => {
       try {
         const parsed = JSON.parse(String(reader.result || ""));
+        // backendUrl isn't exposed anywhere in this UI, so a stale value from
+        // an old backup (e.g. a domain this app moved away from) would
+        // silently redirect every API call — including login — to a dead
+        // origin with no way to notice or clear it. Drop it if it doesn't
+        // match where we're actually running.
+        let droppedStaleBackendUrl = false;
+        if (parsed.backendUrl && parsed.backendUrl.replace(/\/+$/, "") !== window.location.origin) {
+          delete parsed.backendUrl;
+          droppedStaleBackendUrl = true;
+        }
         setForm((f) => ({ ...f, ...parsed }));
-        setSettingsFileStatus({ ok: true });
+        setSettingsFileStatus({ ok: true, droppedStaleBackendUrl });
       } catch (err) {
         setSettingsFileStatus({ error: `Archivo inválido: ${err.message}` });
       }
@@ -205,7 +215,11 @@ export default function Settings({ settings, onSave, onClose }) {
               </div>
               {settingsFileStatus && (
                 <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                  {settingsFileStatus.error ? `❌ ${settingsFileStatus.error}` : "✅ Configuración cargada — revisa los campos y pulsa Save & Apply para guardarla"}
+                  {settingsFileStatus.error
+                    ? `❌ ${settingsFileStatus.error}`
+                    : settingsFileStatus.droppedStaleBackendUrl
+                    ? "✅ Configuración cargada (se ignoró un Backend URL de otro dominio guardado en el archivo) — revisa los campos y pulsa Save & Apply para guardarla"
+                    : "✅ Configuración cargada — revisa los campos y pulsa Save & Apply para guardarla"}
                 </span>
               )}
               <span style={styles.hint}>
