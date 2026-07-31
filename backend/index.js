@@ -7,7 +7,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers } = require("./auth");
 const { sendEvent } = require("./analytics");
 const { router: adminRouter } = require("./adminAuth");
-const { router: devicesRouter } = require("./devices");
+const { router: devicesRouter, getApprovedDeviceForUser } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const memoryExport = require("./memoryExport");
 const screenwatch = require("./screenwatch");
@@ -628,6 +628,14 @@ app.post("/vtube/thinking", (req, res) => {
 app.post("/lipsync/start", (req, res) => {
   const { text, durationMs } = req.body;
   if (!text || !durationMs) return res.status(400).json({ error: "text and durationMs required" });
+
+  // Route mouth movement to the logged-in user's own tunnel, not whatever
+  // VTS connection happens to be currently configured. If they don't have
+  // an approved tunnel, there's nowhere to send it — skip silently.
+  const device = getApprovedDeviceForUser(req.user.twitchId);
+  if (!device) return res.json({ ok: true, skipped: "no_tunnel" });
+
+  vtube.setConfig({ url: `ws://localhost:${device.assignedPort}` });
   animations.startSpeaking();
   phonemes.schedulePhonemes(text, Number(durationMs));
   res.json({ ok: true });

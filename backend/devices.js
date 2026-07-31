@@ -49,6 +49,13 @@ function nextPort(devices) {
   return used.length ? Math.max(...used) + 1 : BASE_PORT + 1; // 8001 stays reserved for the owner's own tunnel
 }
 
+// Look up the approved tunnel (if any) belonging to a logged-in Twitch user.
+function getApprovedDeviceForUser(twitchId) {
+  if (!twitchId) return null;
+  const devices = pruneExpired(readDevices());
+  return devices.find((d) => d.status === "approved" && d.twitchId === twitchId) || null;
+}
+
 const router = express.Router();
 
 // POST /device/init — { publicKey } → { deviceCode, userCode, verifyUrl }
@@ -147,4 +154,4 @@ router.post("/admin/devices/:deviceCode/revoke", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { router };
+module.exports = { router, getApprovedDeviceForUser };
