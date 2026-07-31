@@ -63,10 +63,6 @@ let botClient = null;
 let eventSubClient = null;
 let tiktokClient = null;
 
-// Extra channel clients — keyed by channel name
-const extraReadClients = {};
-const extraBotClients = {};
-
 // Broadcast to all connected frontend clients
 function broadcast(data) {
   const msg = JSON.stringify(data);
@@ -168,64 +164,13 @@ app.post("/connect-bot", (req, res) => {
 });
 
 // POST /say — send a message to chat as the bot user
-// Optional { channel } routes to an extra channel's bot client instead of the primary
 app.post("/say", (req, res) => {
-  const { text, channel } = req.body;
+  const { text } = req.body;
   if (!text) return res.status(400).json({ error: "text is required" });
-
-  if (channel) {
-    const ch = channel.toLowerCase().replace(/^#/, "");
-    const client = extraBotClients[ch];
-    if (!client) return res.status(503).json({ error: `No bot connected to #${ch}` });
-    const sent = client.say(text);
-    if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
-    return res.json({ ok: true });
-  }
 
   if (!botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
   const sent = botClient.say(text);
   if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
-  res.json({ ok: true });
-});
-
-// POST /connect-extra — connect a read + bot client for an additional channel
-app.post("/connect-extra", (req, res) => {
-  const { channel, token, botUsername, botToken } = req.body;
-  if (!channel) return res.status(400).json({ error: "channel is required" });
-  const ch = channel.toLowerCase().replace(/^#/, "");
-
-  if (extraReadClients[ch]) { extraReadClients[ch].disconnect(); delete extraReadClients[ch]; }
-  if (extraBotClients[ch]) { extraBotClients[ch].disconnect(); delete extraBotClients[ch]; }
-
-  extraReadClients[ch] = new TwitchIRCClient({
-    channel: ch,
-    token,
-    onMessage: (msg) => handleChat({ ...msg, extraChannel: ch }),
-    onStatus: (status) => broadcast({ type: "extra_status", channel: ch, status }),
-  });
-  extraReadClients[ch].connect();
-
-  if (botUsername && botToken) {
-    extraBotClients[ch] = new TwitchIRCClient({
-      channel: ch,
-      token: botToken,
-      username: botUsername,
-      onMessage: () => {},
-      onStatus: (status) => broadcast({ type: "extra_bot_status", channel: ch, status }),
-    });
-    extraBotClients[ch].connect();
-  }
-
-  res.json({ ok: true, channel: ch });
-});
-
-// POST /disconnect-extra — disconnect an extra channel
-app.post("/disconnect-extra", (req, res) => {
-  const { channel } = req.body;
-  if (!channel) return res.status(400).json({ error: "channel is required" });
-  const ch = channel.toLowerCase().replace(/^#/, "");
-  if (extraReadClients[ch]) { extraReadClients[ch].disconnect(); delete extraReadClients[ch]; }
-  if (extraBotClients[ch]) { extraBotClients[ch].disconnect(); delete extraBotClients[ch]; }
   res.json({ ok: true });
 });
 

@@ -17,7 +17,6 @@ const DEFAULT_SETTINGS = {
   token: "",
   clientId: "",
   tiktokUsername: "",
-  extraChannels: [],
   batchWindow: 20,
   maxMessages: 20,
   style: "auto",
@@ -32,7 +31,6 @@ const DEFAULT_SETTINGS = {
   elevenLabsKey: "",
   elevenLabsVoiceId: "",
   piperVoice: "",
-  backendUrl: "",
   vtubeUrl: "ws://localhost:8001",
   vtubePlugin: "Twitch Chat Bot",
   vtubeMouthParam: "MouthOpen",
@@ -104,6 +102,12 @@ function AppInner() {
       const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
       // Migrate old Live2D param name to correct VTS tracking param name
       if (saved.vtubeMouthParam === "ParamMouthOpenY") saved.vtubeMouthParam = "MouthOpen";
+      // Temporarily disabled features — grayed out in Settings, forced off here
+      // regardless of any previously saved value.
+      saved.idleRedditStories = false;
+      saved.youtubePeekEnabled = false;
+      saved.screenWatchEnabled = false;
+      saved.provider = "claude";
       return saved;
     } catch {
       return DEFAULT_SETTINGS;
@@ -127,7 +131,6 @@ function AppInner() {
   const [micSpeaking, setMicSpeaking] = useState(false);
   const [botStatus, setBotStatus] = useState("disconnected");
   const [micLastText, setMicLastText] = useState("");
-  const [extraChannelStatus, setExtraChannelStatus] = useState({});
   const [screenWatch, setScreenWatch] = useState({ state: "off", question: null, remaining: 0 });
 
   const wsRef = useRef(null);
@@ -150,44 +153,11 @@ function AppInner() {
     tts.onStateChange = () => setTtsPlaying(tts.playing);
   }, []);
 
-  const connectExtraChannel = useCallback(async (channel) => {
-    const { token, botUsername, botToken } = settingsRef.current;
-    try {
-      await apiFetch("/connect-extra", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel, token, botUsername, botToken }),
-      });
-      setExtraChannelStatus((prev) => ({
-        ...prev,
-        [channel]: { read: "connecting", bot: botUsername ? "connecting" : "none" },
-      }));
-    } catch {
-      setExtraChannelStatus((prev) => ({ ...prev, [channel]: { read: "error", bot: "error" } }));
-    }
-  }, []);
-
-  const disconnectExtraChannel = useCallback(async (channel) => {
-    try {
-      await apiFetch("/disconnect-extra", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ channel }),
-      });
-    } catch {}
-    setExtraChannelStatus((prev) => {
-      const next = { ...prev };
-      delete next[channel];
-      return next;
-    });
-  }, []);
-
   // Auto-connect on startup if channels are saved
   useEffect(() => {
     if (settingsRef.current.channel) handleConnect();
     else connectWS();
     if (settingsRef.current.tiktokUsername) handleTikTokConnect();
-    (settingsRef.current.extraChannels || []).forEach((ch) => connectExtraChannel(ch));
     return () => {
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
     };
@@ -341,14 +311,6 @@ function AppInner() {
               console.warn("[bot/say]", d.error || r.status);
             }
           }).catch((e) => console.warn("[bot/say]", e.message));
-          // Also send to extra channels
-          (settingsRef.current.extraChannels || []).forEach((ch) => {
-            apiFetch("/say", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text, channel: ch }),
-            }).catch(() => {});
-          });
         }
         tts.enqueue(text);
         // Thinking stops when TTS fires onstart → /lipsync/start → startSpeaking()
@@ -604,13 +566,6 @@ function AppInner() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ text: chatMsg }),
       }).catch(() => {});
-      (settingsRef.current.extraChannels || []).forEach((ch) => {
-        apiFetch("/say", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ text: chatMsg, channel: ch }),
-        }).catch(() => {});
-      });
     }
 
     clearTimeout(screenTimerRef.current);
@@ -766,16 +721,6 @@ function AppInner() {
           const t = data.status.type;
           setTiktokStatus(t);
           setTiktokConnected(t === "connected");
-        } else if (data.type === "extra_status") {
-          setExtraChannelStatus((prev) => ({
-            ...prev,
-            [data.channel]: { ...prev[data.channel], read: data.status.type },
-          }));
-        } else if (data.type === "extra_bot_status") {
-          setExtraChannelStatus((prev) => ({
-            ...prev,
-            [data.channel]: { ...prev[data.channel], bot: data.status.type },
-          }));
         } else if (data.type === "screen_question") {
           handleScreenQuestion(data.question, data.options || []);
         } else if (data.type === "screenwatch_status") {
@@ -907,15 +852,6 @@ function AppInner() {
       handleTikTokDisconnect().then(() => {
         if (newSettings.tiktokUsername) handleTikTokConnect();
       });
-    }
-    // Diff extra channels — disconnect removed, connect added
-    const prevExtra = new Set(prev.extraChannels || []);
-    const nextExtra = new Set(newSettings.extraChannels || []);
-    for (const ch of prevExtra) {
-      if (!nextExtra.has(ch)) disconnectExtraChannel(ch);
-    }
-    for (const ch of nextExtra) {
-      if (!prevExtra.has(ch)) connectExtraChannel(ch);
     }
   };
 
@@ -1060,29 +996,6 @@ function AppInner() {
             )}
           </div>
         )}
-
-        {/* Extra channel statuses */}
-        {(settings.extraChannels || []).map((ch) => {
-          const st = extraChannelStatus[ch] || {};
-          const readOk = st.read === "connected";
-          const readPending = st.read === "connecting";
-          return (
-            <div key={ch} style={styles.statusGroup}>
-              <span style={{
-                ...styles.dot,
-                background: readOk ? "var(--green)" : readPending ? "var(--yellow)" : "var(--text-muted)",
-              }} />
-              <span style={styles.statusText}>#{ch}</span>
-              <button
-                style={{ ...styles.iconBtn, fontSize: 10, padding: "2px 6px" }}
-                onClick={() => disconnectExtraChannel(ch)}
-                title={`Disconnect #${ch}`}
-              >
-                ✕
-              </button>
-            </div>
-          );
-        })}
 
         {/* Bot status */}
         {settings.botUsername && (
