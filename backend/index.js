@@ -21,7 +21,7 @@ const xp = require("./xp");
 const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
 
-const PORT = 3001;
+const PORT = process.env.PORT || 3001;
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
