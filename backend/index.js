@@ -70,7 +70,13 @@ const PROTECTED_PREFIXES = [
   "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts",
 ];
 app.use((req, res, next) => {
-  const isProtected = PROTECTED_PREFIXES.some((p) => req.path === p || req.path.startsWith(p + "/"));
+  // Match hyphenated variants too (e.g. "/connect-bot", "/connect-tiktok"),
+  // not just "/connect" itself or "/connect/..." — a plain "/" boundary
+  // check let those slip through unauthenticated, which crashed /connect-bot
+  // (it reads req.user, never populated without requireApprovedUser).
+  const isProtected = PROTECTED_PREFIXES.some(
+    (p) => req.path === p || req.path.startsWith(p + "/") || req.path.startsWith(p + "-")
+  );
   if (!isProtected) return next();
   requireApprovedUser(req, res, next);
 });
