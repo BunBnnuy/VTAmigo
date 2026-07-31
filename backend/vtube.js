@@ -50,7 +50,13 @@ function createConnection(initialUrl) {
     clearTimeout(reconnectTimer);
 
     try {
-      ws = new WebSocket(cfg.url);
+      // Every tunnel (vtube-tunnel.ps1 and the downloadable tunnel client)
+      // forwards straight through to the client's local VTS on 127.0.0.1:8001,
+      // regardless of which port we're dialing here on the VPS side. VTS's
+      // WebSocket server validates the Host header against its own bound
+      // port and rejects a mismatch with 400 — so the Host header must always
+      // say "localhost:8001" even when cfg.url points at a different port.
+      ws = new WebSocket(cfg.url, { headers: { Host: "localhost:8001" } });
     } catch (err) {
       console.warn(`[vtube:${cfg.url}] Cannot create WebSocket:`, err.message);
       connecting = false;
