@@ -59,20 +59,12 @@ app.use((req, res, next) => {
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, path: "/chat" });
 
-// Active clients (one of each at a time)
-let twitchClient = null;
-let botClient = null;
-let eventSubClient = null;
+// Each logged-in Twitch account gets its own independent session — keyed by
+// twitchId — so multiple accounts can stay connected concurrently instead of
+// one login's /connect tearing down another's. tiktokClient stays a single
+// global since TikTok isn't tied to an approved-user login.
 let tiktokClient = null;
-
-// Who we're currently connected to Twitch as, and the token we last used —
-// lets the periodic refresh timer below detect a token rotation and
-// transparently reconnect with the fresh one. Bot creds are remembered too
-// since they're independent of the Twitch login and need to survive a
-// refresh-triggered reconnect.
-let currentTwitchUserId = null;
-let currentTwitchAccessToken = null;
-let lastBotCreds = { botUsername: null, botToken: null };
+const twitchSessions = new Map(); // twitchId -> { login, twitchClient, botClient, eventSubClient, accessToken, botCreds }
 
 // Broadcast to all connected frontend clients
 function broadcast(data) {
@@ -82,22 +74,22 @@ function broadcast(data) {
   });
 }
 
-// Broadcast only to browser sessions logged in as the Twitch account that's
-// currently connected — otherwise every logged-in user (on any browser) would
-// see chat/events from whichever account most recently called /connect.
-function broadcastToOwner(data) {
+// Broadcast only to browser sessions logged in as the given Twitch account —
+// otherwise every logged-in user (on any browser) would see chat/events from
+// every connected account instead of just their own.
+function broadcastToAccount(twitchId, data) {
   const msg = JSON.stringify(data);
   wss.clients.forEach((ws) => {
-    if (ws.readyState === WebSocket.OPEN && ws.twitchId === currentTwitchUserId) ws.send(msg);
+    if (ws.readyState === WebSocket.OPEN && ws.twitchId === twitchId) ws.send(msg);
   });
 }
 
-// Broadcast a chat message and award XP for it
-function handleChat(msg) {
-  broadcastToOwner({ type: "chat", msg });
+// Broadcast a chat message (to that account's own sessions) and award XP for it
+function handleChat(twitchId, msg) {
+  broadcastToAccount(twitchId, { type: "chat", msg });
   if (msg.username && msg.text) {
     const ev = xp.addMessage(msg.username, msg.text, msg.color);
-    if (ev && ev.gained > 0) broadcastToOwner({ type: "xp", ...ev });
+    if (ev && ev.gained > 0) broadcastToAccount(twitchId, { type: "xp", ...ev });
   }
 }
 
@@ -163,89 +155,99 @@ app.post("/memory/import", async (req, res) => {
   }
 });
 
-// POST /connect-bot — (re)connect only the bot client, no WS disruption
+// POST /connect-bot — (re)connect only the bot client for this user's session, no WS disruption
 app.post("/connect-bot", (req, res) => {
   const { botUsername, botToken } = req.body || {};
   if (!botUsername || !botToken) {
     return res.status(400).json({ error: "botUsername and botToken are required" });
   }
+  const twitchId = req.user.twitchId;
   const channel = req.user.login;
-  if (botClient) { botClient.disconnect(); botClient = null; }
-  lastBotCreds = { botUsername, botToken };
-  botClient = new TwitchIRCClient({
+  const session = twitchSessions.get(twitchId) || { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: null, botCreds: {} };
+  if (session.botClient) { session.botClient.disconnect(); session.botClient = null; }
+  session.botCreds = { botUsername, botToken };
+  session.botClient = new TwitchIRCClient({
     channel,
     token: botToken,
     username: botUsername,
     onMessage: () => {},
     onStatus: (status) => {
       console.log("[bot]", status.type);
-      broadcastToOwner({ type: "bot_status", status });
+      broadcastToAccount(twitchId, { type: "bot_status", status });
     },
   });
-  botClient.connect();
+  session.botClient.connect();
+  twitchSessions.set(twitchId, session);
   res.json({ ok: true });
 });
 
-// POST /say — send a message to chat as the bot user
+// POST /say — send a message to chat as the bot user, on behalf of the logged-in user's session
 app.post("/say", (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: "text is required" });
 
-  if (!botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
-  const sent = botClient.say(text);
+  const session = twitchSessions.get(req.user.twitchId);
+  if (!session || !session.botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
+  const sent = session.botClient.say(text);
   if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
   res.json({ ok: true });
 });
 
 // Connects Twitch chat + EventSub as the given (approved, logged-in) user,
 // using their own Twitch OAuth login — no manually-entered channel/token/
-// client-ID. Shared by POST /connect and the periodic token-refresh timer
-// below, which calls this again when a rotated token needs reconnecting.
+// client-ID. Only tears down that same user's previous session, leaving any
+// other logged-in account's connection untouched. Shared by POST /connect and
+// the periodic token-refresh timer below, which calls this again when a
+// rotated token needs reconnecting.
 async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
   const token = await getValidTwitchToken(user.twitchId); // throws NO_TWITCH_TOKEN / TWITCH_TOKEN_REFRESH_FAILED
   const channel = user.login;
+  const twitchId = user.twitchId;
 
-  if (twitchClient) twitchClient.disconnect();
-  if (botClient) { botClient.disconnect(); botClient = null; }
-  if (eventSubClient) { eventSubClient.disconnect(); eventSubClient = null; }
+  const prev = twitchSessions.get(twitchId);
+  if (prev) {
+    if (prev.twitchClient) prev.twitchClient.disconnect();
+    if (prev.botClient) prev.botClient.disconnect();
+    if (prev.eventSubClient) prev.eventSubClient.disconnect();
+  }
+
+  const session = { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token, botCreds: { botUsername: botUsername || null, botToken: botToken || null } };
 
   // Bot client — separate user that can send messages, unchanged/manual
   if (botUsername && botToken) {
-    botClient = new TwitchIRCClient({
+    session.botClient = new TwitchIRCClient({
       channel,
       token: botToken,
       username: botUsername,
       onMessage: () => {}, // don't echo bot's own messages
-      onStatus: (status) => broadcastToOwner({ type: "bot_status", status }),
+      onStatus: (status) => broadcastToAccount(twitchId, { type: "bot_status", status }),
     });
-    botClient.connect();
+    session.botClient.connect();
   }
 
-  twitchClient = new TwitchIRCClient({
+  session.twitchClient = new TwitchIRCClient({
     channel,
     token,
     username: channel,
-    onMessage: (msg) => handleChat(msg),
-    onStatus: (status) => broadcastToOwner({ type: "status", status }),
+    onMessage: (msg) => handleChat(twitchId, msg),
+    onStatus: (status) => broadcastToAccount(twitchId, { type: "status", status }),
   });
-  twitchClient.connect();
+  session.twitchClient.connect();
 
-  eventSubClient = new EventSubClient({
+  session.eventSubClient = new EventSubClient({
     channel,
     clientId: process.env.TWITCH_CLIENT_ID,
     token,
-    onRedeem: (redeem) => broadcastToOwner({ type: "chat", msg: redeem }),
-    onEvent: (event) => broadcastToOwner({ type: "twitch_event", event }),
+    onRedeem: (redeem) => broadcastToAccount(twitchId, { type: "chat", msg: redeem }),
+    onEvent: (event) => broadcastToAccount(twitchId, { type: "twitch_event", event }),
     onStatus: (status) => {
       console.log("[eventsub]", status);
-      broadcastToOwner({ type: "status", status });
+      broadcastToAccount(twitchId, { type: "status", status });
     },
   });
-  eventSubClient.connect();
+  session.eventSubClient.connect();
 
-  currentTwitchUserId = user.twitchId;
-  currentTwitchAccessToken = token;
-  lastBotCreds = { botUsername: botUsername || null, botToken: botToken || null };
+  twitchSessions.set(twitchId, session);
   return { channel };
 }
 
@@ -264,33 +266,37 @@ app.post("/connect", async (req, res) => {
   }
 });
 
-// POST /disconnect — disconnect from Twitch
+// POST /disconnect — disconnect the logged-in user's own Twitch session, leaving other accounts connected
 app.post("/disconnect", (req, res) => {
-  if (twitchClient) { twitchClient.disconnect(); twitchClient = null; }
-  if (botClient) { botClient.disconnect(); botClient = null; }
-  if (eventSubClient) { eventSubClient.disconnect(); eventSubClient = null; }
-  currentTwitchUserId = null;
-  currentTwitchAccessToken = null;
+  const twitchId = req.user.twitchId;
+  const session = twitchSessions.get(twitchId);
+  if (session) {
+    if (session.twitchClient) session.twitchClient.disconnect();
+    if (session.botClient) session.botClient.disconnect();
+    if (session.eventSubClient) session.eventSubClient.disconnect();
+    twitchSessions.delete(twitchId);
+  }
   res.json({ ok: true });
 });
 
-// Every 30 min, check whether the connected user's Twitch token needs a
+// Every 30 min, check whether each connected account's Twitch token needs a
 // refresh (getValidTwitchToken refreshes transparently when close to expiry)
 // and reconnect if it rotated — EventSub subscriptions are per-websocket-
 // session, so a reconnect naturally re-subscribes with the fresh token.
 setInterval(async () => {
-  if (!currentTwitchUserId) return;
-  try {
-    const freshToken = await getValidTwitchToken(currentTwitchUserId);
-    if (freshToken !== currentTwitchAccessToken) {
-      const user = readUsers().find((u) => u.twitchId === currentTwitchUserId);
-      if (user) {
-        console.log("[twitch] token refreshed — reconnecting");
-        await connectTwitchForUser(user, lastBotCreds);
+  for (const [twitchId, session] of twitchSessions) {
+    try {
+      const freshToken = await getValidTwitchToken(twitchId);
+      if (freshToken !== session.accessToken) {
+        const user = readUsers().find((u) => u.twitchId === twitchId);
+        if (user) {
+          console.log(`[twitch] token refreshed for ${user.login} — reconnecting`);
+          await connectTwitchForUser(user, session.botCreds);
+        }
       }
+    } catch (err) {
+      console.warn(`[twitch] periodic token refresh failed for ${twitchId}:`, err.message);
     }
-  } catch (err) {
-    console.warn("[twitch] periodic token refresh failed:", err.message);
   }
 }, 30 * 60 * 1000);
 
