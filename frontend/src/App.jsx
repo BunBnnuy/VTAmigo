@@ -13,9 +13,6 @@ const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twit
 Responde en 1–3 oraciones. Sé ingenioso, no cringe. Aporta algo — no solo repitas lo que dijo el chat. Iguala la energía: tranquilo cuando ellos están tranquilos, hypeado cuando están hypeados.`;
 
 const DEFAULT_SETTINGS = {
-  channel: "",
-  token: "",
-  clientId: "",
   tiktokUsername: "",
   batchWindow: 20,
   maxMessages: 20,
@@ -93,10 +90,10 @@ export default function App() {
   if (!authState.approved) {
     return <Pending displayName={authState.displayName} onLoggedOut={checkAuth} />;
   }
-  return <AppInner />;
+  return <AppInner twitchLogin={authState.login} />;
 }
 
-function AppInner() {
+function AppInner({ twitchLogin }) {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
@@ -153,10 +150,10 @@ function AppInner() {
     tts.onStateChange = () => setTtsPlaying(tts.playing);
   }, []);
 
-  // Auto-connect on startup if channels are saved
+  // Auto-connect on mount — login always implies a channel now (the user's
+  // own), so there's nothing to gate this on.
   useEffect(() => {
-    if (settingsRef.current.channel) handleConnect();
-    else connectWS();
+    handleConnect();
     if (settingsRef.current.tiktokUsername) handleTikTokConnect();
     return () => {
       if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
@@ -757,23 +754,21 @@ function AppInner() {
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
   const handleConnect = useCallback(async () => {
-    const { channel, token } = settingsRef.current;
-    if (!channel) {
-      setShowSettings(true);
-      return;
-    }
     try {
-      await apiFetch("/connect", {
+      const res = await apiFetch("/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channel,
-          token,
-          clientId: settingsRef.current.clientId,
           botUsername: settingsRef.current.botUsername,
           botToken: settingsRef.current.botToken,
         }),
       });
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        setConnStatus("error");
+        alert(d.error || `HTTP ${res.status}`);
+        return;
+      }
       connectWS();
       startCountdown();
     } catch (err) {
@@ -841,7 +836,6 @@ function AppInner() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          channel: newSettings.channel,
           botUsername: newSettings.botUsername,
           botToken: newSettings.botToken,
         }),
@@ -878,8 +872,8 @@ function AppInner() {
   }[connStatus] || "var(--text-muted)";
 
   const statusLabel = {
-    connected: `Conectado a #${settings.channel}`,
-    eventsub_connected: `EventSub activo en #${settings.channel}`,
+    connected: `Conectado a #${twitchLogin}`,
+    eventsub_connected: `EventSub activo en #${twitchLogin}`,
     connecting: "Conectando…",
     eventsub_connecting: "Conectando EventSub…",
     disconnected: "Desconectado",

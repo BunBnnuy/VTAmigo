@@ -1,7 +1,7 @@
 // Separate, password-only session for /admin — independent of Twitch login.
 const express = require("express");
 const jwt = require("jsonwebtoken");
-const { readUsers, writeUsers } = require("./auth");
+const { readUsers, writeUsers, clearTwitchTokens } = require("./auth");
 
 const ADMIN_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
 const ADMIN_COOKIE = "admin_session";
@@ -56,6 +56,7 @@ router.post("/admin/users/:twitchId/revoke", requireAdmin, (req, res) => {
   user.approved = false;
   user.approvedAt = null;
   writeUsers(users);
+  clearTwitchTokens(user.twitchId);
   res.json({ ok: true, user });
 });
 

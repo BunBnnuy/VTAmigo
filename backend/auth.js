@@ -11,6 +11,45 @@ const SESSION_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secre
 const STATE_COOKIE = "twitch_oauth_state";
 const SESSION_COOKIE = "session";
 
+// Scopes needed to read chat and subscribe to EventSub events on the
+// logged-in user's own channel — see backend/eventsub.js's subscribeAll().
+const TWITCH_LOGIN_SCOPES = [
+  "chat:read",
+  "channel:read:redemptions",
+  "moderator:read:followers",
+  "channel:read:subscriptions",
+  "bits:read",
+].join(" ");
+
+// ── Token encryption at rest (AES-256-GCM, key derived from SESSION_SECRET) ──
+// These are live Twitch account tokens, not just session identifiers, so they
+// don't belong in users.json as plaintext.
+const ENC_KEY = crypto.scryptSync(SESSION_SECRET, "vtamigo-twitch-token", 32);
+
+function encryptToken(plain) {
+  if (!plain) return null;
+  const iv = crypto.randomBytes(12);
+  const cipher = crypto.createCipheriv("aes-256-gcm", ENC_KEY, iv);
+  const ciphertext = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  const authTag = cipher.getAuthTag();
+  return Buffer.concat([iv, authTag, ciphertext]).toString("base64");
+}
+
+function decryptToken(encoded) {
+  if (!encoded) return null;
+  try {
+    const buf = Buffer.from(encoded, "base64");
+    const iv = buf.subarray(0, 12);
+    const authTag = buf.subarray(12, 28);
+    const ciphertext = buf.subarray(28);
+    const decipher = crypto.createDecipheriv("aes-256-gcm", ENC_KEY, iv);
+    decipher.setAuthTag(authTag);
+    return Buffer.concat([decipher.update(ciphertext), decipher.final()]).toString("utf8");
+  } catch {
+    return null;
+  }
+}
+
 function readUsers() {
   try {
     return JSON.parse(fs.readFileSync(USERS_PATH, "utf8"));
@@ -49,6 +88,67 @@ function upsertUser(profile) {
   users.push(created);
   writeUsers(users);
   return created;
+}
+
+// Persist the tokens issued at login/refresh, encrypted at rest.
+function setTwitchTokens(twitchId, { accessToken, refreshToken, expiresIn }) {
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === twitchId);
+  if (!user) return;
+  user.twitchAccessTokenEnc = encryptToken(accessToken);
+  user.twitchRefreshTokenEnc = encryptToken(refreshToken);
+  user.twitchTokenExpiresAt = Date.now() + expiresIn * 1000;
+  writeUsers(users);
+}
+
+function clearTwitchTokens(twitchId) {
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === twitchId);
+  if (!user) return;
+  delete user.twitchAccessTokenEnc;
+  delete user.twitchRefreshTokenEnc;
+  delete user.twitchTokenExpiresAt;
+  writeUsers(users);
+}
+
+// Returns a valid (decrypted, non-expired) Twitch access token for this user,
+// refreshing it first if it's within 5 minutes of expiring. Throws if the
+// user has no stored token or the refresh fails (e.g. revoked by Twitch) —
+// callers should surface this as "log out and back in".
+async function getValidTwitchToken(twitchId) {
+  const user = findUser(twitchId);
+  if (!user || !user.twitchAccessTokenEnc) {
+    throw new Error("NO_TWITCH_TOKEN");
+  }
+
+  if (Date.now() < user.twitchTokenExpiresAt - 5 * 60 * 1000) {
+    return decryptToken(user.twitchAccessTokenEnc);
+  }
+
+  const refreshToken = decryptToken(user.twitchRefreshTokenEnc);
+  if (!refreshToken) throw new Error("NO_TWITCH_TOKEN");
+
+  const res = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.TWITCH_CLIENT_ID,
+      client_secret: process.env.TWITCH_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+  if (!res.ok) {
+    clearTwitchTokens(twitchId);
+    throw new Error("TWITCH_TOKEN_REFRESH_FAILED");
+  }
+  const data = await res.json();
+  setTwitchTokens(twitchId, {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken,
+    expiresIn: data.expires_in,
+  });
+  return data.access_token;
 }
 
 function signSession(user) {
@@ -108,7 +208,7 @@ router.get("/auth/twitch/login", (req, res) => {
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
   url.searchParams.set("response_type", "code");
-  url.searchParams.set("scope", "");
+  url.searchParams.set("scope", TWITCH_LOGIN_SCOPES);
   url.searchParams.set("state", state);
   res.redirect(url.toString());
 });
@@ -158,6 +258,12 @@ router.get("/auth/twitch/callback", async (req, res) => {
       profileImageUrl: twitchUser.profile_image_url,
     });
 
+    setTwitchTokens(user.twitchId, {
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresIn: tokenData.expires_in,
+    });
+
     const sessionToken = signSession(user);
     res.cookie(SESSION_COOKIE, sessionToken, {
       httpOnly: true,
@@ -195,4 +301,6 @@ module.exports = {
   getApprovedUserFromCookieHeader,
   readUsers,
   writeUsers,
+  getValidTwitchToken,
+  clearTwitchTokens,
 };

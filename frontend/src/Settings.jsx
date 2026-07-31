@@ -230,59 +230,6 @@ export default function Settings({ settings, onSave, onClose }) {
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Twitch Connection</h3>
-            <div style={styles.field}>
-              <label>Channel name</label>
-              <input
-                value={form.channel}
-                onChange={(e) => set("channel", e.target.value)}
-                placeholder="xqc"
-              />
-            </div>
-            <div style={styles.field}>
-              <label>OAuth Token (requerido para canjes de puntos y evitar rate limits)</label>
-              <input
-                type="password"
-                value={form.token}
-                onChange={(e) => set("token", e.target.value)}
-                placeholder="oauth:xxxxxxxxxxxxxxx"
-              />
-              <span style={styles.hint}>
-                Obtén uno en{" "}
-                <a
-                  href="https://twitchapps.com/tmi/"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={styles.link}
-                >
-                  twitchapps.com/tmi
-                </a>
-                {" "}— asegúrate de tener el scope <code>channel:read:redemptions</code>
-              </span>
-            </div>
-            <div style={styles.field}>
-              <label>Client-ID de Twitch (necesario para canjes silenciosos vía EventSub)</label>
-              <input
-                value={form.clientId || ""}
-                onChange={(e) => set("clientId", e.target.value)}
-                placeholder="xxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-              />
-              <span style={styles.hint}>
-                Regístra una app gratis en{" "}
-                <a
-                  href="https://dev.twitch.tv/console/apps/create"
-                  target="_blank"
-                  rel="noreferrer"
-                  style={styles.link}
-                >
-                  dev.twitch.tv/console
-                </a>
-                {" "}→ copia el Client-ID. URL de redirección: <code>http://localhost</code>
-              </span>
-            </div>
-          </section>
-
-          <section style={styles.section}>
             <h3 style={styles.sectionTitle}>Bot Account (Send to Chat)</h3>
             <div style={styles.field}>
               <label>Bot username</label>
