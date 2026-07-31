@@ -1,11 +1,12 @@
 import React from "react";
 import { apiUrl } from "./api.js";
+import logo from "./img/logo.png";
 
 export default function Login() {
   return (
     <div style={styles.wrap}>
       <div style={styles.card}>
-        <span style={styles.icon}>🎮</span>
+        <img src={logo} alt="VTAmigo" style={styles.icon} />
         <h1 style={styles.title}>VTAmigo</h1>
         <p style={styles.subtitle}>Log in with Twitch to continue.</p>
         <a style={styles.btn} href={apiUrl("/auth/twitch/login")}>
@@ -26,7 +27,7 @@ const styles = {
     padding: "40px 48px", borderRadius: 12, background: "var(--panel, #18181b)",
     border: "1px solid var(--border, #2a2a2e)",
   },
-  icon: { fontSize: 40 },
+  icon: { width: 40, height: 40, objectFit: "contain" },
   title: { margin: 0, fontSize: 22 },
   subtitle: { margin: 0, opacity: 0.7, fontSize: 14 },
   btn: {

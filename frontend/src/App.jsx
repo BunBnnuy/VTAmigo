@@ -8,6 +8,7 @@ import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
+import logo from "./img/logo.png";
 
 const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
 
@@ -899,8 +900,11 @@ function AppInner({ twitchLogin }) {
       {/* ── Top bar ── */}
       <div style={styles.topBar}>
         <div style={styles.brand}>
-          <span style={styles.brandIcon}>🎮</span>
+          <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
           <span style={styles.brandName}>VTAmigo</span>
+          {twitchLogin && (
+            <span style={styles.brandUser}>— logged in as {twitchLogin}</span>
+          )}
         </div>
         <div style={styles.topRight}>
           <button
@@ -1229,7 +1233,12 @@ const styles = {
     alignItems: "center",
     gap: 8,
   },
-  brandIcon: { fontSize: 20 },
+  brandIcon: { width: 24, height: 24, objectFit: "contain" },
+  brandUser: {
+    fontSize: 13,
+    color: "var(--text-muted)",
+    fontWeight: 400,
+  },
   brandName: {
     fontWeight: 800,
     fontSize: 16,
