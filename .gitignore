@@ -9,3 +9,5 @@ backend/.agent-sessions.json
 backend/memories/
 backend/xp-data.json
 backend/users.json
+backend/devices.json
+frontend/public/downloads/*.exe

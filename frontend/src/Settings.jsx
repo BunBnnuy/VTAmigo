@@ -215,6 +215,21 @@ export default function Settings({ settings, onSave, onClose }) {
           </section>
 
           <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>Tunnel client (VTube Studio from another PC)</h3>
+            <div style={styles.field}>
+              <label>Let a guest run VTube Studio lip-sync from their own computer</label>
+              <a href="/downloads/tunnel-client.exe" download style={{ textDecoration: "none" }}>
+                <button type="button" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}>
+                  ⬇️ Download tunnel-client.exe
+                </button>
+              </a>
+              <span style={styles.hint}>
+                They run the exe, it shows a short code, and any approved user logs in at /device to approve it — no keys or passwords to share. Same idea as the built-in reverse tunnel, just for a second machine.
+              </span>
+            </div>
+          </section>
+
+          <section style={styles.section}>
             <h3 style={styles.sectionTitle}>TikTok Live Connection</h3>
             <div style={styles.field}>
               <label>TikTok username</label>

@@ -6,6 +6,7 @@ const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers } = require("./auth");
 const { router: adminRouter } = require("./adminAuth");
+const { router: devicesRouter } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const memoryExport = require("./memoryExport");
 const screenwatch = require("./screenwatch");
@@ -30,6 +31,7 @@ app.use(express.json({ limit: "5mb" })); // memory .md imports can be large
 // own middleware); everything else requires an approved, logged-in user.
 app.use(authRouter);
 app.use(adminRouter);
+app.use(devicesRouter);
 
 // Serve built frontend in production (Electron packaged app / VPS) — public,
 // so the login screen itself can load before the user is authenticated.

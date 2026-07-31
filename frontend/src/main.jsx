@@ -2,12 +2,13 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import Admin from "./Admin.jsx";
+import Device from "./Device.jsx";
 import "./index.css";
 
-const isAdminRoute = window.location.pathname.startsWith("/admin");
+const path = window.location.pathname;
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
-    {isAdminRoute ? <Admin /> : <App />}
+    {path.startsWith("/admin") ? <Admin /> : path.startsWith("/device") ? <Device /> : <App />}
   </React.StrictMode>
 );

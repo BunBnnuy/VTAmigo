@@ -44,6 +44,24 @@ Leave the window open for the stream's duration — it auto-reconnects if the co
 
 This is needed regardless of how you reach the app — whether running the client locally (`npm run dev:remote`, which starts the tunnel automatically) or just opening the hosted site in a browser (in which case run `vtube-tunnel.ps1` on its own, standalone, since there's no `dev:remote` process to bundle it into). Either way, VTube Studio itself still only runs on your PC, so the tunnel is what makes the remote backend able to reach it.
 
+## Guest tunnel client (VTube Studio from a second PC)
+
+Anyone approved in the app can enroll a second machine's VTube Studio (e.g. a co-streamer's PC) via a downloadable client (`Settings > Tunnel client`, built from `client/tunnel-client.js` with `npm run build:tunnel-client`). It never handles the shared SSH key — it generates its own local keypair and gets approved through a device-code flow (`backend/devices.js`) at `/device?code=...`, reusing the existing Twitch login + approval.
+
+**One-time VPS setup** — a dedicated, unprivileged SSH user that only ever does restricted port-forwarding, so a device's key can never do anything but forward its assigned port:
+
+```bash
+sudo adduser --disabled-password --gecos "" --shell /usr/sbin/nologin tunnel
+sudo -u tunnel mkdir -p /home/tunnel/.ssh
+sudo touch /home/tunnel/.ssh/authorized_keys
+sudo chown -R tunnel:tunnel /home/tunnel/.ssh
+sudo chmod 700 /home/tunnel/.ssh
+sudo chmod 664 /home/tunnel/.ssh/authorized_keys   # group-writable...
+sudo usermod -aG tunnel vtamigo                     # ...so vtamigo can append/remove device keys
+```
+
+`backend/devices.js` writes to `/home/tunnel/.ssh/authorized_keys` directly (override the path with `TUNNEL_AUTHORIZED_KEYS` in `/etc/vtamigo.env` if needed) — no sudo/root access required by the backend process. Each approved device gets its own restricted line (`restrict,port-forwarding,permitopen="127.0.0.1:8001",permitlisten="<port>"`) and its own incrementing remote port starting at 8002 (8001 stays reserved for the owner's own `vtube-tunnel.ps1`). Revoking a device from the admin panel removes only its line.
+
 ## Notes
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`.

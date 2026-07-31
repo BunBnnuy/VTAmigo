@@ -8,7 +8,8 @@
     "dev": "concurrently --kill-others-on-fail \"node backend/index.js\" \"cd frontend && npm run dev\" \"wait-on http://localhost:5173 && start chrome http://localhost:5173\"",
     "dev:remote": "concurrently --kill-others-on-fail -n frontend,tunnel,browser \"cd frontend && npm run dev\" \"powershell -NoProfile -ExecutionPolicy Bypass -File server/vtube-tunnel.ps1\" \"wait-on http://localhost:5173 && start chrome http://localhost:5173\"",
     "build": "cd frontend && npm run build",
-    "dist:win": "npm run build && electron-builder --win"
+    "dist:win": "npm run build && electron-builder --win",
+    "build:tunnel-client": "pkg client/tunnel-client.js --targets node18-win-x64 --output frontend/public/downloads/tunnel-client.exe"
   },
   "dependencies": {
     "cheerio": "^1.2.0",
@@ -20,6 +21,7 @@
     "concurrently": "^10.0.3",
     "electron": "^42.4.1",
     "electron-builder": "^26.15.3",
+    "pkg": "^5.8.1",
     "wait-on": "^9.0.10"
   },
   "build": {

@@ -6,6 +6,7 @@ export default function Admin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [users, setUsers] = useState(null);
+  const [devices, setDevices] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const loadUsers = useCallback(async () => {
@@ -15,9 +16,23 @@ export default function Admin() {
     setUsers(data.users);
   }, []);
 
+  const loadDevices = useCallback(async () => {
+    const res = await apiFetch("/admin/devices");
+    if (res.status === 401) { setAuthed(false); return; }
+    const data = await res.json();
+    setDevices(data.devices);
+  }, []);
+
   useEffect(() => {
-    if (authed) loadUsers();
-  }, [authed, loadUsers]);
+    if (authed) { loadUsers(); loadDevices(); }
+  }, [authed, loadUsers, loadDevices]);
+
+  const revokeDevice = async (deviceCode) => {
+    await apiFetch(`/admin/devices/${deviceCode}/revoke`, { method: "POST" });
+    loadDevices();
+  };
+
+  const userLabel = (twitchId) => users?.find((u) => u.twitchId === twitchId)?.displayName || twitchId || "—";
 
   const login = async (e) => {
     e.preventDefault();
@@ -101,6 +116,44 @@ export default function Admin() {
                   ) : (
                     <button style={{ ...styles.smallBtn, background: "var(--purple, #9147ff)" }} onClick={() => setApproved(u.twitchId, true)}>
                       Approve
+                    </button>
+                  )}
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
+
+      <h1 style={{ ...styles.title, marginTop: 32 }}>Tunnel devices</h1>
+      {!devices ? (
+        <p>Loading…</p>
+      ) : devices.length === 0 ? (
+        <p style={{ opacity: 0.7 }}>No tunnel-client devices enrolled yet.</p>
+      ) : (
+        <table style={styles.table}>
+          <thead>
+            <tr>
+              <th style={styles.th}>Approved by</th>
+              <th style={styles.th}>Status</th>
+              <th style={styles.th}>Port</th>
+              <th style={styles.th}>Since</th>
+              <th style={styles.th}></th>
+            </tr>
+          </thead>
+          <tbody>
+            {devices.map((d) => (
+              <tr key={d.deviceCode}>
+                <td style={styles.td}>{d.twitchId ? userLabel(d.twitchId) : <span style={{ opacity: 0.5 }}>unclaimed</span>}</td>
+                <td style={styles.td}>
+                  {d.status === "approved" ? "✅ Approved" : d.status === "revoked" ? "🚫 Revoked" : "⏳ Pending"}
+                </td>
+                <td style={styles.td}>{d.assignedPort || "—"}</td>
+                <td style={styles.td}>{new Date(d.createdAt).toLocaleString()}</td>
+                <td style={styles.td}>
+                  {d.status === "approved" && (
+                    <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={() => revokeDevice(d.deviceCode)}>
+                      Revoke
                     </button>
                   )}
                 </td>
