@@ -185,7 +185,7 @@ function AppInner({ twitchLogin }) {
   }, []);
 
   const handleSendTyped = useCallback((text) => {
-    const label = settingsRef.current.micLabel || "Streamer";
+    const label = twitchLogin || "Streamer";
     setMessages((prev) => [...prev.slice(-199), {
       id: `typed-${uid()}`,
       timestamp: Date.now(),
@@ -194,7 +194,7 @@ function AppInner({ twitchLogin }) {
       isTyped: true,
     }]);
     bufferRef.current.push({ username: label, text });
-  }, []);
+  }, [twitchLogin]);
 
   // Apply mic settings whenever they change
   useEffect(() => {
