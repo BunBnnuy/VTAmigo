@@ -9,6 +9,7 @@ const { sendEvent } = require("./analytics");
 const { router: adminRouter } = require("./adminAuth");
 const { router: devicesRouter, getApprovedDeviceForUser } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
+const usage = require("./usage");
 const memoryExport = require("./memoryExport");
 const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
@@ -130,6 +131,13 @@ app.post("/respond", async (req, res) => {
 
   try {
     const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider || "claude");
+    usage.recordGeneration({
+      twitchId: req.user?.twitchId,
+      login: req.user?.login,
+      provider: provider || "claude",
+      inputText: messages.map((m) => m.text || "").join(" "),
+      outputText: response,
+    });
     res.json({ response });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {

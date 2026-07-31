@@ -10,5 +10,6 @@ backend/memories/
 backend/xp-data.json
 backend/users.json
 backend/devices.json
+backend/usage.json
 backend/piper/
 frontend/public/downloads/*.exe
