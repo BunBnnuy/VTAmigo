@@ -198,6 +198,14 @@ function getApprovedUserFromCookieHeader(cookieHeader) {
 const router = express.Router();
 
 router.get("/auth/twitch/login", (req, res) => {
+  // This route has a side effect (issues a one-time state cookie) despite
+  // being a GET, which makes it a bad target for browser link prefetching —
+  // Chrome/Brave can speculatively hit an <a href> on hover, get this
+  // Set-Cookie, then discard it (prefetch responses don't commit cookies),
+  // while the real click still follows through to Twitch and back with no
+  // state cookie to check against. no-store tells the browser not to
+  // prefetch/cache this response at all.
+  res.set("Cache-Control", "no-store");
   const clientId = process.env.TWITCH_CLIENT_ID;
   const redirectUri = process.env.TWITCH_REDIRECT_URI;
   if (!clientId || !redirectUri) {
@@ -216,6 +224,7 @@ router.get("/auth/twitch/login", (req, res) => {
 });
 
 router.get("/auth/twitch/callback", async (req, res) => {
+  res.set("Cache-Control", "no-store");
   const { code, state } = req.query;
   const expectedState = req.cookies && req.cookies[STATE_COOKIE];
   res.clearCookie(STATE_COOKIE);
