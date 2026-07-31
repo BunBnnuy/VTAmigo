@@ -184,6 +184,18 @@ function AppInner({ twitchLogin }) {
     };
   }, []);
 
+  const handleSendTyped = useCallback((text) => {
+    const label = settingsRef.current.micLabel || "Streamer";
+    setMessages((prev) => [...prev.slice(-199), {
+      id: `typed-${uid()}`,
+      timestamp: Date.now(),
+      username: label,
+      text,
+      isTyped: true,
+    }]);
+    bufferRef.current.push({ username: label, text });
+  }, []);
+
   // Apply mic settings whenever they change
   useEffect(() => {
     voice.setLang(settings.micLang);
@@ -942,7 +954,7 @@ function AppInner({ twitchLogin }) {
             <span style={styles.panelTitle}>Live Chat</span>
             <span style={styles.msgCount}>{messages.length} messages</span>
           </div>
-          <ChatFeed messages={messages} />
+          <ChatFeed messages={messages} onSend={handleSendTyped} />
         </div>
 
         {/* Divider */}

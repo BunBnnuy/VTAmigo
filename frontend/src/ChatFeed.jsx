@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useRef, useState } from "react";
 
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -13,65 +13,96 @@ const EVENT_ICONS = {
   cheer: "💎",
 };
 
-export default function ChatFeed({ messages }) {
+export default function ChatFeed({ messages, onSend }) {
   const bottomRef = useRef(null);
+  const [draft, setDraft] = useState("");
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  const submit = (e) => {
+    e.preventDefault();
+    const text = draft.trim();
+    if (!text || !onSend) return;
+    onSend(text);
+    setDraft("");
+  };
+
   return (
-    <div style={styles.feed}>
-      {messages.length === 0 && (
-        <div style={styles.empty}>Sin mensajes aún — conéctate a un canal para empezar.</div>
-      )}
-      {messages.map((m) => {
-        if (m.isEvent) {
-          const icon = EVENT_ICONS[m.eventKind] || "📢";
-          return (
-            <div key={m.id} style={styles.eventRow}>
-              <span style={styles.time}>{formatTime(m.timestamp)}</span>
-              <span style={styles.eventIcon}>{icon}</span>
-              <span style={styles.eventUser}>{m.username}</span>
-              <span style={styles.eventText}>{m.text}</span>
-            </div>
-          );
-        }
+    <div style={styles.wrap}>
+      <div style={styles.feed}>
+        {messages.length === 0 && (
+          <div style={styles.empty}>Sin mensajes aún — conéctate a un canal para empezar.</div>
+        )}
+        {messages.map((m) => {
+          if (m.isEvent) {
+            const icon = EVENT_ICONS[m.eventKind] || "📢";
+            return (
+              <div key={m.id} style={styles.eventRow}>
+                <span style={styles.time}>{formatTime(m.timestamp)}</span>
+                <span style={styles.eventIcon}>{icon}</span>
+                <span style={styles.eventUser}>{m.username}</span>
+                <span style={styles.eventText}>{m.text}</span>
+              </div>
+            );
+          }
 
-        if (m.isVoice) {
+          if (m.isVoice || m.isTyped) {
+            return (
+              <div key={m.id} style={styles.voiceRow}>
+                <span style={styles.time}>{formatTime(m.timestamp)}</span>
+                <span style={styles.voiceIcon}>{m.isTyped ? "⌨️" : "🎙"}</span>
+                <span style={{ ...styles.user, color: "#00d4ff" }}>{m.username}</span>
+                <span style={styles.colon}>: </span>
+                <span style={{ ...styles.text, fontStyle: "italic" }}>{m.text}</span>
+              </div>
+            );
+          }
+
           return (
-            <div key={m.id} style={styles.voiceRow}>
+            <div key={m.id} style={{ ...styles.row, ...(m.isRedeem ? styles.redeemRow : {}) }}>
               <span style={styles.time}>{formatTime(m.timestamp)}</span>
-              <span style={styles.voiceIcon}>🎙</span>
-              <span style={{ ...styles.user, color: "#00d4ff" }}>{m.username}</span>
+              {m.extraChannel && (
+                <span style={styles.channelBadge}>#{m.extraChannel}</span>
+              )}
+              {m.isRedeem && (
+                <span style={styles.redeemBadge} title={m.rewardTitle || "Canje de puntos"}>🎁</span>
+              )}
+              <span style={{ ...styles.user, color: m.color }}>{m.username}</span>
               <span style={styles.colon}>: </span>
-              <span style={{ ...styles.text, fontStyle: "italic" }}>{m.text}</span>
+              <span style={styles.text}>{m.text || m.rewardTitle}</span>
+              {m.isHype && <span style={styles.hype}>⚡</span>}
             </div>
           );
-        }
-
-        return (
-          <div key={m.id} style={{ ...styles.row, ...(m.isRedeem ? styles.redeemRow : {}) }}>
-            <span style={styles.time}>{formatTime(m.timestamp)}</span>
-            {m.extraChannel && (
-              <span style={styles.channelBadge}>#{m.extraChannel}</span>
-            )}
-            {m.isRedeem && (
-              <span style={styles.redeemBadge} title={m.rewardTitle || "Canje de puntos"}>🎁</span>
-            )}
-            <span style={{ ...styles.user, color: m.color }}>{m.username}</span>
-            <span style={styles.colon}>: </span>
-            <span style={styles.text}>{m.text || m.rewardTitle}</span>
-            {m.isHype && <span style={styles.hype}>⚡</span>}
-          </div>
-        );
-      })}
-      <div ref={bottomRef} />
+        })}
+        <div ref={bottomRef} />
+      </div>
+      {onSend && (
+        <form style={styles.inputBar} onSubmit={submit}>
+          <input
+            style={styles.input}
+            type="text"
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="Escribe un mensaje…"
+          />
+          <button style={styles.sendBtn} type="submit" disabled={!draft.trim()}>
+            Enviar
+          </button>
+        </form>
+      )}
     </div>
   );
 }
 
 const styles = {
+  wrap: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    overflow: "hidden",
+  },
   feed: {
     flex: 1,
     overflowY: "auto",
@@ -79,6 +110,32 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 2,
+  },
+  inputBar: {
+    display: "flex",
+    gap: 6,
+    padding: "8px 10px",
+    borderTop: "1px solid var(--border)",
+    flexShrink: 0,
+  },
+  input: {
+    flex: 1,
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    padding: "6px 8px",
+    color: "var(--text)",
+    fontSize: 13,
+  },
+  sendBtn: {
+    background: "var(--purple)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 4,
+    padding: "6px 12px",
+    fontSize: 13,
+    fontWeight: 600,
+    cursor: "pointer",
   },
   empty: {
     color: "var(--text-muted)",
