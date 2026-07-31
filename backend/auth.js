@@ -5,6 +5,7 @@ const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
+const { sendEvent } = require("./analytics");
 
 const USERS_PATH = path.join(__dirname, "users.json");
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
@@ -202,6 +203,7 @@ router.get("/auth/twitch/login", (req, res) => {
   if (!clientId || !redirectUri) {
     return res.status(503).send("Twitch OAuth is not configured on this server.");
   }
+  sendEvent("login_attempt", { req });
   const state = crypto.randomBytes(16).toString("hex");
   res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: "lax", maxAge: 5 * 60 * 1000 });
   const url = new URL("https://id.twitch.tv/oauth2/authorize");
@@ -218,6 +220,12 @@ router.get("/auth/twitch/callback", async (req, res) => {
   const expectedState = req.cookies && req.cookies[STATE_COOKIE];
   res.clearCookie(STATE_COOKIE);
   if (!code || !state || !expectedState || state !== expectedState) {
+    console.error("[auth/twitch/callback] state mismatch", {
+      state,
+      expectedState,
+      cookieHeader: req.headers.cookie,
+      allCookies: req.cookies,
+    });
     return res.status(400).send("Invalid OAuth state — please try logging in again.");
   }
 
@@ -270,6 +278,7 @@ router.get("/auth/twitch/callback", async (req, res) => {
       sameSite: "lax",
       maxAge: 30 * 24 * 60 * 60 * 1000,
     });
+    sendEvent("login_success", { req, twitchLogin: user.login });
     res.redirect("/");
   } catch (err) {
     console.error("[auth/twitch/callback]", err.message);

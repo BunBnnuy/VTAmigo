@@ -7,7 +7,7 @@ import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
-import { track, identify } from "./analytics.js";
+import { track } from "./analytics.js";
 
 const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
 
@@ -85,13 +85,6 @@ export default function App() {
   }, []);
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
-
-  useEffect(() => {
-    if (authState?.loggedIn && authState.login) {
-      identify(authState.login);
-      track("login_success");
-    }
-  }, [authState?.loggedIn, authState?.login]);
 
   if (!authState) return null;
   if (!authState.loggedIn) return <Login />;
@@ -252,7 +245,7 @@ function AppInner({ twitchLogin }) {
 
   // ── Batch triggering ──────────────────────────────────────────────────────
 
-  const triggerResponse = useCallback(async () => {
+  const triggerResponse = useCallback(async (manual) => {
     clearInterval(countdownIntervalRef.current);
     setCountdown(null);
 
@@ -286,12 +279,11 @@ function AppInner({ twitchLogin }) {
         body: JSON.stringify({ active: false }),
       }).catch(() => {});
 
-    track("ai_response_generated");
     try {
       const res = await apiFetch("/respond", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ messages: batch, style: settingsRef.current.style, basePrompt: settingsRef.current.basePrompt, provider: settingsRef.current.provider || "claude" }),
+        body: JSON.stringify({ messages: batch, style: settingsRef.current.style, basePrompt: settingsRef.current.basePrompt, provider: settingsRef.current.provider || "claude", manual: !!manual }),
       });
       const data = await res.json();
       const text = data.response || data.error || "No response";
@@ -762,7 +754,7 @@ function AppInner({ twitchLogin }) {
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
-  const handleConnect = useCallback(async () => {
+  const handleConnect = useCallback(async (manual) => {
     try {
       const res = await apiFetch("/connect", {
         method: "POST",
@@ -770,6 +762,7 @@ function AppInner({ twitchLogin }) {
         body: JSON.stringify({
           botUsername: settingsRef.current.botUsername,
           botToken: settingsRef.current.botToken,
+          manual: !!manual,
         }),
       });
       if (!res.ok) {
@@ -785,14 +778,18 @@ function AppInner({ twitchLogin }) {
     }
   }, [connectWS]);
 
-  const handleDisconnect = useCallback(async () => {
+  const handleDisconnect = useCallback(async (manual) => {
     clearTimeout(batchTimerRef.current);
     clearInterval(countdownIntervalRef.current);
     clearTimeout(burstTimerRef.current);
     setCountdown(null);
     if (wsRef.current) wsRef.current.close();
     try {
-      await apiFetch("/disconnect", { method: "POST" });
+      await apiFetch("/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ manual: !!manual }),
+      });
     } catch {}
     setConnStatus("disconnected");
     setConnected(false);
@@ -913,13 +910,13 @@ function AppInner({ twitchLogin }) {
             ⚙ Settings
           </button>
           {connected ? (
-            <button style={{ ...styles.btn, background: "var(--red)" }} onClick={() => { track("manual_disconnect"); handleDisconnect(); }}>
+            <button style={{ ...styles.btn, background: "var(--red)" }} onClick={() => handleDisconnect(true)}>
               Disconnect
             </button>
           ) : (
             <button
               style={{ ...styles.btn, background: "var(--purple)" }}
-              onClick={() => { track("manual_connect"); handleConnect(); }}
+              onClick={() => handleConnect(true)}
             >
               Connect
             </button>
@@ -1158,7 +1155,7 @@ function AppInner({ twitchLogin }) {
           </button>
           <button
             style={{ ...styles.iconBtn, color: "var(--text-muted)" }}
-            onClick={() => { track("now_button_click"); triggerResponse(); }}
+            onClick={() => triggerResponse(true)}
             disabled={loading}
             title="Forzar respuesta ahora"
           >

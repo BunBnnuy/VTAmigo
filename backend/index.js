@@ -5,6 +5,7 @@ const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers } = require("./auth");
+const { sendEvent } = require("./analytics");
 const { router: adminRouter } = require("./adminAuth");
 const { router: devicesRouter } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
@@ -27,6 +28,19 @@ app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "5mb" })); // memory .md imports can be large
 
+// POST /api/collect — relay for frontend-only analytics events (settings
+// changes, button clicks with no other network signal). Same-origin, so it
+// isn't recognized as a third-party tracker the way calling cloud.umami.is
+// directly from the browser is.
+app.post("/api/collect", (req, res) => {
+  const { event, data } = req.body || {};
+  if (event) {
+    const user = getApprovedUserFromCookieHeader(req.headers.cookie);
+    sendEvent(event, { req, twitchLogin: user?.login, data });
+  }
+  res.status(204).end();
+});
+
 // Twitch login + admin panel routes are public (or self-protected via their
 // own middleware); everything else requires an approved, logged-in user.
 app.use(authRouter);
@@ -38,6 +52,11 @@ app.use(devicesRouter);
 const isProd = !process.env.VITE_DEV && !process.defaultApp;
 const distPath = path.join(__dirname, "../frontend/dist");
 if (isProd) {
+  app.get("/downloads/tunnel-client.exe", (req, res) => {
+    const user = getApprovedUserFromCookieHeader(req.headers.cookie);
+    sendEvent("tunnel_client_download", { req, twitchLogin: user?.login });
+    res.sendFile(path.join(distPath, "downloads/tunnel-client.exe"));
+  });
   app.use(express.static(distPath));
 }
 
@@ -95,10 +114,13 @@ function handleChat(twitchId, msg) {
 
 // POST /respond — run Claude CLI with a batch of messages
 app.post("/respond", async (req, res) => {
-  const { messages, style, basePrompt, provider } = req.body;
+  const { messages, style, basePrompt, provider, manual } = req.body;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages array is required" });
   }
+
+  sendEvent("ai_response_generated", { req, twitchLogin: req.user?.login, data: { provider: provider || "claude" } });
+  if (manual) sendEvent("now_button_click", { req, twitchLogin: req.user?.login });
 
   try {
     const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider || "claude");
@@ -140,6 +162,7 @@ app.post("/memory/import", async (req, res) => {
   const { provider, markdown } = req.body || {};
   try {
     const response = await importMemory(markdown, provider || "claude");
+    sendEvent("memory_upload", { req, twitchLogin: req.user?.login, data: { provider: provider || "claude" } });
     res.json({ ok: true, response });
   } catch (err) {
     if (err.message === "MEMORY_EMPTY") {
@@ -253,7 +276,8 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
 
 // POST /connect — connect to the logged-in user's own Twitch channel
 app.post("/connect", async (req, res) => {
-  const { botUsername, botToken } = req.body || {};
+  const { botUsername, botToken, manual } = req.body || {};
+  if (manual) sendEvent("manual_connect", { req, twitchLogin: req.user?.login });
   try {
     const { channel } = await connectTwitchForUser(req.user, { botUsername, botToken });
     res.json({ ok: true, channel, eventSub: true });
@@ -268,6 +292,8 @@ app.post("/connect", async (req, res) => {
 
 // POST /disconnect — disconnect the logged-in user's own Twitch session, leaving other accounts connected
 app.post("/disconnect", (req, res) => {
+  const { manual } = req.body || {};
+  if (manual) sendEvent("manual_disconnect", { req, twitchLogin: req.user?.login });
   const twitchId = req.user.twitchId;
   const session = twitchSessions.get(twitchId);
   if (session) {
