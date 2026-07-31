@@ -150,6 +150,7 @@ class TwitchIRCClient {
   // as the bot is still connecting), queue it instead of dropping it —
   // it gets flushed once the "Welcome, GLHF!" auth confirmation lands.
   say(text) {
+    if (text.length > 499) text = text.slice(0, 494) + "(...)";
     if (this.ready) return this._send(text);
     if (this.pendingSays.length < 10) this.pendingSays.push(text);
     return true;
