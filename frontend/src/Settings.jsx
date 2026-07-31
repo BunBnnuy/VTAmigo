@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch } from "./api.js";
+import { track } from "./analytics.js";
 
 export default function Settings({ settings, onSave, onClose }) {
   const [form, setForm] = useState(settings);
@@ -65,6 +66,7 @@ export default function Settings({ settings, onSave, onClose }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      track("memory_upload", { provider });
       setImportStatus({ running: false, error: null, ok: true });
     } catch (err) {
       setImportStatus({ running: false, error: err.message, ok: false });
@@ -218,7 +220,7 @@ export default function Settings({ settings, onSave, onClose }) {
             <h3 style={styles.sectionTitle}>Tunnel client (VTube Studio from another PC)</h3>
             <div style={styles.field}>
               <label>Let a guest run VTube Studio lip-sync from their own computer</label>
-              <a href="/downloads/tunnel-client.exe" download style={{ textDecoration: "none" }}>
+              <a href="/downloads/tunnel-client.exe" download style={{ textDecoration: "none" }} onClick={() => track("tunnel_client_download")}>
                 <button type="button" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}>
                   ⬇️ Download tunnel-client.exe
                 </button>

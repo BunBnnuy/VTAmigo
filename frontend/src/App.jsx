@@ -7,6 +7,7 @@ import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
+import { track, identify } from "./analytics.js";
 
 const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
 
@@ -84,6 +85,13 @@ export default function App() {
   }, []);
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
+
+  useEffect(() => {
+    if (authState?.loggedIn && authState.login) {
+      identify(authState.login);
+      track("login_success");
+    }
+  }, [authState?.loggedIn, authState?.login]);
 
   if (!authState) return null;
   if (!authState.loggedIn) return <Login />;
@@ -278,6 +286,7 @@ function AppInner({ twitchLogin }) {
         body: JSON.stringify({ active: false }),
       }).catch(() => {});
 
+    track("ai_response_generated");
     try {
       const res = await apiFetch("/respond", {
         method: "POST",
@@ -819,6 +828,11 @@ function AppInner({ twitchLogin }) {
 
   const saveSettings = (newSettings) => {
     const prev = settingsRef.current;
+    track("save_apply_click");
+    if (newSettings.basePrompt !== prev.basePrompt) track("base_prompt_changed");
+    if (newSettings.ttsProvider !== prev.ttsProvider) track("tts_provider_changed", { provider: newSettings.ttsProvider });
+    if (newSettings.ttsRate !== prev.ttsRate) track("tts_speed_changed", { rate: newSettings.ttsRate });
+    if (newSettings.ttsVolume !== prev.ttsVolume) track("tts_volume_changed", { volume: newSettings.ttsVolume });
     setSettings(newSettings);
     localStorage.setItem("settings", JSON.stringify(newSettings));
     setShowSettings(false);
@@ -899,13 +913,13 @@ function AppInner({ twitchLogin }) {
             ⚙ Settings
           </button>
           {connected ? (
-            <button style={{ ...styles.btn, background: "var(--red)" }} onClick={handleDisconnect}>
+            <button style={{ ...styles.btn, background: "var(--red)" }} onClick={() => { track("manual_disconnect"); handleDisconnect(); }}>
               Disconnect
             </button>
           ) : (
             <button
               style={{ ...styles.btn, background: "var(--purple)" }}
-              onClick={handleConnect}
+              onClick={() => { track("manual_connect"); handleConnect(); }}
             >
               Connect
             </button>
@@ -1144,7 +1158,7 @@ function AppInner({ twitchLogin }) {
           </button>
           <button
             style={{ ...styles.iconBtn, color: "var(--text-muted)" }}
-            onClick={() => triggerResponse()}
+            onClick={() => { track("now_button_click"); triggerResponse(); }}
             disabled={loading}
             title="Forzar respuesta ahora"
           >

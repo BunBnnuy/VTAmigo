@@ -1,5 +1,6 @@
 import React from "react";
 import { apiUrl } from "./api.js";
+import { track } from "./analytics.js";
 
 export default function Login() {
   return (
@@ -8,7 +9,7 @@ export default function Login() {
         <span style={styles.icon}>🎮</span>
         <h1 style={styles.title}>VTAmigo</h1>
         <p style={styles.subtitle}>Log in with Twitch to continue.</p>
-        <a style={styles.btn} href={apiUrl("/auth/twitch/login")}>
+        <a style={styles.btn} href={apiUrl("/auth/twitch/login")} onClick={() => track("login_attempt")}>
           Log in with Twitch
         </a>
       </div>
