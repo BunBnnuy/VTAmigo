@@ -3,6 +3,11 @@
 // flow lets them prove who they are via the existing Twitch login + admin
 // approval system before the backend grants their public key restricted SSH
 // port-forwarding access on the VPS. Flat JSON store, same pattern as users.json.
+//
+// Approved keys are looked up live by sshd via an AuthorizedKeysCommand
+// (server/tunnel-authorized-keys.sh) that reads this same devices.json —
+// so this file is the only thing the backend needs to write; there's no
+// authorized_keys file to manage/chmod here. See server/README.md.
 const express = require("express");
 const fs = require("fs");
 const path = require("path");
@@ -14,11 +19,6 @@ const DEVICES_PATH = path.join(__dirname, "devices.json");
 const PENDING_TTL_MS = 15 * 60 * 1000;
 const BASE_PORT = 8001;
 
-// Dedicated, unprivileged SSH user on the VPS used only for restricted
-// reverse port-forwarding — see server/README.md for the one-time setup.
-// In local dev this file won't exist / won't be writable, which is fine:
-// approve() below logs and continues rather than failing the whole request.
-const TUNNEL_AUTHORIZED_KEYS = process.env.TUNNEL_AUTHORIZED_KEYS || "/home/tunnel/.ssh/authorized_keys";
 const TUNNEL_HOST = process.env.TUNNEL_HOST || "93130123.xyz";
 const TUNNEL_SSH_USER = "tunnel";
 
@@ -47,38 +47,6 @@ function nextPort(devices) {
     .filter((d) => d.status === "approved" && Number.isInteger(d.assignedPort))
     .map((d) => d.assignedPort);
   return used.length ? Math.max(...used) + 1 : BASE_PORT + 1; // 8001 stays reserved for the owner's own tunnel
-}
-
-// Single-line marker per device so we can find-and-remove it precisely on
-// revoke without disturbing any other authorized_keys entries.
-function authorizedKeysLine(device) {
-  const opts = [
-    "restrict",
-    "port-forwarding",
-    'permitopen="127.0.0.1:8001"',
-    `permitlisten="${device.assignedPort}"`,
-  ].join(",");
-  return `${opts} ${device.publicKey.trim()} vtamigo-device:${device.deviceCode}`;
-}
-
-function appendAuthorizedKey(device) {
-  try {
-    fs.mkdirSync(path.dirname(TUNNEL_AUTHORIZED_KEYS), { recursive: true });
-    fs.appendFileSync(TUNNEL_AUTHORIZED_KEYS, authorizedKeysLine(device) + "\n");
-  } catch (err) {
-    console.warn("[devices] could not write authorized_keys (expected in local dev):", err.message);
-  }
-}
-
-function removeAuthorizedKey(device) {
-  try {
-    const lines = fs.readFileSync(TUNNEL_AUTHORIZED_KEYS, "utf8").split("\n");
-    const marker = `vtamigo-device:${device.deviceCode}`;
-    const kept = lines.filter((l) => !l.includes(marker));
-    fs.writeFileSync(TUNNEL_AUTHORIZED_KEYS, kept.join("\n"));
-  } catch (err) {
-    console.warn("[devices] could not update authorized_keys on revoke:", err.message);
-  }
 }
 
 const router = express.Router();
@@ -160,7 +128,6 @@ router.post("/device/approve", requireApprovedUser, (req, res) => {
   device.assignedPort = nextPort(devices);
   device.approvedAt = new Date().toISOString();
   writeDevices(devices);
-  appendAuthorizedKey(device);
 
   res.json({ ok: true, port: device.assignedPort });
 });
@@ -177,7 +144,6 @@ router.post("/admin/devices/:deviceCode/revoke", requireAdmin, (req, res) => {
   if (!device) return res.status(404).json({ error: "Device not found" });
   device.status = "revoked";
   writeDevices(devices);
-  removeAuthorizedKey(device);
   res.json({ ok: true });
 });
 

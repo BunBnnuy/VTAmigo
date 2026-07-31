@@ -51,27 +51,16 @@ Anyone approved in the app can enroll a second machine's VTube Studio (e.g. a co
 **One-time VPS setup** — a dedicated, unprivileged SSH user that only ever does restricted port-forwarding, so a device's key can never do anything but forward its assigned port:
 
 ```bash
-apt install -y acl   # provides setfacl/getfacl, if not already present
 sudo adduser --disabled-password --gecos "" --shell /usr/sbin/nologin tunnel
-sudo -u tunnel mkdir -p /home/tunnel/.ssh
-sudo touch /home/tunnel/.ssh/authorized_keys
-sudo chown -R tunnel:tunnel /home/tunnel/.ssh
-sudo chmod 700 /home/tunnel/.ssh
-sudo chmod 600 /home/tunnel/.ssh/authorized_keys
-# Grant vtamigo read/write via ACL rather than group-writable bits — sshd's
-# StrictModes silently ignores an authorized_keys file that's writable by
-# group/other, which took real debugging to catch (it falls back to
-# PasswordAuthentication instead of erroring, which looks like it's "working"
-# until you notice you're being asked for a password that doesn't exist).
-sudo setfacl -m u:vtamigo:rx /home/tunnel/.ssh
-sudo setfacl -m u:vtamigo:rw /home/tunnel/.ssh/authorized_keys
+sudo chmod 755 /opt/vtamigo/server/tunnel-authorized-keys.sh
+sudo chown root:root /opt/vtamigo/server/tunnel-authorized-keys.sh
 
-# Also disable password auth for this account specifically, and restrict it
-# to remote port-forwarding only (defense in depth beyond the authorized_keys
-# `restrict` option on each individual key):
 sudo tee -a /etc/ssh/sshd_config >/dev/null <<'EOF'
 
 Match User tunnel
+    AuthorizedKeysFile none
+    AuthorizedKeysCommand /opt/vtamigo/server/tunnel-authorized-keys.sh
+    AuthorizedKeysCommandUser nobody
     PasswordAuthentication no
     PubkeyAuthentication yes
     AllowTcpForwarding remote
@@ -81,9 +70,11 @@ EOF
 sudo sshd -t && sudo systemctl reload sshd
 ```
 
-`backend/devices.js` writes to `/home/tunnel/.ssh/authorized_keys` directly (override the path with `TUNNEL_AUTHORIZED_KEYS` in `/etc/vtamigo.env` if needed) — no sudo/root access required by the backend process, just the ACL grant above. Each approved device gets its own restricted line (`restrict,port-forwarding,permitopen="127.0.0.1:8001",permitlisten="<port>"`) and its own incrementing remote port starting at 8002 (8001 stays reserved for the owner's own `vtube-tunnel.ps1`). Revoking a device from the admin panel removes only its line.
+There's deliberately no `/home/tunnel/.ssh/authorized_keys` file at all — sshd instead runs `server/tunnel-authorized-keys.sh` on every connection attempt (as `AuthorizedKeysCommandUser`), which reads `backend/devices.json` and prints the matching key on the fly. This sidesteps a real footgun: a group-writable (or ACL-writable) `authorized_keys` file gets **silently ignored** by sshd's `StrictModes` — no error, it just falls back to `PasswordAuthentication`, which looks like the setup "worked" until you notice you're being asked for a password that was never supposed to exist. `AuthorizedKeysCommand` has no such permission conflict: `backend/devices.js` only ever needs to write `devices.json`, which it already owns with normal permissions — no sudo, ACLs, or shared group needed.
 
-If a client hits a `password:` prompt instead of connecting silently, that's the signal something's wrong with the ACL/permissions above (or the device's key never made it into `authorized_keys` — check `journalctl -u vtamigo-backend` for `[devices] could not write authorized_keys` warnings). Never type a password at that prompt; fix the permissions instead.
+`AuthorizedKeysCommand` requires the script to be owned by root and not group/other-writable (`chown root:root`, `chmod 755` as above) — sshd itself refuses to run it otherwise. Each approved device in `devices.json` gets its own restricted line (`restrict,port-forwarding,permitopen="127.0.0.1:8001",permitlisten="<port>"`) generated at lookup time, with its own incrementing remote port starting at 8002 (8001 stays reserved for the owner's own `vtube-tunnel.ps1`). Revoking a device from the admin panel just flips its `status` in `devices.json` — the next connection attempt won't find it anymore.
+
+If a client ever hits a `password:` prompt instead of connecting silently, something is misconfigured — never type a password at that prompt. Check `sudo sshd -T | grep -A6 -i 'Match User tunnel\|authorizedkeys'` reflects the block above, and `journalctl -u ssh` for `AuthorizedKeysCommand` errors.
 
 ## Notes
 
