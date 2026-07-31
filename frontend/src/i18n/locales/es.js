@@ -61,6 +61,22 @@ export default {
       hint: "Agrégalo como Browser Source en OBS para mostrar la barra de XP animada y el ranking de top-viewers en stream. El enlace es único para tu cuenta, mantenlo privado.",
     },
 
+    avatarOverlay: {
+      title: "Overlay de OBS — Avatar (sin necesidad de VTube Studio)",
+      urlLabel: "URL de Browser Source",
+      copy: "📋 Copiar",
+      copied: "✅ Copiado",
+      urlHint: "Agrégalo como Browser Source en OBS. Muestra la imagen Hablando mientras se reproduce el audio de TTS, y la imagen Silencio el resto del tiempo.",
+      speakingLabel: "Avatar — Hablando",
+      silentLabel: "Avatar — Silencio",
+      upload: "Subir imagen",
+      hint: "JPEG, PNG, GIF o WebP, hasta 5MB. Subir una imagen nueva reemplaza la anterior.",
+      uploading: "Subiendo…",
+      tooLarge: "La imagen debe pesar menos de 5MB",
+      badType: "La imagen debe ser JPEG, PNG, GIF o WebP",
+      uploadError: "Error al subir: {error}",
+    },
+
     batching: {
       title: "Agrupamiento",
       windowSize: "Tamaño de ventana (segundos)",

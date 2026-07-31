@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from "react";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
-import { apiFetch } from "./api.js";
+import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation, SUPPORTED_LANGUAGES } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
 
 const TIER_NAMES = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "Pro" };
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 function formatWindowLabel(sec) {
   if (sec < 60) return `${sec}s`;
@@ -29,11 +31,26 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [importStatus, setImportStatus] = useState(null); // null | {running, error, ok}
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
+  const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
+  const [avatarOverlayToken, setAvatarOverlayToken] = useState("");
+  const [avatarOverlayCopied, setAvatarOverlayCopied] = useState(false);
+  const [avatarStatus, setAvatarStatus] = useState({ hasSpeaking: false, hasSilent: false });
+  const [avatarPreviews, setAvatarPreviews] = useState({ speaking: null, silent: null }); // slot -> local data URL, once (re)uploaded this session
+  const [avatarUploading, setAvatarUploading] = useState({ speaking: false, silent: false });
+  const [avatarError, setAvatarError] = useState({ speaking: "", silent: "" });
 
   useEffect(() => {
     apiFetch("/xp/overlay-url")
       .then((res) => res.json())
       .then((data) => setOverlayUrl(data.url || ""))
+      .catch(() => {});
+    apiFetch("/overlay/avatar/overlay-url")
+      .then((res) => res.json())
+      .then((data) => {
+        setAvatarOverlayUrl(data.url || "");
+        setAvatarOverlayToken(data.token || "");
+        setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
+      })
       .catch(() => {});
   }, []);
 
@@ -45,6 +62,58 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     } catch {
       // Clipboard API unavailable — user can still select the text manually.
     }
+  };
+
+  const copyAvatarOverlayUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(avatarOverlayUrl);
+      setAvatarOverlayCopied(true);
+      setTimeout(() => setAvatarOverlayCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable — user can still select the text manually.
+    }
+  };
+
+  const avatarImageSrc = (slot) => {
+    if (avatarPreviews[slot]) return avatarPreviews[slot];
+    const has = slot === "speaking" ? avatarStatus.hasSpeaking : avatarStatus.hasSilent;
+    if (!has || !avatarOverlayToken) return null;
+    return apiUrl(`/overlay/avatar/image?slot=${slot}&token=${avatarOverlayToken}`);
+  };
+
+  const uploadAvatarImage = (slot, file) => {
+    if (!file) return;
+    setAvatarError((prev) => ({ ...prev, [slot]: "" }));
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setAvatarError((prev) => ({ ...prev, [slot]: t("settings.avatarOverlay.badType") }));
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError((prev) => ({ ...prev, [slot]: t("settings.avatarOverlay.tooLarge") }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setAvatarPreviews((prev) => ({ ...prev, [slot]: dataUrl }));
+      setAvatarUploading((prev) => ({ ...prev, [slot]: true }));
+      try {
+        const res = await apiFetch("/overlay/avatar/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slot, dataUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
+      } catch (err) {
+        setAvatarError((prev) => ({ ...prev, [slot]: t("settings.avatarOverlay.uploadError", { error: err.message }) }));
+      } finally {
+        setAvatarUploading((prev) => ({ ...prev, [slot]: false }));
+      }
+    };
+    reader.onerror = () => setAvatarError((prev) => ({ ...prev, [slot]: t("settings.avatarOverlay.uploadError", { error: file.name }) }));
+    reader.readAsDataURL(file);
   };
 
   // Poll export progress while a job is running
@@ -228,62 +297,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </div>
           </section>
 
-          <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t("settings.copySettings.title")}</h3>
-            <div style={styles.field}>
-              <label>{t("settings.copySettings.label")}</label>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={exportSettings}
-                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", flex: 1 }}
-                >
-                  {t("settings.copySettings.download")}
-                </button>
-                <label
-                  style={{
-                    background: "var(--surface2)",
-                    border: "1px solid var(--border)",
-                    color: "var(--text)",
-                    flex: 1,
-                    display: "flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    cursor: "pointer",
-                    borderRadius: 6,
-                  }}
-                >
-                  {t("settings.copySettings.upload")}
-                  <input type="file" accept=".json,application/json" onChange={importSettingsFile} style={{ display: "none" }} />
-                </label>
-              </div>
-              {settingsFileStatus && (
-                <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                  {settingsFileStatus.error
-                    ? `❌ ${settingsFileStatus.error}`
-                    : settingsFileStatus.droppedStaleBackendUrl
-                    ? t("settings.copySettings.loadedOkDroppedBackend")
-                    : t("settings.copySettings.loadedOk")}
-                </span>
-              )}
-              <span style={styles.hint}>{t("settings.copySettings.hint")}</span>
-            </div>
-          </section>
-
-          <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>{t("settings.tunnel.title")}</h3>
-            <div style={styles.field}>
-              <label>{t("settings.tunnel.label")}</label>
-              <a href="/downloads/tunnel-client.exe" download style={{ textDecoration: "none" }}>
-                <button type="button" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}>
-                  {t("settings.tunnel.download")}
-                </button>
-              </a>
-              <span style={styles.hint}>{t("settings.tunnel.hint")}</span>
-            </div>
-          </section>
-
-          <section style={styles.section}>
+          <section style={{ ...styles.section, ...styles.disabledSection }}>
             <h3 style={styles.sectionTitle}>{t("settings.tiktok.title")}</h3>
             <div style={styles.field}>
               <label>{t("settings.tiktok.label")}</label>
@@ -365,6 +379,86 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               </div>
               <span style={styles.hint}>{t("settings.overlay.hint")}</span>
             </div>
+          </section>
+
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t("settings.avatarOverlay.title")}</h3>
+            <div style={styles.field}>
+              <label>{t("settings.avatarOverlay.urlLabel")}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input readOnly value={avatarOverlayUrl} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  onClick={copyAvatarOverlayUrl}
+                  disabled={!avatarOverlayUrl}
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
+                >
+                  {avatarOverlayCopied ? t("settings.avatarOverlay.copied") : t("settings.avatarOverlay.copy")}
+                </button>
+              </div>
+              <span style={styles.hint}>{t("settings.avatarOverlay.urlHint")}</span>
+            </div>
+
+            <div style={styles.row2}>
+              {["speaking", "silent"].map((slot) => {
+                const src = avatarImageSrc(slot);
+                return (
+                  <div key={slot} style={styles.field}>
+                    <label>{t(`settings.avatarOverlay.${slot}Label`)}</label>
+                    <div
+                      style={{
+                        width: "100%",
+                        aspectRatio: "1 / 1",
+                        borderRadius: 8,
+                        border: "1px solid var(--border)",
+                        background: "var(--surface2)",
+                        backgroundImage: src ? `url("${src.replace(/"/g, "%22")}")` : "none",
+                        backgroundSize: "contain",
+                        backgroundPosition: "center",
+                        backgroundRepeat: "no-repeat",
+                        marginBottom: 8,
+                      }}
+                    >
+                      {!src && (
+                        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--text-muted)", fontSize: 11 }}>
+                          —
+                        </div>
+                      )}
+                    </div>
+                    <label
+                      style={{
+                        background: "var(--surface2)",
+                        border: "1px solid var(--border)",
+                        color: "var(--text)",
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        cursor: avatarUploading[slot] ? "default" : "pointer",
+                        borderRadius: 6,
+                        padding: "6px 0",
+                        opacity: avatarUploading[slot] ? 0.6 : 1,
+                      }}
+                    >
+                      {avatarUploading[slot] ? t("settings.avatarOverlay.uploading") : t("settings.avatarOverlay.upload")}
+                      <input
+                        type="file"
+                        accept="image/jpeg,image/png,image/gif,image/webp"
+                        disabled={avatarUploading[slot]}
+                        onChange={(e) => {
+                          uploadAvatarImage(slot, e.target.files[0]);
+                          e.target.value = "";
+                        }}
+                        style={{ display: "none" }}
+                      />
+                    </label>
+                    {avatarError[slot] && (
+                      <span style={{ ...styles.hint, color: "var(--danger, #ff6b6b)" }}>❌ {avatarError[slot]}</span>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            <span style={styles.hint}>{t("settings.avatarOverlay.hint")}</span>
           </section>
 
           <section style={styles.section}>
@@ -1010,6 +1104,61 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               </button>
             </div>
           </section>
+
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t("settings.tunnel.title")}</h3>
+            <div style={styles.field}>
+              <label>{t("settings.tunnel.label")}</label>
+              <a href="/downloads/tunnel-client.exe" download style={{ textDecoration: "none" }}>
+                <button type="button" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}>
+                  {t("settings.tunnel.download")}
+                </button>
+              </a>
+              <span style={styles.hint}>{t("settings.tunnel.hint")}</span>
+            </div>
+          </section>
+
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t("settings.copySettings.title")}</h3>
+            <div style={styles.field}>
+              <label>{t("settings.copySettings.label")}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={exportSettings}
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", flex: 1 }}
+                >
+                  {t("settings.copySettings.download")}
+                </button>
+                <label
+                  style={{
+                    background: "var(--surface2)",
+                    border: "1px solid var(--border)",
+                    color: "var(--text)",
+                    flex: 1,
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    cursor: "pointer",
+                    borderRadius: 6,
+                  }}
+                >
+                  {t("settings.copySettings.upload")}
+                  <input type="file" accept=".json,application/json" onChange={importSettingsFile} style={{ display: "none" }} />
+                </label>
+              </div>
+              {settingsFileStatus && (
+                <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                  {settingsFileStatus.error
+                    ? `❌ ${settingsFileStatus.error}`
+                    : settingsFileStatus.droppedStaleBackendUrl
+                    ? t("settings.copySettings.loadedOkDroppedBackend")
+                    : t("settings.copySettings.loadedOk")}
+                </span>
+              )}
+              <span style={styles.hint}>{t("settings.copySettings.hint")}</span>
+            </div>
+          </section>
         </div>
 
         <div style={styles.footer}>
@@ -1036,6 +1185,7 @@ const styles = {
   },
   disabledSection: {
     opacity: 0.45,
+    display: "none",
   },
   disabledFieldset: {
     border: "none",

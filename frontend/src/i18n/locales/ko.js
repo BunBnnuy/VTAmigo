@@ -61,6 +61,22 @@ export default {
       hint: "OBS에 브라우저 소스로 추가하면 애니메이션 XP 바와 상위 시청자 순위를 방송에 표시할 수 있습니다. 이 링크는 계정마다 고유하므로 비공개로 유지하세요.",
     },
 
+    avatarOverlay: {
+      title: "OBS 오버레이 — 아바타 (VTube Studio 불필요)",
+      urlLabel: "브라우저 소스 URL",
+      copy: "📋 복사",
+      copied: "✅ 복사됨",
+      urlHint: "OBS에 브라우저 소스로 추가하세요. TTS 오디오가 재생되는 동안 '말하는 중' 이미지를, 그 외에는 '무음' 이미지를 표시합니다.",
+      speakingLabel: "아바타 — 말하는 중",
+      silentLabel: "아바타 — 무음",
+      upload: "이미지 업로드",
+      hint: "JPEG, PNG, GIF, WebP, 최대 5MB. 새 이미지를 업로드하면 이전 이미지를 대체합니다.",
+      uploading: "업로드 중…",
+      tooLarge: "이미지는 5MB 미만이어야 합니다",
+      badType: "이미지는 JPEG, PNG, GIF, WebP 중 하나여야 합니다",
+      uploadError: "업로드 실패: {error}",
+    },
+
     batching: {
       title: "배치 처리",
       windowSize: "윈도우 크기 (초)",

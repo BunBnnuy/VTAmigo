@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Avatar Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+  }
+  img {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: none;
+  }
+  img.show { display: block; }
+</style>
+</head>
+<body>
+  <img id="img-silent" alt="" />
+  <img id="img-speaking" alt="" />
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+
+  const imgSpeaking = document.getElementById("img-speaking");
+  const imgSilent = document.getElementById("img-silent");
+  imgSpeaking.src = "/overlay/avatar/image?slot=speaking&token=" + encodeURIComponent(token);
+  imgSilent.src = "/overlay/avatar/image?slot=silent&token=" + encodeURIComponent(token);
+
+  function setPlaying(playing) {
+    imgSpeaking.classList.toggle("show", playing);
+    imgSilent.classList.toggle("show", !playing);
+  }
+  setPlaying(false); // silent until we hear otherwise
+
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "tts_state") setPlaying(!!data.playing);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

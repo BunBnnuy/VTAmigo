@@ -61,6 +61,22 @@ export default {
       hint: "OBSのブラウザソースとして追加すると、アニメーション付きXPバーとトップ視聴者ランキングを配信画面に表示できます。このリンクはあなたのアカウント専用なので、非公開にしてください。",
     },
 
+    avatarOverlay: {
+      title: "OBSオーバーレイ — アバター（VTube Studio不要）",
+      urlLabel: "ブラウザソースURL",
+      copy: "📋 コピー",
+      copied: "✅ コピーしました",
+      urlHint: "OBSのブラウザソースとして追加してください。TTS音声再生中は「発話中」画像を、それ以外は「無音」画像を表示します。",
+      speakingLabel: "アバター — 発話中",
+      silentLabel: "アバター — 無音",
+      upload: "画像をアップロード",
+      hint: "JPEG、PNG、GIF、WebPに対応、5MBまで。新しい画像をアップロードすると前の画像を置き換えます。",
+      uploading: "アップロード中…",
+      tooLarge: "画像は5MB未満にしてください",
+      badType: "画像はJPEG、PNG、GIF、WebPのいずれかにしてください",
+      uploadError: "アップロードに失敗しました: {error}",
+    },
+
     batching: {
       title: "バッチ処理",
       windowSize: "ウィンドウサイズ（秒）",

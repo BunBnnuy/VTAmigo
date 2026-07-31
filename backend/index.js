@@ -20,12 +20,13 @@ const vtubeManager = require("./vtubeManager");
 const xp = require("./xp");
 const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
+const avatarOverlay = require("./avatarOverlay");
 
 const PORT = process.env.PORT || 3001;
 const app = express();
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
-app.use(express.json({ limit: "5mb" })); // memory .md imports can be large
+app.use(express.json({ limit: "10mb" })); // memory .md imports and base64 avatar image uploads (5MB image -> ~6.7MB base64) can be large
 
 // POST /api/collect — relay for frontend-only analytics events (settings
 // changes, button clicks with no other network signal). Same-origin, so it
@@ -591,6 +592,60 @@ app.get("/xp/overlay-url", (req, res) => {
   res.json({ url: `${req.protocol}://${req.get("host")}/overlay/xp?token=${token}` });
 });
 
+// ── Avatar-swap overlay (OBS alternative to VTube Studio) ────────────────────
+// Shows one of two user-uploaded images (speaking/silent) depending on
+// whether TTS audio is currently playing, driven over the same /chat WS the
+// XP overlay uses ({ type: "tts_state", playing }), broadcast from the
+// /lipsync/start and /lipsync/stop handlers below.
+
+// GET /overlay/avatar?token=... — transparent overlay page (OBS browser
+// source), public like /overlay/xp since OBS can't send the session cookie.
+app.get("/overlay/avatar", (req, res) => {
+  res.sendFile(path.join(__dirname, "overlay", "avatar.html"));
+});
+
+// GET /overlay/avatar/image?slot=speaking|silent&token=... — serves the
+// uploaded image binary. Reachable via overlay token (OBS) or session
+// cookie (Settings preview), same pattern as /xp/ranking.
+app.get("/overlay/avatar/image", (req, res) => {
+  const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const image = avatarOverlay.getImage(user.twitchId, req.query.slot);
+  if (!image) return res.status(404).end();
+  res.set("Content-Type", image.mime);
+  res.set("Cache-Control", "no-store"); // always reflect the latest upload
+  res.sendFile(image.filePath);
+});
+
+// GET /overlay/avatar/overlay-url — the logged-in user's own avatar overlay
+// URL + upload status, for Settings to display (copy button + previews).
+app.get("/overlay/avatar/overlay-url", requireApprovedUser, (req, res) => {
+  const token = getOverlayToken(req.user.twitchId);
+  res.json({
+    url: `${req.protocol}://${req.get("host")}/overlay/avatar?token=${token}`,
+    token,
+    ...avatarOverlay.getStatus(req.user.twitchId),
+  });
+});
+
+// POST /overlay/avatar/upload — { slot: "speaking"|"silent", dataUrl } —
+// dataUrl is a base64 data: URL as produced by FileReader.readAsDataURL,
+// mirroring how Settings already reads the settings-export .json file.
+app.post("/overlay/avatar/upload", requireApprovedUser, (req, res) => {
+  const { slot, dataUrl } = req.body || {};
+  try {
+    avatarOverlay.saveImage(req.user.twitchId, slot, dataUrl);
+    res.json({ ok: true, ...avatarOverlay.getStatus(req.user.twitchId) });
+  } catch (err) {
+    if (err.message === "BAD_SLOT") return res.status(400).json({ error: "slot must be 'speaking' or 'silent'" });
+    if (err.message === "BAD_DATA_URL") return res.status(400).json({ error: "dataUrl is required" });
+    if (err.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Image must be JPEG, PNG, GIF, or WebP" });
+    if (err.message === "TOO_LARGE") return res.status(413).json({ error: `Image must be under ${avatarOverlay.MAX_BYTES / (1024 * 1024)}MB` });
+    console.error("[overlay/avatar/upload]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /xp/config — { ignoredUsers: "name1, name2" | [] } — users that earn no XP
 app.post("/xp/config", (req, res) => {
   const { ignoredUsers } = req.body || {};
@@ -670,6 +725,10 @@ app.post("/lipsync/start", (req, res) => {
   const { text, durationMs } = req.body;
   if (!text || !durationMs) return res.status(400).json({ error: "text and durationMs required" });
 
+  // Broadcast regardless of a VTS tunnel — the avatar-swap overlay is
+  // specifically for accounts that don't have VTube Studio connected.
+  broadcastToAccount(req.user.twitchId, { type: "tts_state", playing: true });
+
   const ctx = vtubeManager.getContext(req.user.twitchId);
   if (!ctx) return res.json({ ok: true, skipped: "no_tunnel" });
 
@@ -744,6 +803,8 @@ app.post("/tts/piper", async (req, res) => {
 
 // POST /lipsync/stop — cancel timeline and reset mouth
 app.post("/lipsync/stop", (req, res) => {
+  broadcastToAccount(req.user.twitchId, { type: "tts_state", playing: false });
+
   const ctx = vtubeManager.getContext(req.user.twitchId);
   if (ctx) {
     ctx.phonemes.cancelSchedule();
