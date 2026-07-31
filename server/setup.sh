@@ -32,7 +32,7 @@ fi
 
 echo "==> Installing backend dependencies"
 cd "$BACKEND_DIR"
-npm install --omit=dev
+npm ci --omit=dev
 
 echo "==> Installing Piper TTS binary"
 mkdir -p "$PIPER_DIR"

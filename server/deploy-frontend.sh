@@ -7,7 +7,7 @@ REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 echo "==> Building frontend"
 cd "$REPO_DIR/frontend"
-npm install
+npm ci
 npm run build
 
 echo "==> Fixing permissions for the vtamigo service user"
