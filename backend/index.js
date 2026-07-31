@@ -82,12 +82,22 @@ function broadcast(data) {
   });
 }
 
+// Broadcast only to browser sessions logged in as the Twitch account that's
+// currently connected — otherwise every logged-in user (on any browser) would
+// see chat/events from whichever account most recently called /connect.
+function broadcastToOwner(data) {
+  const msg = JSON.stringify(data);
+  wss.clients.forEach((ws) => {
+    if (ws.readyState === WebSocket.OPEN && ws.twitchId === currentTwitchUserId) ws.send(msg);
+  });
+}
+
 // Broadcast a chat message and award XP for it
 function handleChat(msg) {
-  broadcast({ type: "chat", msg });
+  broadcastToOwner({ type: "chat", msg });
   if (msg.username && msg.text) {
     const ev = xp.addMessage(msg.username, msg.text, msg.color);
-    if (ev && ev.gained > 0) broadcast({ type: "xp", ...ev });
+    if (ev && ev.gained > 0) broadcastToOwner({ type: "xp", ...ev });
   }
 }
 
@@ -169,7 +179,7 @@ app.post("/connect-bot", (req, res) => {
     onMessage: () => {},
     onStatus: (status) => {
       console.log("[bot]", status.type);
-      broadcast({ type: "bot_status", status });
+      broadcastToOwner({ type: "bot_status", status });
     },
   });
   botClient.connect();
@@ -206,7 +216,7 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
       token: botToken,
       username: botUsername,
       onMessage: () => {}, // don't echo bot's own messages
-      onStatus: (status) => broadcast({ type: "bot_status", status }),
+      onStatus: (status) => broadcastToOwner({ type: "bot_status", status }),
     });
     botClient.connect();
   }
@@ -216,7 +226,7 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     token,
     username: channel,
     onMessage: (msg) => handleChat(msg),
-    onStatus: (status) => broadcast({ type: "status", status }),
+    onStatus: (status) => broadcastToOwner({ type: "status", status }),
   });
   twitchClient.connect();
 
@@ -224,11 +234,11 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     channel,
     clientId: process.env.TWITCH_CLIENT_ID,
     token,
-    onRedeem: (redeem) => broadcast({ type: "chat", msg: redeem }),
-    onEvent: (event) => broadcast({ type: "twitch_event", event }),
+    onRedeem: (redeem) => broadcastToOwner({ type: "chat", msg: redeem }),
+    onEvent: (event) => broadcastToOwner({ type: "twitch_event", event }),
     onStatus: (status) => {
       console.log("[eventsub]", status);
-      broadcast({ type: "status", status });
+      broadcastToOwner({ type: "status", status });
     },
   });
   eventSubClient.connect();
@@ -671,6 +681,7 @@ wss.on("connection", (ws, req) => {
     ws.close(4401, "unauthorized");
     return;
   }
+  ws.twitchId = user.twitchId;
   console.log(`[ws] frontend connected (${user.login})`);
   ws.on("close", () => console.log(`[ws] frontend disconnected (${user.login})`));
 });
