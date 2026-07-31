@@ -2,6 +2,7 @@
 const express = require("express");
 const jwt = require("jsonwebtoken");
 const { readUsers, writeUsers, clearTwitchTokens } = require("./auth");
+const sysmonitor = require("./sysmonitor");
 
 const ADMIN_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
 const ADMIN_COOKIE = "admin_session";
@@ -58,6 +59,16 @@ router.post("/admin/users/:twitchId/revoke", requireAdmin, (req, res) => {
   writeUsers(users);
   clearTwitchTokens(user.twitchId);
   res.json({ ok: true, user });
+});
+
+// GET /admin/stats — CPU/RAM/process snapshot for the resource monitor panel
+router.get("/admin/stats", requireAdmin, async (req, res) => {
+  try {
+    res.json(await sysmonitor.getStats());
+  } catch (err) {
+    console.error("[admin/stats]", err.message);
+    res.status(500).json({ error: "Failed to read system stats" });
+  }
 });
 
 module.exports = { router, requireAdmin };

@@ -7,6 +7,7 @@ export default function Admin() {
   const [error, setError] = useState("");
   const [users, setUsers] = useState(null);
   const [devices, setDevices] = useState(null);
+  const [stats, setStats] = useState(null);
   const [busy, setBusy] = useState(false);
 
   const loadUsers = useCallback(async () => {
@@ -23,9 +24,24 @@ export default function Admin() {
     setDevices(data.devices);
   }, []);
 
+  const loadStats = useCallback(async () => {
+    const res = await apiFetch("/admin/stats");
+    if (res.status === 401) { setAuthed(false); return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    setStats(data);
+  }, []);
+
   useEffect(() => {
     if (authed) { loadUsers(); loadDevices(); }
   }, [authed, loadUsers, loadDevices]);
+
+  useEffect(() => {
+    if (!authed) return;
+    loadStats();
+    const id = setInterval(loadStats, 2000);
+    return () => clearInterval(id);
+  }, [authed, loadStats]);
 
   const revokeDevice = async (deviceCode) => {
     await apiFetch(`/admin/devices/${deviceCode}/revoke`, { method: "POST" });
@@ -84,6 +100,55 @@ export default function Admin() {
 
   return (
     <div style={styles.page}>
+      <h1 style={styles.title}>System resources</h1>
+      {!stats ? (
+        <p>Loading…</p>
+      ) : (
+        <div style={{ marginBottom: 32, maxWidth: 720 }}>
+          <div style={{ display: "flex", gap: 24, marginBottom: 16 }}>
+            <div style={{ flex: 1 }}>
+              <div style={styles.meterLabel}>
+                <span>CPU</span><span>{stats.cpu.load}%</span>
+              </div>
+              <div style={styles.meterTrack}>
+                <div style={{ ...styles.meterFill, width: `${Math.min(100, stats.cpu.load)}%` }} />
+              </div>
+            </div>
+            <div style={{ flex: 1 }}>
+              <div style={styles.meterLabel}>
+                <span>RAM</span><span>{stats.mem.usedMB} / {stats.mem.totalMB} MB ({stats.mem.usedPercent}%)</span>
+              </div>
+              <div style={styles.meterTrack}>
+                <div style={{ ...styles.meterFill, width: `${Math.min(100, stats.mem.usedPercent)}%` }} />
+              </div>
+            </div>
+          </div>
+          <p style={{ opacity: 0.6, fontSize: 13, margin: "0 0 12px 0" }}>
+            {stats.processCount} processes running · uptime {formatUptime(stats.uptimeSec)}
+          </p>
+          <table style={styles.table}>
+            <thead>
+              <tr>
+                <th style={styles.th}>PID</th>
+                <th style={styles.th}>Process</th>
+                <th style={styles.th}>CPU</th>
+                <th style={styles.th}>RAM</th>
+              </tr>
+            </thead>
+            <tbody>
+              {stats.topProcesses.map((p) => (
+                <tr key={p.pid}>
+                  <td style={styles.td}>{p.pid}</td>
+                  <td style={styles.td}>{p.name}</td>
+                  <td style={styles.td}>{p.cpu}%</td>
+                  <td style={styles.td}>{p.memMB} MB</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
       <h1 style={styles.title}>User approvals</h1>
       {!users ? (
         <p>Loading…</p>
@@ -166,6 +231,15 @@ export default function Admin() {
   );
 }
 
+function formatUptime(sec) {
+  const d = Math.floor(sec / 86400);
+  const h = Math.floor((sec % 86400) / 3600);
+  const m = Math.floor((sec % 3600) / 60);
+  if (d > 0) return `${d}d ${h}h`;
+  if (h > 0) return `${h}h ${m}m`;
+  return `${m}m`;
+}
+
 const styles = {
   wrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
@@ -189,4 +263,7 @@ const styles = {
   th: { textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--border, #2a2a2e)", opacity: 0.7, fontSize: 13 },
   td: { padding: "8px 12px", borderBottom: "1px solid var(--border, #2a2a2e)", fontSize: 14, verticalAlign: "middle" },
   avatar: { width: 24, height: 24, borderRadius: "50%", verticalAlign: "middle", marginRight: 8 },
+  meterLabel: { display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.8, marginBottom: 4 },
+  meterTrack: { height: 8, borderRadius: 4, background: "var(--border, #2a2a2e)", overflow: "hidden" },
+  meterFill: { height: "100%", background: "var(--purple, #9147ff)", transition: "width 0.4s ease" },
 };
