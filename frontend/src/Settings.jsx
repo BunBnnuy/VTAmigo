@@ -831,7 +831,9 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 }}
               >
                 <option value="windows">{t("settings.tts.windows")}</option>
-                <option value="elevenlabs">{t("settings.tts.elevenlabs")}</option>
+                <option value="elevenlabs" disabled={form.ttsProvider !== "elevenlabs"}>
+                  {t("settings.tts.elevenlabs")} {form.ttsProvider !== "elevenlabs" ? `(${t("settings.tts.unavailable")})` : ""}
+                </option>
                 <option value="piper">{t("settings.tts.piper")}</option>
               </select>
             </div>

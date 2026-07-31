@@ -152,6 +152,7 @@ export default {
       provider: "Proveedor de TTS",
       windows: "TTS de Windows (voces del sistema)",
       elevenlabs: "ElevenLabs (requiere API key)",
+      unavailable: "no disponible temporalmente",
       piper: "Piper (voces locales en español, sin conexión)",
       voice: "Voz",
       systemDefault: "Predeterminada del sistema",

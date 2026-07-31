@@ -152,6 +152,7 @@ export default {
       provider: "TTSプロバイダー",
       windows: "Windows TTS（システム音声）",
       elevenlabs: "ElevenLabs（APIキーが必要）",
+      unavailable: "一時的に利用不可",
       piper: "Piper（ローカルのスペイン語音声、オフライン）",
       voice: "音声",
       systemDefault: "システムのデフォルト",

@@ -152,6 +152,7 @@ export default {
       provider: "TTS 제공자",
       windows: "Windows TTS (시스템 음성)",
       elevenlabs: "ElevenLabs (API 키 필요)",
+      unavailable: "일시적으로 사용 불가",
       piper: "Piper (로컬 스페인어 음성, 오프라인)",
       voice: "음성",
       systemDefault: "시스템 기본값",
