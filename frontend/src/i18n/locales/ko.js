@@ -43,8 +43,7 @@ export default {
       tokenHintScope: "chat:edit",
       tokenHintMiddle: "권한 필요). 발급받기:",
       tokenHintSuffix: "봇 계정으로 로그인한 상태에서 발급받으세요.",
-      autoSend: "AI 응답을 채팅에 자동으로 전송",
-      autoSendHint: "활성화하면 모든 AI 응답이 봇을 통해 자동으로 Twitch 채팅에 게시됩니다. 응답 패널의 버튼으로 수동 전송도 가능합니다.",
+      autoSendHint: "자동 전송은 여기가 아니라 \"AI Responses\" 옆의 💬 버튼으로 켜고 끕니다. 응답 패널에서 수동으로 전송할 수도 있습니다.",
     },
 
     ignoredUsers: {

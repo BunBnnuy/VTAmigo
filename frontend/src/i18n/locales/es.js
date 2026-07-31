@@ -43,8 +43,7 @@ export default {
       tokenHintScope: "chat:edit",
       tokenHintMiddle: "). Consigue uno en",
       tokenHintSuffix: "mientras tienes sesión iniciada como el usuario del bot.",
-      autoSend: "Enviar automáticamente las respuestas de la IA al chat",
-      autoSendHint: "Cuando está activado, cada respuesta de la IA se publica automáticamente en el chat de Twitch por el bot. También puedes enviarla manualmente con el botón del panel de respuestas.",
+      autoSendHint: "El envío automático se activa con el botón 💬 junto a \"AI Responses\", no aquí. También puedes enviar cualquier respuesta manualmente desde el panel de respuestas.",
     },
 
     ignoredUsers: {

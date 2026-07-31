@@ -43,8 +43,7 @@ export default {
       tokenHintScope: "chat:edit",
       tokenHintMiddle: "scope). Get one at",
       tokenHintSuffix: "while logged in as the bot user.",
-      autoSend: "Auto-send AI responses to chat",
-      autoSendHint: "When enabled, every AI response is automatically posted to Twitch chat by the bot. You can also send manually with the button in the response panel.",
+      autoSendHint: "Auto-send is toggled with the 💬 button next to \"AI Responses\", not here. You can also send any response manually from the response panel.",
     },
 
     ignoredUsers: {

@@ -13,7 +13,10 @@ const EVENT_ICONS = {
   cheer: "💎",
 };
 
-export default function ChatFeed({ messages, onSend }) {
+export default function ChatFeed({
+  messages, onSend,
+  micSupported, micActive, micError, micModelStatus, micSpeaking, micLastText, onToggleMic,
+}) {
   const bottomRef = useRef(null);
   const [draft, setDraft] = useState("");
 
@@ -78,19 +81,42 @@ export default function ChatFeed({ messages, onSend }) {
         })}
         <div ref={bottomRef} />
       </div>
-      {onSend && (
-        <form style={styles.inputBar} onSubmit={submit}>
-          <input
-            style={styles.input}
-            type="text"
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            placeholder="Escribe un mensaje…"
-          />
-          <button style={styles.sendBtn} type="submit" disabled={!draft.trim()}>
-            Enviar
-          </button>
-        </form>
+      {(micSupported || onSend) && (
+        <div style={styles.inputRow}>
+          {micSupported && (
+            <button
+              type="button"
+              style={{
+                ...styles.micBtn,
+                color: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--text-muted)",
+                borderColor: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--border)",
+                animation: micSpeaking ? "pulse 0.8s infinite" : "none",
+              }}
+              onClick={onToggleMic}
+              title={micError || (micActive ? "Mic activo — click para desactivar" : "Activar micrófono")}
+            >
+              {micError ? "🎙 Error" : micModelStatus === "loading" ? "🎙 Loading…" : micActive ? "🎙 Live" : "🎙 Mic"}
+            </button>
+          )}
+          {onSend && (
+            <form style={styles.inputBar} onSubmit={submit}>
+              <input
+                style={styles.input}
+                type="text"
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                placeholder={
+                  micActive && !micError
+                    ? (micSpeaking ? "● listening…" : micLastText || "waiting for speech…")
+                    : "Escribe un mensaje…"
+                }
+              />
+              <button style={styles.sendBtn} type="submit" disabled={!draft.trim()}>
+                Enviar
+              </button>
+            </form>
+          )}
+        </div>
       )}
     </div>
   );
@@ -111,12 +137,27 @@ const styles = {
     flexDirection: "column",
     gap: 2,
   },
-  inputBar: {
+  inputRow: {
     display: "flex",
+    alignItems: "center",
     gap: 6,
     padding: "8px 10px",
     borderTop: "1px solid var(--border)",
     flexShrink: 0,
+  },
+  micBtn: {
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    fontSize: 12,
+    padding: "5px 10px",
+    cursor: "pointer",
+    flexShrink: 0,
+  },
+  inputBar: {
+    display: "flex",
+    gap: 6,
+    flex: 1,
   },
   input: {
     flex: 1,

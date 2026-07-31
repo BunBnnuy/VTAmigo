@@ -43,8 +43,7 @@ export default {
       tokenHintScope: "chat:edit",
       tokenHintMiddle: "スコープが必要）。取得先:",
       tokenHintSuffix: "ボットユーザーとしてログインした状態で取得してください。",
-      autoSend: "AIの返答を自動でチャットへ送信",
-      autoSendHint: "有効にすると、すべてのAI応答がボットによって自動的にTwitchチャットに投稿されます。レスポンスパネルのボタンから手動送信することもできます。",
+      autoSendHint: "自動送信は「AI Responses」の横にある💬ボタンで切り替えます（ここではありません）。レスポンスパネルから手動送信することもできます。",
     },
 
     ignoredUsers: {

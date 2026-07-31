@@ -4,7 +4,12 @@ function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
-export default function ResponsePanel({ responses, loading, onSendToChat, botConnected }) {
+export default function ResponsePanel({
+  responses, loading, onSendToChat, botConnected,
+  autoSendToChat, onToggleAutoSend,
+  muted, onToggleMute, ttsPlaying, onSkipTts,
+  nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
+}) {
   const bottomRef = useRef(null);
 
   useEffect(() => {
@@ -16,6 +21,41 @@ export default function ResponsePanel({ responses, loading, onSendToChat, botCon
       <div style={styles.header}>
         <span style={styles.title}>AI Responses</span>
         {loading && <span style={styles.thinking}>thinking…</span>}
+        <div style={styles.headerControls}>
+          {onToggleAutoSend && (
+            <button
+              style={{ ...styles.controlBtn, color: autoSendToChat ? "var(--green)" : "var(--text-muted)" }}
+              onClick={onToggleAutoSend}
+              title="Auto-send AI responses to chat"
+            >
+              {autoSendToChat ? "💬 Auto-send ON" : "💬 Auto-send OFF"}
+            </button>
+          )}
+          {ttsPlaying && onSkipTts && (
+            <button style={{ ...styles.controlBtn, color: "var(--purple-light)" }} onClick={onSkipTts} title="Skip current TTS">
+              ⏭ Skip
+            </button>
+          )}
+          {onToggleMute && (
+            <button
+              style={{ ...styles.controlBtn, color: muted ? "var(--red)" : "var(--text)" }}
+              onClick={onToggleMute}
+              title={muted ? "Unmute TTS" : "Mute TTS"}
+            >
+              {muted ? "🔇 Muted" : "🔊 TTS"}
+            </button>
+          )}
+          {onNowClick && (
+            <button
+              style={{ ...styles.controlBtn, color: "var(--text-muted)", opacity: nowDisabled && !loading ? 0.5 : 1 }}
+              onClick={onNowClick}
+              disabled={nowDisabled}
+              title={nowTitle}
+            >
+              ▶ Now{nowOnCooldown ? ` (${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")})` : ""}
+            </button>
+          )}
+        </div>
       </div>
       <div style={styles.list}>
         {responses.length === 0 && (
@@ -69,6 +109,21 @@ const styles = {
     gap: 10,
     padding: "12px 14px",
     borderBottom: "1px solid var(--border)",
+    flexWrap: "wrap",
+  },
+  headerControls: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: "auto",
+  },
+  controlBtn: {
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    fontSize: 11,
+    padding: "4px 8px",
+    cursor: "pointer",
   },
   title: {
     fontWeight: 700,

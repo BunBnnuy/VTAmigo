@@ -336,17 +336,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 {" "}{t("settings.bot.tokenHintSuffix")}
               </span>
             </div>
-            <div style={styles.field}>
-              <label style={{ display: "flex", alignItems: "center", gap: 8, cursor: "pointer" }}>
-                <input
-                  type="checkbox"
-                  checked={!!form.autoSendToChat}
-                  onChange={(e) => set("autoSendToChat", e.target.checked)}
-                />
-                {t("settings.bot.autoSend")}
-              </label>
-              <span style={styles.hint}>{t("settings.bot.autoSendHint")}</span>
-            </div>
+            <span style={styles.hint}>{t("settings.bot.autoSendHint")}</span>
           </section>
 
           <section style={styles.section}>

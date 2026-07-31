@@ -851,6 +851,14 @@ function AppInner({ twitchLogin, tier }) {
 
   // ── Settings save ─────────────────────────────────────────────────────────
 
+  const toggleAutoSend = useCallback(() => {
+    setSettings((prev) => {
+      const next = { ...prev, autoSendToChat: !prev.autoSendToChat };
+      localStorage.setItem("settings", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const saveSettings = (newSettings) => {
     const prev = settingsRef.current;
     track("save_apply_click");
@@ -995,7 +1003,22 @@ function AppInner({ twitchLogin, tier }) {
             <span style={styles.panelTitle}>Live Chat</span>
             <span style={styles.msgCount}>{messages.length} messages</span>
           </div>
-          <ChatFeed messages={messages} onSend={handleSendTyped} />
+          <ChatFeed
+            messages={messages}
+            onSend={handleSendTyped}
+            micSupported={voice.supported}
+            micActive={micActive}
+            micError={micError}
+            micModelStatus={micModelStatus}
+            micSpeaking={micSpeaking}
+            micLastText={micLastText}
+            onToggleMic={() => {
+              const next = !settings.micEnabled;
+              const ns = { ...settings, micEnabled: next };
+              setSettings(ns);
+              localStorage.setItem("settings", JSON.stringify(ns));
+            }}
+          />
         </div>
 
         {/* Divider */}
@@ -1007,6 +1030,17 @@ function AppInner({ twitchLogin, tier }) {
             responses={responses}
             loading={loading}
             botConnected={botStatus === "connected"}
+            autoSendToChat={settings.autoSendToChat}
+            onToggleAutoSend={toggleAutoSend}
+            muted={muted}
+            onToggleMute={toggleMute}
+            ttsPlaying={ttsPlaying}
+            onSkipTts={() => tts.skip()}
+            nowDisabled={nowDisabled}
+            nowOnCooldown={nowOnCooldown}
+            nowRemainingSec={nowRemainingSec}
+            nowTitle={nowTitle}
+            onNowClick={handleNowClick}
             onSendToChat={(text) => apiFetch("/say", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1148,103 +1182,6 @@ function AppInner({ twitchLogin, tier }) {
           <span style={styles.bufLabel}>{bufferRef.current.length} buffered</span>
         )}
 
-        {/* Mic toggle + live preview */}
-        {voice.supported && (
-          <div style={styles.micGroup}>
-            <button
-              style={{
-                ...styles.iconBtn,
-                color: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--text-muted)",
-                borderColor: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--border)",
-                animation: micSpeaking ? "pulse 0.8s infinite" : "none",
-                flexShrink: 0,
-              }}
-              onClick={() => {
-                const next = !settings.micEnabled;
-                const ns = { ...settings, micEnabled: next };
-                setSettings(ns);
-                localStorage.setItem("settings", JSON.stringify(ns));
-              }}
-              title={micError || (micActive ? "Mic activo — click para desactivar" : "Activar micrófono")}
-            >
-              {micError ? "🎙 Error" : micModelStatus === "loading" ? "🎙 Loading…" : micActive ? "🎙 Live" : "🎙 Mic"}
-            </button>
-
-            {/* Live status text */}
-            {micActive && !micError && (
-              <span style={{
-                ...styles.micPreview,
-                color: micSpeaking ? "var(--text)" : "var(--text-muted)",
-                fontStyle: micSpeaking ? "normal" : "italic",
-              }}>
-                {micSpeaking
-                  ? "● listening…"
-                  : micLastText || "waiting for speech…"}
-              </span>
-            )}
-            {micError && (
-              <span style={{ ...styles.micPreview, color: "var(--red)" }}>{micError}</span>
-            )}
-            {!micError && !micActive && micModelStatus === "loading" && (
-              <span style={{ ...styles.micPreview, color: "var(--yellow)" }}>downloading model…</span>
-            )}
-          </div>
-        )}
-
-        {/* TTS controls */}
-        <div style={styles.ttsGroup}>
-          {ttsPlaying && (
-            <button
-              style={{ ...styles.iconBtn, color: "var(--purple-light)" }}
-              onClick={() => tts.skip()}
-              title="Skip current TTS"
-            >
-              ⏭ Skip
-            </button>
-          )}
-          <button
-            style={{
-              ...styles.iconBtn,
-              color: muted ? "var(--red)" : "var(--text)",
-            }}
-            onClick={toggleMute}
-            title={muted ? "Unmute TTS" : "Mute TTS"}
-          >
-            {muted ? "🔇 Muted" : "🔊 TTS"}
-          </button>
-          <button
-            style={{ ...styles.iconBtn, color: "var(--text-muted)", opacity: nowDisabled && !loading ? 0.5 : 1 }}
-            onClick={handleNowClick}
-            disabled={nowDisabled}
-            title={nowTitle}
-          >
-            ▶ Now{nowOnCooldown ? ` (${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")})` : ""}
-          </button>
-          <button
-            style={{ ...styles.iconBtn, color: "#ff9f43" }}
-            onClick={() => triggerRedditStory()}
-            disabled={loading}
-            title="Contar una historia de Reddit"
-          >
-            📖 Historia
-          </button>
-          <button
-            style={{ ...styles.iconBtn, color: "#ff6b6b" }}
-            onClick={() => triggerYouTubePeek()}
-            disabled={loading}
-            title="Narrar lo que hay en la pestaña de YouTube"
-          >
-            📺 YouTube
-          </button>
-          <button
-            style={{ ...styles.iconBtn, color: "#4ecdc4" }}
-            onClick={() => triggerScreenScan()}
-            disabled={loading}
-            title="Leer la pantalla ahora y buscar una pregunta con opciones"
-          >
-            🖥️ Pregunta
-          </button>
-        </div>
       </div>
 
       {/* Settings modal */}
@@ -1409,30 +1346,10 @@ const styles = {
     fontSize: 11,
     color: "var(--yellow)",
   },
-  ttsGroup: {
-    display: "flex",
-    alignItems: "center",
-    gap: 6,
-    marginLeft: "auto",
-  },
   iconBtn: {
     background: "var(--surface2)",
     border: "1px solid var(--border)",
     fontSize: 12,
     padding: "5px 10px",
-  },
-  micGroup: {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    maxWidth: 280,
-    overflow: "hidden",
-  },
-  micPreview: {
-    fontSize: 11,
-    whiteSpace: "nowrap",
-    overflow: "hidden",
-    textOverflow: "ellipsis",
-    maxWidth: 200,
   },
 };
