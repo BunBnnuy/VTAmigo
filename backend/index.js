@@ -4,7 +4,7 @@ const cookieParser = require("cookie-parser");
 const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
-const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers } = require("./auth");
+const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, getOverlayToken, findUserByOverlayToken } = require("./auth");
 const { sendEvent } = require("./analytics");
 const { router: adminRouter } = require("./adminAuth");
 const { router: devicesRouter } = require("./devices");
@@ -69,6 +69,11 @@ const PROTECTED_PREFIXES = [
   "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts",
 ];
 app.use((req, res, next) => {
+  // /xp/ranking is excluded even though it matches the "/xp" prefix below —
+  // it's the one endpoint the OBS overlay needs, and OBS's Browser Source has
+  // no access to the streamer's session cookie. It does its own auth inline
+  // (cookie session OR ?token= overlay token) instead of the blanket check.
+  if (req.path === "/xp/ranking") return next();
   // Match hyphenated variants too (e.g. "/connect-bot", "/connect-tiktok"),
   // not just "/connect" itself or "/connect/..." — a plain "/" boundary
   // check let those slip through unauthenticated, which crashed /connect-bot
@@ -112,7 +117,7 @@ function broadcastToAccount(twitchId, data) {
 function handleChat(twitchId, msg) {
   broadcastToAccount(twitchId, { type: "chat", msg });
   if (msg.username && msg.text) {
-    const ev = xp.addMessage(msg.username, msg.text, msg.color);
+    const ev = xp.addMessage(twitchId, msg.username, msg.text, msg.color);
     if (ev && ev.gained > 0) broadcastToAccount(twitchId, { type: "xp", ...ev });
   }
 }
@@ -562,35 +567,49 @@ app.post("/screen-answer", async (req, res) => {
 
 // ── XP / ranking ─────────────────────────────────────────────────────────────
 
-// GET /xp/ranking?limit=10 — top users by XP
+// GET /xp/ranking?limit=10 — top users by XP for one account. Reachable
+// either as a logged-in browser (session cookie) or as the OBS overlay
+// (?token=... — see getOverlayToken), since this is deliberately excluded
+// from the blanket requireApprovedUser gate above.
 app.get("/xp/ranking", (req, res) => {
-  res.json({ ranking: xp.getRanking(Number(req.query.limit) || 10) });
+  const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  res.json({ ranking: xp.getRanking(user.twitchId, Number(req.query.limit) || 10) });
 });
 
-// GET /overlay/xp — transparent overlay page (add as OBS browser source)
+// GET /overlay/xp?token=... — transparent overlay page (add as OBS browser
+// source). The page itself is static and carries no account data; the token
+// in its query string is what scopes the ranking fetch + WS feed to one account.
 app.get("/overlay/xp", (req, res) => {
   res.sendFile(path.join(__dirname, "overlay", "xp.html"));
+});
+
+// GET /xp/overlay-url — the logged-in user's own OBS overlay URL, for Settings
+// to display with a copy button.
+app.get("/xp/overlay-url", (req, res) => {
+  const token = getOverlayToken(req.user.twitchId);
+  res.json({ url: `${req.protocol}://${req.get("host")}/overlay/xp?token=${token}` });
 });
 
 // POST /xp/config — { ignoredUsers: "name1, name2" | [] } — users that earn no XP
 app.post("/xp/config", (req, res) => {
   const { ignoredUsers } = req.body || {};
-  if (ignoredUsers != null) xp.setIgnored(ignoredUsers);
+  if (ignoredUsers != null) xp.setIgnored(req.user.twitchId, ignoredUsers);
   res.json({ ok: true });
 });
 
-// POST /xp/reset — wipe all XP data
+// POST /xp/reset — wipe this account's XP data
 app.post("/xp/reset", (req, res) => {
-  xp.reset();
+  xp.reset(req.user.twitchId);
   res.json({ ok: true });
 });
 
 // POST /xp/test — simulate a chat message to preview the overlay animation
 app.post("/xp/test", (req, res) => {
   const { username, text, color } = req.body || {};
-  const ev = xp.addMessage(username || "TestUser", text || "hola mundo, este es un mensaje de prueba!", color || "#9147ff");
+  const ev = xp.addMessage(req.user.twitchId, username || "TestUser", text || "hola mundo, este es un mensaje de prueba!", color || "#9147ff");
   if (!ev) return res.json({ ok: true, ignored: true });
-  broadcast({ type: "xp", ...ev });
+  broadcastToAccount(req.user.twitchId, { type: "xp", ...ev });
   res.json({ ok: true, ...ev });
 });
 
@@ -742,7 +761,11 @@ if (isProd) {
 }
 
 wss.on("connection", (ws, req) => {
-  const user = getApprovedUserFromCookieHeader(req.headers.cookie);
+  // The OBS overlay (backend/overlay/xp.html) can't send the session cookie —
+  // it's a separate CEF instance — so it connects with ?token=... instead
+  // (forwarded from its own query string, see xp.html).
+  const token = new URL(req.url, "http://internal").searchParams.get("token");
+  const user = (token && findUserByOverlayToken(token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
   if (!user) {
     console.log("[ws] rejected unauthenticated connection");
     ws.close(4401, "unauthorized");

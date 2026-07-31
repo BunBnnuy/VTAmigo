@@ -175,6 +175,21 @@ function requireApprovedUser(req, res, next) {
   next();
 }
 
+// Stable per-account token for unauthenticated surfaces that can't carry the
+// session cookie (OBS Browser Source runs its own CEF instance with no
+// access to the streamer's browser cookies). Deterministic from twitchId, so
+// it doesn't need its own storage — same idea as the session JWT, but for a
+// case where a signed/expiring token would just be an annoyance to re-paste.
+function getOverlayToken(twitchId) {
+  return crypto.createHmac("sha256", SESSION_SECRET).update(`overlay:${twitchId}`).digest("hex").slice(0, 32);
+}
+
+function findUserByOverlayToken(token) {
+  if (!token) return null;
+  const user = readUsers().find((u) => getOverlayToken(u.twitchId) === token);
+  return user && user.approved ? user : null;
+}
+
 // Same check for the WS upgrade path, where there's no Express req/res cycle.
 function getApprovedUserFromCookieHeader(cookieHeader) {
   if (!cookieHeader) return null;
@@ -321,4 +336,6 @@ module.exports = {
   writeUsers,
   getValidTwitchToken,
   clearTwitchTokens,
+  getOverlayToken,
+  findUserByOverlayToken,
 };

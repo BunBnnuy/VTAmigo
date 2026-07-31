@@ -15,6 +15,25 @@ export default function Settings({ settings, onSave, onClose }) {
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
   const [importFile, setImportFile] = useState(null); // { name, content }
   const [importStatus, setImportStatus] = useState(null); // null | {running, error, ok}
+  const [overlayUrl, setOverlayUrl] = useState("");
+  const [overlayCopied, setOverlayCopied] = useState(false);
+
+  useEffect(() => {
+    apiFetch("/xp/overlay-url")
+      .then((res) => res.json())
+      .then((data) => setOverlayUrl(data.url || ""))
+      .catch(() => {});
+  }, []);
+
+  const copyOverlayUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(overlayUrl);
+      setOverlayCopied(true);
+      setTimeout(() => setOverlayCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable — user can still select the text manually.
+    }
+  };
 
   // Poll export progress while a job is running
   useEffect(() => {
@@ -310,6 +329,27 @@ export default function Settings({ settings, onSave, onClose }) {
               />
               <span style={styles.hint}>
                 Messages from these users will be silently dropped (case-insensitive). Bots like Nightbot, StreamElements, etc. are pre-filled.
+              </span>
+            </div>
+          </section>
+
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>OBS Overlay — XP / Level</h3>
+            <div style={styles.field}>
+              <label>Browser Source URL</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input readOnly value={overlayUrl} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  onClick={copyOverlayUrl}
+                  disabled={!overlayUrl}
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
+                >
+                  {overlayCopied ? "✅ Copied" : "📋 Copy"}
+                </button>
+              </div>
+              <span style={styles.hint}>
+                Add this as a Browser Source in OBS to show the animated XP bar and top-viewer ranking on stream. The link is unique to your account, so keep it private.
               </span>
             </div>
           </section>
