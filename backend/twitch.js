@@ -63,6 +63,8 @@ class TwitchIRCClient {
     this.ws = null;
     this.reconnectDelay = 1000;
     this.dead = false;
+    this.ready = false;
+    this.pendingSays = [];
   }
 
   connect() {
@@ -101,7 +103,9 @@ class TwitchIRCClient {
           if (msg) this.onMessage(msg);
         }
         if (line.includes(":Welcome, GLHF!")) {
+          this.ready = true;
           this.onStatus({ type: "connected", channel: this.channel });
+          this._flushPending();
         }
         if (line.includes("NOTICE")) {
           console.log(`[twitch/${this.username}] NOTICE:`, line);
@@ -113,6 +117,7 @@ class TwitchIRCClient {
     });
 
     ws.on("close", () => {
+      this.ready = false;
       if (!this.dead) {
         this.onStatus({ type: "disconnected" });
         setTimeout(() => {
@@ -127,7 +132,7 @@ class TwitchIRCClient {
     });
   }
 
-  say(text) {
+  _send(text) {
     if (this.ws && this.ws.readyState === 1 /* OPEN */) {
       this.ws.send(`PRIVMSG #${this.channel} :${text}`);
       return true;
@@ -135,8 +140,25 @@ class TwitchIRCClient {
     return false;
   }
 
+  _flushPending() {
+    const queued = this.pendingSays;
+    this.pendingSays = [];
+    for (const text of queued) this._send(text);
+  }
+
+  // If the IRC handshake hasn't completed yet (e.g. a message arrives right
+  // as the bot is still connecting), queue it instead of dropping it —
+  // it gets flushed once the "Welcome, GLHF!" auth confirmation lands.
+  say(text) {
+    if (this.ready) return this._send(text);
+    if (this.pendingSays.length < 10) this.pendingSays.push(text);
+    return true;
+  }
+
   disconnect() {
     this.dead = true;
+    this.ready = false;
+    this.pendingSays = [];
     if (this.ws) {
       this.ws.close();
       this.ws = null;
