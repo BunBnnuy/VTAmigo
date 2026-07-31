@@ -6,7 +6,7 @@ export default function Login() {
     <div style={styles.wrap}>
       <div style={styles.card}>
         <span style={styles.icon}>🎮</span>
-        <h1 style={styles.title}>AI Companion</h1>
+        <h1 style={styles.title}>VTAmigo</h1>
         <p style={styles.subtitle}>Log in with Twitch to continue.</p>
         <a style={styles.btn} href={apiUrl("/auth/twitch/login")}>
           Log in with Twitch

@@ -26,7 +26,7 @@
   },
   "build": {
     "appId": "com.aicompanion.twitch",
-    "productName": "AI Companion",
+    "productName": "VTAmigo",
     "asar": true,
     "files": [
       "electron/**",
@@ -41,7 +41,7 @@
     "nsis": {
       "oneClick": false,
       "allowToChangeInstallationDirectory": true,
-      "shortcutName": "AI Companion"
+      "shortcutName": "VTAmigo"
     },
     "directories": {
       "buildResources": "build",

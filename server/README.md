@@ -28,7 +28,7 @@ The backend already serves the built frontend statically when running outside El
 bash server/deploy-frontend.sh   # builds frontend/dist and restarts the service
 ```
 
-Once deployed, visiting the site directly (e.g. `https://93130123.xyz`) serves the full app — no local `npm run dev`/`dev:remote` needed, and no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
+Once deployed, visiting the site directly (e.g. `https://vtamigo.top`) serves the full app — no local `npm run dev`/`dev:remote` needed, and no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
 
 ## VTube Studio lip-sync
 
