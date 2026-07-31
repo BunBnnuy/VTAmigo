@@ -9,6 +9,7 @@
 // so this file is the only thing the backend needs to write; there's no
 // authorized_keys file to manage/chmod here. See server/README.md.
 const express = require("express");
+const rateLimit = require("express-rate-limit");
 const fs = require("fs");
 const path = require("path");
 const crypto = require("crypto");
@@ -18,6 +19,17 @@ const { requireAdmin } = require("./adminAuth");
 const DEVICES_PATH = path.join(__dirname, "devices.json");
 const PENDING_TTL_MS = 15 * 60 * 1000;
 const BASE_PORT = 8001;
+
+// userCode is a short, human-typed 24-bit code (crypto.randomBytes(3)) —
+// fine for its purpose (avoiding a fat-fingered approval) but brute-forceable
+// without a request cap, since /device/lookup and /device/approve both
+// accept it. Caps well below what brute-forcing 16.7M combinations needs.
+const deviceCodeLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 30,
+  standardHeaders: true,
+  legacyHeaders: false,
+});
 
 const TUNNEL_HOST = process.env.TUNNEL_HOST || "vtamigo.top";
 const TUNNEL_SSH_USER = "tunnel";
@@ -119,7 +131,7 @@ router.get("/device/poll", (req, res) => {
 
 // GET /device/lookup?userCode=... — used by the /device approval page to show
 // what's being approved before the user commits (no secrets in the response).
-router.get("/device/lookup", requireApprovedUser, (req, res) => {
+router.get("/device/lookup", requireApprovedUser, deviceCodeLimiter, (req, res) => {
   const { userCode } = req.query;
   const devices = pruneExpired(readDevices());
   const device = devices.find((d) => d.userCode === (userCode || "").toUpperCase());
@@ -129,7 +141,7 @@ router.get("/device/lookup", requireApprovedUser, (req, res) => {
 
 // POST /device/approve — { userCode } — only an already-approved, logged-in
 // Twitch user can approve a new device (their own or a guest's).
-router.post("/device/approve", requireApprovedUser, (req, res) => {
+router.post("/device/approve", requireApprovedUser, deviceCodeLimiter, (req, res) => {
   const { userCode } = req.body || {};
   if (!userCode) return res.status(400).json({ error: "userCode is required" });
 

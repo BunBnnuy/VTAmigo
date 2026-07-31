@@ -17,7 +17,19 @@ const BACKEND = "https://vtamigo.top";
 const CONFIG_DIR = path.join(os.homedir(), "AppData", "Local", "vtamigo-tunnel");
 const KEY_PATH = path.join(CONFIG_DIR, "id_ed25519");
 const STATE_PATH = path.join(CONFIG_DIR, "state.json");
+const KNOWN_HOSTS_PATH = path.join(CONFIG_DIR, "known_hosts");
 const POLL_INTERVAL_MS = 3000;
+
+// Pinned VPS host key (ssh-keyscan -t ed25519 vtamigo.top), baked in at build
+// time. Using this instead of StrictHostKeyChecking=accept-new means the
+// client verifies the server's identity against a fingerprint that shipped
+// with the binary, not whatever a network happens to hand it on the first
+// connection — accept-new blindly trusts that first response, which is a real
+// MITM window if an attacker controls the network path at that moment. If the
+// VPS is ever rebuilt/migrated, this constant needs updating and the exe
+// needs redistributing.
+const TUNNEL_HOST_KEY_TYPE = "ssh-ed25519";
+const TUNNEL_HOST_KEY_B64 = "AAAAC3NzaC1lZDI1NTE5AAAAILBGAmlRZ29l0NBH1FZtAi5q9Sxi8v3HVZHWMTXMKXBi";
 
 function log(msg) {
   console.log(`[tunnel-client] ${msg}`);
@@ -80,9 +92,15 @@ async function waitForApproval(deviceCode) {
   }
 }
 
+function pinKnownHosts(host) {
+  fs.writeFileSync(KNOWN_HOSTS_PATH, `${host} ${TUNNEL_HOST_KEY_TYPE} ${TUNNEL_HOST_KEY_B64}\n`);
+}
+
 function runTunnel({ host, port, tunnelUser }) {
   log(`Starting reverse tunnel: ${host} port ${port} -> this PC's VTube Studio (127.0.0.1:8001)`);
   log("Leave this window open while streaming. Ctrl+C to stop.");
+
+  pinKnownHosts(host);
 
   const connect = () => {
     const ssh = spawn(
@@ -93,7 +111,8 @@ function runTunnel({ host, port, tunnelUser }) {
         "-o", "ServerAliveInterval=30",
         "-o", "ServerAliveCountMax=3",
         "-o", "ExitOnForwardFailure=yes",
-        "-o", "StrictHostKeyChecking=accept-new",
+        "-o", "StrictHostKeyChecking=yes",
+        "-o", `UserKnownHostsFile=${KNOWN_HOSTS_PATH}`,
         `${tunnelUser}@${host}`,
       ],
       { stdio: "inherit" }
