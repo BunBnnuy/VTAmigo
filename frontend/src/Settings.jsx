@@ -2,9 +2,11 @@ import React, { useState, useEffect } from "react";
 import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch } from "./api.js";
+import { useTranslation, SUPPORTED_LANGUAGES } from "./i18n/index.js";
 
 export default function Settings({ settings, onSave, onClose }) {
   const [form, setForm] = useState(settings);
+  const { t } = useTranslation(form.language);
   const [voices, setVoices] = useState([]);
   const [micDevices, setMicDevices] = useState([]);
   const [elevenVoices, setElevenVoices] = useState([]);
@@ -58,7 +60,7 @@ export default function Settings({ settings, onSave, onClose }) {
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setExportStatus({ running: true, pct: 0, stage: "Iniciando…", error: null, mdPath: null });
+      setExportStatus({ running: true, pct: 0, stage: t("settings.aiProvider.initiating"), error: null, mdPath: null });
     } catch (err) {
       setExportStatus({ running: false, pct: 0, stage: "", error: err.message, mdPath: null });
     }
@@ -69,7 +71,7 @@ export default function Settings({ settings, onSave, onClose }) {
     if (!file) return;
     const reader = new FileReader();
     reader.onload = () => setImportFile({ name: file.name, content: String(reader.result || "") });
-    reader.onerror = () => setImportStatus({ running: false, error: `No se pudo leer ${file.name}` });
+    reader.onerror = () => setImportStatus({ running: false, error: t("settings.copySettings.readError", { file: file.name }) });
     reader.readAsText(file);
   };
 
@@ -186,10 +188,10 @@ export default function Settings({ settings, onSave, onClose }) {
         setForm((f) => ({ ...f, ...parsed }));
         setSettingsFileStatus({ ok: true, droppedStaleBackendUrl });
       } catch (err) {
-        setSettingsFileStatus({ error: `Archivo inválido: ${err.message}` });
+        setSettingsFileStatus({ error: t("settings.copySettings.invalidFile", { error: err.message }) });
       }
     };
-    reader.onerror = () => setSettingsFileStatus({ error: `No se pudo leer ${file.name}` });
+    reader.onerror = () => setSettingsFileStatus({ error: t("settings.copySettings.readError", { file: file.name }) });
     reader.readAsText(file);
     e.target.value = ""; // allow re-selecting the same file later
   };
@@ -198,22 +200,35 @@ export default function Settings({ settings, onSave, onClose }) {
     <div style={styles.overlay} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div style={styles.modal}>
         <div style={styles.header}>
-          <span style={styles.title}>Settings</span>
+          <span style={styles.title}>{t("settings.title")}</span>
           <button style={styles.closeBtn} onClick={onClose}>✕</button>
         </div>
 
         <div style={styles.body}>
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Copiar configuración</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.language.title")}</h3>
             <div style={styles.field}>
-              <label>Exportar / importar toda la configuración</label>
+              <label>{t("settings.language.label")}</label>
+              <select value={form.language || "en"} onChange={(e) => set("language", e.target.value)}>
+                {SUPPORTED_LANGUAGES.map((l) => (
+                  <option key={l.code} value={l.code}>{l.label}</option>
+                ))}
+              </select>
+              <span style={styles.hint}>{t("settings.language.hint")}</span>
+            </div>
+          </section>
+
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t("settings.copySettings.title")}</h3>
+            <div style={styles.field}>
+              <label>{t("settings.copySettings.label")}</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <button
                   type="button"
                   onClick={exportSettings}
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", flex: 1 }}
                 >
-                  ⬇️ Descargar .json
+                  {t("settings.copySettings.download")}
                 </button>
                 <label
                   style={{
@@ -228,7 +243,7 @@ export default function Settings({ settings, onSave, onClose }) {
                     borderRadius: 6,
                   }}
                 >
-                  ⬆️ Cargar .json
+                  {t("settings.copySettings.upload")}
                   <input type="file" accept=".json,application/json" onChange={importSettingsFile} style={{ display: "none" }} />
                 </label>
               </div>
@@ -237,50 +252,44 @@ export default function Settings({ settings, onSave, onClose }) {
                   {settingsFileStatus.error
                     ? `❌ ${settingsFileStatus.error}`
                     : settingsFileStatus.droppedStaleBackendUrl
-                    ? "✅ Configuración cargada (se ignoró un Backend URL de otro dominio guardado en el archivo) — revisa los campos y pulsa Save & Apply para guardarla"
-                    : "✅ Configuración cargada — revisa los campos y pulsa Save & Apply para guardarla"}
+                    ? t("settings.copySettings.loadedOkDroppedBackend")
+                    : t("settings.copySettings.loadedOk")}
                 </span>
               )}
-              <span style={styles.hint}>
-                Los ajustes viven en el almacenamiento local del navegador/origen actual, así que no se comparten automáticamente entre el app local y una instancia alojada en el VPS. Descarga aquí, y carga ese archivo en la otra instancia.
-              </span>
+              <span style={styles.hint}>{t("settings.copySettings.hint")}</span>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Tunnel client (VTube Studio from another PC)</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.tunnel.title")}</h3>
             <div style={styles.field}>
-              <label>Let a guest run VTube Studio lip-sync from their own computer</label>
+              <label>{t("settings.tunnel.label")}</label>
               <a href="/downloads/tunnel-client.exe" download style={{ textDecoration: "none" }}>
                 <button type="button" style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}>
-                  ⬇️ Download tunnel-client.exe
+                  {t("settings.tunnel.download")}
                 </button>
               </a>
-              <span style={styles.hint}>
-                They run the exe, it shows a short code, and any approved user logs in at /device to approve it — no keys or passwords to share. Same idea as the built-in reverse tunnel, just for a second machine.
-              </span>
+              <span style={styles.hint}>{t("settings.tunnel.hint")}</span>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>TikTok Live Connection</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.tiktok.title")}</h3>
             <div style={styles.field}>
-              <label>TikTok username</label>
+              <label>{t("settings.tiktok.label")}</label>
               <input
                 value={form.tiktokUsername || ""}
                 onChange={(e) => set("tiktokUsername", e.target.value)}
                 placeholder="@username"
               />
-              <span style={styles.hint}>
-                Enter the TikTok username of the live stream to read chat from (no API key needed — must be live).
-              </span>
+              <span style={styles.hint}>{t("settings.tiktok.hint")}</span>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Bot Account (Send to Chat)</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.bot.title")}</h3>
             <div style={styles.field}>
-              <label>Bot username</label>
+              <label>{t("settings.bot.username")}</label>
               <input
                 value={form.botUsername || ""}
                 onChange={(e) => set("botUsername", e.target.value)}
@@ -288,7 +297,7 @@ export default function Settings({ settings, onSave, onClose }) {
               />
             </div>
             <div style={styles.field}>
-              <label>Bot OAuth token</label>
+              <label>{t("settings.bot.token")}</label>
               <input
                 type="password"
                 value={form.botToken || ""}
@@ -296,11 +305,11 @@ export default function Settings({ settings, onSave, onClose }) {
                 placeholder="oauth:xxxxxxxxxxxxxxx"
               />
               <span style={styles.hint}>
-                OAuth token for the bot account (needs <code>chat:edit</code> scope). Get one at{" "}
+                {t("settings.bot.tokenHintPrefix")} <code>{t("settings.bot.tokenHintScope")}</code> {t("settings.bot.tokenHintMiddle")}{" "}
                 <a href="https://twitchapps.com/tmi/" target="_blank" rel="noreferrer" style={styles.link}>
                   twitchapps.com/tmi
                 </a>
-                {" "}while logged in as the bot user.
+                {" "}{t("settings.bot.tokenHintSuffix")}
               </span>
             </div>
             <div style={styles.field}>
@@ -310,33 +319,29 @@ export default function Settings({ settings, onSave, onClose }) {
                   checked={!!form.autoSendToChat}
                   onChange={(e) => set("autoSendToChat", e.target.checked)}
                 />
-                Auto-send AI responses to chat
+                {t("settings.bot.autoSend")}
               </label>
-              <span style={styles.hint}>
-                When enabled, every AI response is automatically posted to Twitch chat by the bot. You can also send manually with the button in the response panel.
-              </span>
+              <span style={styles.hint}>{t("settings.bot.autoSendHint")}</span>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Ignored Users</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.ignoredUsers.title")}</h3>
             <div style={styles.field}>
-              <label>Ignore messages from (comma-separated)</label>
+              <label>{t("settings.ignoredUsers.label")}</label>
               <input
                 value={form.ignoredUsers || ""}
                 onChange={(e) => set("ignoredUsers", e.target.value)}
                 placeholder="nightbot, streamelements, jonejo_ia"
               />
-              <span style={styles.hint}>
-                Messages from these users will be silently dropped (case-insensitive). Bots like Nightbot, StreamElements, etc. are pre-filled.
-              </span>
+              <span style={styles.hint}>{t("settings.ignoredUsers.hint")}</span>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>OBS Overlay — XP / Level</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.overlay.title")}</h3>
             <div style={styles.field}>
-              <label>Browser Source URL</label>
+              <label>{t("settings.overlay.label")}</label>
               <div style={{ display: "flex", gap: 8 }}>
                 <input readOnly value={overlayUrl} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
                 <button
@@ -345,20 +350,18 @@ export default function Settings({ settings, onSave, onClose }) {
                   disabled={!overlayUrl}
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
                 >
-                  {overlayCopied ? "✅ Copied" : "📋 Copy"}
+                  {overlayCopied ? t("settings.overlay.copied") : t("settings.overlay.copy")}
                 </button>
               </div>
-              <span style={styles.hint}>
-                Add this as a Browser Source in OBS to show the animated XP bar and top-viewer ranking on stream. The link is unique to your account, so keep it private.
-              </span>
+              <span style={styles.hint}>{t("settings.overlay.hint")}</span>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Batching</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.batching.title")}</h3>
             <div style={styles.row2}>
               <div style={styles.field}>
-                <label>Window size (seconds)</label>
+                <label>{t("settings.batching.windowSize")}</label>
                 <input
                   type="number"
                   min={5}
@@ -368,7 +371,7 @@ export default function Settings({ settings, onSave, onClose }) {
                 />
               </div>
               <div style={styles.field}>
-                <label>Max messages per batch</label>
+                <label>{t("settings.batching.maxMessages")}</label>
                 <input
                   type="number"
                   min={1}
@@ -379,18 +382,18 @@ export default function Settings({ settings, onSave, onClose }) {
               </div>
             </div>
             <div style={styles.field}>
-              <label>Response style</label>
+              <label>{t("settings.batching.responseStyle")}</label>
               <select value={form.style} onChange={(e) => set("style", e.target.value)}>
-                <option value="auto">Auto (context-aware)</option>
-                <option value="chatbot">Chatbot (address chat directly)</option>
-                <option value="narrator">Narrator (color commentator)</option>
+                <option value="auto">{t("settings.batching.styleAuto")}</option>
+                <option value="chatbot">{t("settings.batching.styleChatbot")}</option>
+                <option value="narrator">{t("settings.batching.styleNarrator")}</option>
               </select>
             </div>
           </section>
 
           <section style={{ ...styles.section, ...styles.disabledSection }}>
             <fieldset disabled style={styles.disabledFieldset}>
-              <h3 style={styles.sectionTitle}>Historias de Reddit <span style={styles.comingSoon}>(deshabilitado por ahora)</span></h3>
+              <h3 style={styles.sectionTitle}>{t("settings.reddit.title")} <span style={styles.comingSoon}>{t("settings.reddit.disabled")}</span></h3>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <input
                   type="checkbox"
@@ -400,11 +403,11 @@ export default function Settings({ settings, onSave, onClose }) {
                   style={{ width: "auto", accentColor: "var(--purple)" }}
                 />
                 <label htmlFor="idleReddit" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  Contar una historia cuando el chat está inactivo
+                  {t("settings.reddit.enableLabel")}
                 </label>
               </div>
               <div style={styles.field}>
-                <label>Contar una historia cada N batches vacíos</label>
+                <label>{t("settings.reddit.thresholdLabel")}</label>
                 <input
                   type="number"
                   min={1}
@@ -413,24 +416,27 @@ export default function Settings({ settings, onSave, onClose }) {
                   onChange={(e) => set("idleStoryThreshold", Number(e.target.value))}
                 />
                 <span style={styles.hint}>
-                  Ej: 7 = leer una historia cada 7 veces que el temporizador se dispara sin mensajes (~{Math.round((form.idleStoryThreshold ?? 7) * (form.batchWindow ?? 20) / 60)} min con ventana de {form.batchWindow ?? 20}s).
+                  {t("settings.reddit.thresholdHint", {
+                    minutes: Math.round((form.idleStoryThreshold ?? 7) * (form.batchWindow ?? 20) / 60),
+                    window: form.batchWindow ?? 20,
+                  })}
                 </span>
               </div>
               <div style={styles.field}>
-                <label>Subreddits (separados por coma)</label>
+                <label>{t("settings.reddit.subredditsLabel")}</label>
                 <input
                   value={form.subreddits ?? "HistoriasDeReddit, AskRedditEsp, confesiones, anecdotasgraciosas, es"}
                   onChange={(e) => set("subreddits", e.target.value)}
                   placeholder="HistoriasDeReddit, AskRedditEsp, es"
                 />
-                <span style={styles.hint}>Solo subreddits públicos con posts de texto en español.</span>
+                <span style={styles.hint}>{t("settings.reddit.subredditsHint")}</span>
               </div>
             </fieldset>
           </section>
 
           <section style={{ ...styles.section, ...styles.disabledSection }}>
             <fieldset disabled style={styles.disabledFieldset}>
-              <h3 style={styles.sectionTitle}>YouTube Peek <span style={styles.comingSoon}>(deshabilitado por ahora)</span></h3>
+              <h3 style={styles.sectionTitle}>{t("settings.youtube.title")} <span style={styles.comingSoon}>{t("settings.youtube.disabled")}</span></h3>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <input
                   type="checkbox"
@@ -440,11 +446,11 @@ export default function Settings({ settings, onSave, onClose }) {
                   style={{ width: "auto", accentColor: "var(--purple)" }}
                 />
                 <label htmlFor="youtubePeek" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  Narrar periódicamente lo que hay en la pestaña de YouTube
+                  {t("settings.youtube.enableLabel")}
                 </label>
               </div>
               <div style={styles.field}>
-                <label>Intervalo (minutos)</label>
+                <label>{t("settings.youtube.intervalLabel")}</label>
                 <input
                   type="number"
                   min={1}
@@ -453,8 +459,10 @@ export default function Settings({ settings, onSave, onClose }) {
                   onChange={(e) => set("youtubePeekInterval", Number(e.target.value))}
                 />
                 <span style={styles.hint}>
-                  Claude mirará la pestaña de YouTube cada {form.youtubePeekInterval ?? 5} minuto{(form.youtubePeekInterval ?? 5) !== 1 ? "s" : ""} y narrará lo que ve.
-                  Requiere la extensión Claude in Chrome activa.
+                  {t("settings.youtube.intervalHint", {
+                    interval: form.youtubePeekInterval ?? 5,
+                    plural: (form.youtubePeekInterval ?? 5) !== 1 ? "s" : "",
+                  })}
                 </span>
               </div>
             </fieldset>
@@ -462,7 +470,7 @@ export default function Settings({ settings, onSave, onClose }) {
 
           <section style={{ ...styles.section, ...styles.disabledSection }}>
             <fieldset disabled style={styles.disabledFieldset}>
-              <h3 style={styles.sectionTitle}>Preguntas en Pantalla (Trivia) <span style={styles.comingSoon}>(deshabilitado por ahora)</span></h3>
+              <h3 style={styles.sectionTitle}>{t("settings.trivia.title")} <span style={styles.comingSoon}>{t("settings.trivia.disabled")}</span></h3>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <input
                   type="checkbox"
@@ -472,12 +480,12 @@ export default function Settings({ settings, onSave, onClose }) {
                   style={{ width: "auto", accentColor: "var(--purple)" }}
                 />
                 <label htmlFor="screenWatch" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  Detectar preguntas en pantalla y responder con ayuda del chat
+                  {t("settings.trivia.enableLabel")}
                 </label>
               </div>
               <div style={styles.row2}>
                 <div style={styles.field}>
-                  <label>Captura cada (segundos)</label>
+                  <label>{t("settings.trivia.captureInterval")}</label>
                   <input
                     type="number"
                     min={2}
@@ -487,7 +495,7 @@ export default function Settings({ settings, onSave, onClose }) {
                   />
                 </div>
                 <div style={styles.field}>
-                  <label>Esperar al chat (segundos)</label>
+                  <label>{t("settings.trivia.waitChat")}</label>
                   <input
                     type="number"
                     min={5}
@@ -498,30 +506,22 @@ export default function Settings({ settings, onSave, onClose }) {
                 </div>
               </div>
               <div style={styles.field}>
-                <label>Programa a capturar (opcional): nombre del ejecutable</label>
+                <label>{t("settings.trivia.processLabel")}</label>
                 <input
                   value={form.screenWatchProcess || ""}
                   onChange={(e) => set("screenWatchProcess", e.target.value)}
-                  placeholder="TriviaGame.exe — vacío = monitor principal"
+                  placeholder={t("settings.trivia.processPlaceholder")}
                 />
-                <span style={styles.hint}>
-                  Captura solo la ventana de ese programa, aunque esté detrás de otras ventanas. Si el juego aún no está
-                  abierto, espera a que se abra.
-                </span>
+                <span style={styles.hint}>{t("settings.trivia.processHint")}</span>
               </div>
               <div style={styles.field}>
-                <label>Región de captura (opcional): x,y,ancho,alto</label>
+                <label>{t("settings.trivia.regionLabel")}</label>
                 <input
                   value={form.screenWatchRegion || ""}
                   onChange={(e) => set("screenWatchRegion", e.target.value)}
-                  placeholder="0,0,1920,1080 — vacío = todo"
+                  placeholder={t("settings.trivia.regionPlaceholder")}
                 />
-                <span style={styles.hint}>
-                  Limita la captura a la zona donde aparecen las preguntas (menos falsos positivos y análisis más barato).
-                  Con un programa elegido, la región es relativa a su ventana; si no, al monitor principal.
-                  Detecta texto con OCR local (gratis) y solo usa la IA (haiku) cuando parece haber una pregunta.
-                  Al detectarla, espera la ventana de chat y responde teniendo en cuenta los votos.
-                </span>
+                <span style={styles.hint}>{t("settings.trivia.regionHint")}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
                 <input
@@ -532,22 +532,19 @@ export default function Settings({ settings, onSave, onClose }) {
                   style={{ width: "auto", accentColor: "var(--purple)" }}
                 />
                 <label htmlFor="screenClick" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  Clic automático en la respuesta elegida
+                  {t("settings.trivia.autoClickLabel")}
                 </label>
               </div>
               <div style={styles.field}>
-                <label>Hacer clic en</label>
+                <label>{t("settings.trivia.clickTargetLabel")}</label>
                 <select
                   value={form.screenClickTarget || "ai"}
                   onChange={(e) => set("screenClickTarget", e.target.value)}
                 >
-                  <option value="ai">La respuesta de la IA</option>
-                  <option value="chat">La más votada por el chat (si hay votos)</option>
+                  <option value="ai">{t("settings.trivia.clickTargetAI")}</option>
+                  <option value="chat">{t("settings.trivia.clickTargetChat")}</option>
                 </select>
-                <span style={styles.hint}>
-                  Localiza el texto de la opción en pantalla con OCR y hace clic sobre ella (trae la ventana del juego al
-                  frente). Después espera 3–5 segundos y hace clic de nuevo en el mismo punto para pasar a la siguiente pregunta.
-                </span>
+                <span style={styles.hint}>{t("settings.trivia.clickHint")}</span>
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
                 <input
@@ -558,14 +555,11 @@ export default function Settings({ settings, onSave, onClose }) {
                   style={{ width: "auto", accentColor: "var(--purple)" }}
                 />
                 <label htmlFor="screenAutoNav" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  Navegación automática entre rondas (Majotori)
+                  {t("settings.trivia.autoNavLabel")}
                 </label>
               </div>
               <div style={styles.field}>
-                <span style={styles.hint}>
-                  Al detectar la pantalla de resultados hace clics hasta volver al menú principal, ahí pulsa
-                  «Jugar», luego «Solo Trivia» y un clic más para llegar a la siguiente pregunta.
-                </span>
+                <span style={styles.hint}>{t("settings.trivia.autoNavHint")}</span>
               </div>
               <div style={styles.field}>
                 <button
@@ -576,18 +570,18 @@ export default function Settings({ settings, onSave, onClose }) {
                     onClose();
                   }}
                 >
-                  🖥️ Probar con una pregunta de ejemplo
+                  {t("settings.trivia.testButton")}
                 </button>
               </div>
             </fieldset>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>AI Provider</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.aiProvider.title")}</h3>
             <div style={{ ...styles.disabledSection, marginBottom: 12 }}>
             <fieldset disabled style={styles.disabledFieldset}>
             <div style={styles.field}>
-              <label>Provider <span style={styles.comingSoon}>(solo Claude disponible por ahora)</span></label>
+              <label>{t("settings.aiProvider.providerLabel")} <span style={styles.comingSoon}>{t("settings.aiProvider.onlyClaude")}</span></label>
               <select value="claude" onChange={() => {}}>
                 <option value="claude">Claude (claude -p)</option>
                 <option value="grok">Grok (grok -p)</option>
@@ -603,7 +597,7 @@ export default function Settings({ settings, onSave, onClose }) {
               const label = (p) => p.charAt(0).toUpperCase() + p.slice(1);
               return (
                 <div style={styles.field}>
-                  <label>Exportar memoria del modelo actual</label>
+                  <label>{t("settings.aiProvider.exportMemoryLabel")}</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <select
                       value={target || ""}
@@ -626,7 +620,7 @@ export default function Settings({ settings, onSave, onClose }) {
                         opacity: !canExport || !target ? 0.5 : 1,
                       }}
                     >
-                      {exportStatus?.running ? "Exportando…" : `📤 Exportar a ${label(target || "")}`}
+                      {exportStatus?.running ? t("settings.aiProvider.exporting") : t("settings.aiProvider.exportTo", { target: label(target || "") })}
                     </button>
                   </div>
                   {exportStatus && (exportStatus.running || exportStatus.pct > 0 || exportStatus.error) && (
@@ -653,15 +647,12 @@ export default function Settings({ settings, onSave, onClose }) {
                         {exportStatus.error
                           ? `❌ ${exportStatus.error}`
                           : exportStatus.pct >= 100
-                          ? `✅ ${exportStatus.stage}${exportStatus.mdPath ? ` — guardada en ${exportStatus.mdPath}` : ""}`
+                          ? `✅ ${exportStatus.stage}${exportStatus.mdPath ? ` — ${exportStatus.mdPath}` : ""}`
                           : `${exportStatus.stage} (${exportStatus.pct || 0}%)`}
                       </span>
                     </div>
                   )}
-                  <span style={styles.hint}>
-                    Copia la memoria de la sesión del modelo seleccionado al otro modelo (se guarda también como .md en
-                    backend/memories/). ChatGPT no tiene sesión persistente, así que no participa.
-                  </span>
+                  <span style={styles.hint}>{t("settings.aiProvider.exportHint")}</span>
                 </div>
               );
             })()}
@@ -672,7 +663,7 @@ export default function Settings({ settings, onSave, onClose }) {
               const canImport = !!importFile && !importStatus?.running;
               return (
                 <div style={styles.field}>
-                  <label>Importar memoria desde archivo .md</label>
+                  <label>{t("settings.aiProvider.importMemoryLabel")}</label>
                   <input type="file" accept=".md,text/markdown" onChange={handleMemoryFile} />
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button
@@ -688,28 +679,25 @@ export default function Settings({ settings, onSave, onClose }) {
                       }}
                     >
                       {importStatus?.running
-                        ? "Importando…"
-                        : `📥 Cargar${importFile ? ` "${importFile.name}"` : ""} en la sesión actual`}
+                        ? t("settings.aiProvider.importing")
+                        : t("settings.aiProvider.importButton", { file: importFile ? ` "${importFile.name}"` : "" })}
                     </button>
                   </div>
                   {importStatus && (importStatus.error || importStatus.ok) && (
                     <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                      {importStatus.error ? `❌ ${importStatus.error}` : "✅ Memoria integrada en la sesión"}
+                      {importStatus.error ? `❌ ${importStatus.error}` : t("settings.aiProvider.importSuccess")}
                     </span>
                   )}
-                  <span style={styles.hint}>
-                    Carga un archivo .md (por ejemplo uno exportado antes) como recuerdos del modelo seleccionado
-                    arriba, en su sesión guardada actual. ChatGPT no tiene sesión persistente, así que no participa.
-                  </span>
+                  <span style={styles.hint}>{t("settings.aiProvider.importHint")}</span>
                 </div>
               );
             })()}
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Prompt de IA</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.prompt.title")}</h3>
             <div style={styles.field}>
-              <label>Prompt base (se añaden los mensajes del chat al final automáticamente)</label>
+              <label>{t("settings.prompt.label")}</label>
               <textarea
                 value={form.basePrompt || ""}
                 onChange={(e) => set("basePrompt", e.target.value)}
@@ -720,9 +708,9 @@ export default function Settings({ settings, onSave, onClose }) {
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Text-to-Speech</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.tts.title")}</h3>
             <div style={styles.field}>
-              <label>TTS Provider</label>
+              <label>{t("settings.tts.provider")}</label>
               <select
                 value={form.ttsProvider || "windows"}
                 onChange={(e) => {
@@ -730,16 +718,16 @@ export default function Settings({ settings, onSave, onClose }) {
                   if (e.target.value === "piper") loadPiperVoices();
                 }}
               >
-                <option value="windows">Windows TTS (system voices)</option>
-                <option value="elevenlabs">ElevenLabs (API key required)</option>
-                <option value="piper">Piper (local Spanish voices, offline)</option>
+                <option value="windows">{t("settings.tts.windows")}</option>
+                <option value="elevenlabs">{t("settings.tts.elevenlabs")}</option>
+                <option value="piper">{t("settings.tts.piper")}</option>
               </select>
             </div>
             {(form.ttsProvider || "windows") === "windows" && (
               <div style={styles.field}>
-                <label>Voice</label>
+                <label>{t("settings.tts.voice")}</label>
                 <select value={form.voiceURI} onChange={(e) => set("voiceURI", e.target.value)}>
-                  <option value="">System default</option>
+                  <option value="">{t("settings.tts.systemDefault")}</option>
                   {voices.map((v) => (
                     <option key={v.voiceURI} value={v.voiceURI}>
                       {v.name} ({v.lang})
@@ -751,7 +739,7 @@ export default function Settings({ settings, onSave, onClose }) {
             {form.ttsProvider === "elevenlabs" && (
               <>
                 <div style={styles.field}>
-                  <label>ElevenLabs API key</label>
+                  <label>{t("settings.tts.elevenApiKey")}</label>
                   <input
                     type="password"
                     value={form.elevenLabsKey || ""}
@@ -760,29 +748,29 @@ export default function Settings({ settings, onSave, onClose }) {
                     placeholder="sk_xxxxxxxxxxxxxxxxxxxx"
                   />
                   <span style={styles.hint}>
-                    Get one at{" "}
+                    {t("settings.tts.elevenApiKeyHintPrefix")}{" "}
                     <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noreferrer" style={styles.link}>
                       elevenlabs.io
                     </a>
-                    {" "}— stored locally, only sent to the local backend. Falls back to Windows TTS if generation fails.
+                    {" "}{t("settings.tts.elevenApiKeyHintSuffix")}
                   </span>
                 </div>
                 <div style={styles.field}>
-                  <label>ElevenLabs voice</label>
+                  <label>{t("settings.tts.elevenVoice")}</label>
                   <div style={{ display: "flex", gap: 8 }}>
                     <select
                       value={form.elevenLabsVoiceId || ""}
                       onChange={(e) => set("elevenLabsVoiceId", e.target.value)}
                       style={{ flex: 1 }}
                     >
-                      <option value="">— select a voice —</option>
+                      <option value="">{t("settings.tts.selectVoice")}</option>
                       {elevenVoices.map((v) => (
                         <option key={v.voice_id} value={v.voice_id}>
                           {v.name}{v.category ? ` (${v.category})` : ""}
                         </option>
                       ))}
                       {form.elevenLabsVoiceId && !elevenVoices.some((v) => v.voice_id === form.elevenLabsVoiceId) && (
-                        <option value={form.elevenLabsVoiceId}>{form.elevenLabsVoiceId} (saved)</option>
+                        <option value={form.elevenLabsVoiceId}>{form.elevenLabsVoiceId} {t("settings.tts.savedVoice")}</option>
                       )}
                     </select>
                     <button
@@ -791,7 +779,7 @@ export default function Settings({ settings, onSave, onClose }) {
                       onClick={() => loadElevenVoices(form.elevenLabsKey)}
                       disabled={!form.elevenLabsKey || elevenVoicesStatus === "loading"}
                     >
-                      {elevenVoicesStatus === "loading" ? "Loading…" : "↻ Load voices"}
+                      {elevenVoicesStatus === "loading" ? t("settings.tts.loading") : t("settings.tts.loadVoices")}
                     </button>
                   </div>
                   {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
@@ -799,28 +787,26 @@ export default function Settings({ settings, onSave, onClose }) {
                   )}
                 </div>
                 <div style={styles.field}>
-                  <label>Or paste a voice ID directly</label>
+                  <label>{t("settings.tts.pasteVoiceId")}</label>
                   <input
                     value={form.elevenLabsVoiceId || ""}
                     onChange={(e) => set("elevenLabsVoiceId", e.target.value.trim())}
                     placeholder="21m00Tcm4TlvDq8ikWAM"
                   />
-                  <span style={styles.hint}>
-                    Useful for library/shared voices that don't appear in "My voices". Find the ID in ElevenLabs → Voices → ⋯ → Copy voice ID.
-                  </span>
+                  <span style={styles.hint}>{t("settings.tts.pasteVoiceIdHint")}</span>
                 </div>
               </>
             )}
             {form.ttsProvider === "piper" && (
               <div style={styles.field}>
-                <label>Piper voice</label>
+                <label>{t("settings.tts.piperVoice")}</label>
                 <div style={{ display: "flex", gap: 8 }}>
                   <select
                     value={form.piperVoice || ""}
                     onChange={(e) => set("piperVoice", e.target.value)}
                     style={{ flex: 1 }}
                   >
-                    <option value="">Default (es_MX claude, high quality)</option>
+                    <option value="">{t("settings.tts.piperDefault")}</option>
                     {piperVoices.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
@@ -831,23 +817,21 @@ export default function Settings({ settings, onSave, onClose }) {
                     onClick={loadPiperVoices}
                     disabled={piperStatus === "loading"}
                   >
-                    {piperStatus === "loading" ? "Loading…" : "↻ Load voices"}
+                    {piperStatus === "loading" ? t("settings.tts.loading") : t("settings.tts.loadVoices")}
                   </button>
                 </div>
                 {piperStatus === "missing" && (
-                  <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ piper.exe not found in projects\piperttsspanish</span>
+                  <span style={{ ...styles.hint, color: "var(--red)" }}>{t("settings.tts.piperMissing")}</span>
                 )}
                 {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
                   <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ {piperStatus}</span>
                 )}
-                <span style={styles.hint}>
-                  Runs fully offline on CPU — no API key or server needed. Falls back to Windows TTS if generation fails.
-                </span>
+                <span style={styles.hint}>{t("settings.tts.piperHint")}</span>
               </div>
             )}
             <div style={styles.row2}>
               <div style={styles.field}>
-                <label>Speed ({form.ttsRate}x)</label>
+                <label>{t("settings.tts.speed", { rate: form.ttsRate })}</label>
                 <input
                   type="range"
                   min={0.5}
@@ -859,7 +843,7 @@ export default function Settings({ settings, onSave, onClose }) {
                 />
               </div>
               <div style={styles.field}>
-                <label>Volume ({Math.round(form.ttsVolume * 100)}%)</label>
+                <label>{t("settings.tts.volume", { volume: Math.round(form.ttsVolume * 100) })}</label>
                 <input
                   type="range"
                   min={0}
@@ -874,10 +858,10 @@ export default function Settings({ settings, onSave, onClose }) {
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>Voice Transcription (Mic)</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.voice.title")}</h3>
             {!voice.supported && (
               <p style={{ ...styles.hint, color: "var(--red)", marginBottom: 10 }}>
-                ⚠ SpeechRecognition not supported in this browser. Use Chromium/Chrome.
+                {t("settings.voice.unsupported")}
               </p>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -890,27 +874,27 @@ export default function Settings({ settings, onSave, onClose }) {
                 disabled={!voice.supported}
               />
               <label htmlFor="micEnabled" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                Transcribe mic and include in Claude batches
+                {t("settings.voice.enableLabel")}
               </label>
             </div>
             <div style={styles.field}>
-              <label>Microphone device</label>
+              <label>{t("settings.voice.micDevice")}</label>
               <select
                 value={form.micDeviceId || ""}
                 onChange={(e) => set("micDeviceId", e.target.value)}
                 disabled={!voice.supported}
               >
-                <option value="">System default</option>
+                <option value="">{t("settings.voice.systemDefault")}</option>
                 {micDevices.map((d) => (
                   <option key={d.deviceId} value={d.deviceId}>
-                    {d.label || `Microphone (${d.deviceId.slice(0, 8)}…)`}
+                    {d.label || t("settings.voice.micFallback", { id: d.deviceId.slice(0, 8) })}
                   </option>
                 ))}
               </select>
             </div>
             <div style={styles.row2}>
               <div style={styles.field}>
-                <label>Language</label>
+                <label>{t("settings.voice.language")}</label>
                 <select
                   value={form.micLang || "es-ES"}
                   onChange={(e) => set("micLang", e.target.value)}
@@ -927,34 +911,32 @@ export default function Settings({ settings, onSave, onClose }) {
                 </select>
               </div>
               <div style={styles.field}>
-                <label>Label in chat</label>
+                <label>{t("settings.voice.chatLabel")}</label>
                 <input
                   value={form.micLabel || "Streamer"}
                   onChange={(e) => set("micLabel", e.target.value)}
-                  placeholder="Streamer"
+                  placeholder={t("settings.voice.chatLabelPlaceholder")}
                   disabled={!voice.supported}
                 />
-                <span style={styles.hint}>Name shown for your voice messages in the chat feed.</span>
+                <span style={styles.hint}>{t("settings.voice.chatLabelHint")}</span>
               </div>
             </div>
           </section>
 
           <section style={styles.section}>
-            <h3 style={styles.sectionTitle}>VTube Studio — Lip Sync</h3>
+            <h3 style={styles.sectionTitle}>{t("settings.vtube.title")}</h3>
             <div style={styles.field}>
-              <label>WebSocket URL</label>
+              <label>{t("settings.vtube.wsUrl")}</label>
               <input
                 value={form.vtubeUrl || "ws://localhost:8001"}
                 onChange={(e) => set("vtubeUrl", e.target.value)}
                 placeholder="ws://localhost:8001"
               />
-              <span style={styles.hint}>
-                Enable Plugin API in VTube Studio → Settings → General, then make sure the port matches.
-              </span>
+              <span style={styles.hint}>{t("settings.vtube.wsHint")}</span>
             </div>
             <div style={styles.row2}>
               <div style={styles.field}>
-                <label>Plugin name</label>
+                <label>{t("settings.vtube.pluginName")}</label>
                 <input
                   value={form.vtubePlugin || "Twitch Chat Bot"}
                   onChange={(e) => set("vtubePlugin", e.target.value)}
@@ -962,17 +944,17 @@ export default function Settings({ settings, onSave, onClose }) {
                 />
               </div>
               <div style={styles.field}>
-                <label>Mouth parameter (VTS tracking param)</label>
+                <label>{t("settings.vtube.mouthParam")}</label>
                 <input
                   value={form.vtubeMouthParam || "MouthOpen"}
                   onChange={(e) => set("vtubeMouthParam", e.target.value)}
                   placeholder="MouthOpen"
                 />
-                <span style={styles.hint}>Use VTS face-tracking input names (MouthOpen, MouthSmile…), not Live2D parameter names.</span>
+                <span style={styles.hint}>{t("settings.vtube.mouthParamHint")}</span>
               </div>
             </div>
             <div style={styles.field}>
-              <label>Mouth sensitivity ({Math.round((form.vtubeSensitivity ?? 0.8) * 100)}%)</label>
+              <label>{t("settings.vtube.sensitivity", { pct: Math.round((form.vtubeSensitivity ?? 0.8) * 100) })}</label>
               <input
                 type="range"
                 min={0.1}
@@ -982,9 +964,7 @@ export default function Settings({ settings, onSave, onClose }) {
                 onChange={(e) => set("vtubeSensitivity", Number(e.target.value))}
                 style={{ width: "100%", accentColor: "var(--purple)" }}
               />
-              <span style={styles.hint}>
-                50% = subtle movement · 100% = full range
-              </span>
+              <span style={styles.hint}>{t("settings.vtube.sensitivityHint")}</span>
             </div>
             <div style={styles.field}>
               <button
@@ -998,15 +978,15 @@ export default function Settings({ settings, onSave, onClose }) {
                   }).catch(() => {});
                 }}
               >
-                Test mouth animation
+                {t("settings.vtube.testButton")}
               </button>
             </div>
           </section>
         </div>
 
         <div style={styles.footer}>
-          <button style={styles.cancelBtn} onClick={onClose}>Cancel</button>
-          <button style={styles.saveBtn} onClick={() => onSave(form)}>Save & Apply</button>
+          <button style={styles.cancelBtn} onClick={onClose}>{t("settings.cancel")}</button>
+          <button style={styles.saveBtn} onClick={() => onSave(form)}>{t("settings.save")}</button>
         </div>
       </div>
     </div>

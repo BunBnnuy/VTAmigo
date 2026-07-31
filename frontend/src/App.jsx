@@ -8,6 +8,7 @@ import { tts } from "./TTSController.js";
 import { voice } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
+import { detectLanguage } from "./i18n/index.js";
 import logo from "./img/logo.png";
 
 const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
@@ -15,6 +16,7 @@ const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twit
 Responde en 1–3 oraciones. Sé ingenioso, no cringe. Aporta algo — no solo repitas lo que dijo el chat. Iguala la energía: tranquilo cuando ellos están tranquilos, hypeado cuando están hypeados.`;
 
 const DEFAULT_SETTINGS = {
+  language: detectLanguage(),
   tiktokUsername: "",
   batchWindow: 20,
   maxMessages: 20,
