@@ -56,7 +56,7 @@ function createWindow() {
     height: 800,
     minWidth: 900,
     minHeight: 600,
-    title: "AI Companion",
+    title: "VTAmigo",
     backgroundColor: "#0e0e10",
     webPreferences: {
       contextIsolation: true,

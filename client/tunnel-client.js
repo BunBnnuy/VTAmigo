@@ -13,7 +13,7 @@ const fs = require("fs");
 const os = require("os");
 const path = require("path");
 
-const BACKEND = "https://93130123.xyz";
+const BACKEND = "https://vtamigo.top";
 const CONFIG_DIR = path.join(os.homedir(), "AppData", "Local", "vtamigo-tunnel");
 const KEY_PATH = path.join(CONFIG_DIR, "id_ed25519");
 const STATE_PATH = path.join(CONFIG_DIR, "state.json");

@@ -889,7 +889,7 @@ function AppInner({ twitchLogin }) {
       <div style={styles.topBar}>
         <div style={styles.brand}>
           <span style={styles.brandIcon}>🎮</span>
-          <span style={styles.brandName}>AI Companion</span>
+          <span style={styles.brandName}>VTAmigo</span>
         </div>
         <div style={styles.topRight}>
           <button

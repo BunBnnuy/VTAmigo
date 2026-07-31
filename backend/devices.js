@@ -19,7 +19,7 @@ const DEVICES_PATH = path.join(__dirname, "devices.json");
 const PENDING_TTL_MS = 15 * 60 * 1000;
 const BASE_PORT = 8001;
 
-const TUNNEL_HOST = process.env.TUNNEL_HOST || "93130123.xyz";
+const TUNNEL_HOST = process.env.TUNNEL_HOST || "vtamigo.top";
 const TUNNEL_SSH_USER = "tunnel";
 
 function readDevices() {
