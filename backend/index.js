@@ -252,16 +252,23 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     if (prev.eventSubClient) prev.eventSubClient.disconnect();
   }
 
-  const session = { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token, botCreds: { botUsername: botUsername || null, botToken: botToken || null } };
+  // Fall back to the site-wide bot account when the user hasn't configured their own
+  const usingSiteBot = !(botUsername && botToken) && !!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN);
+  const effectiveBotUsername = botUsername || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
+  const effectiveBotToken = botToken || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
 
-  // Bot client — separate user that can send messages, unchanged/manual
-  if (botUsername && botToken) {
+  const session = { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token, botCreds: { botUsername: botUsername || null, botToken: botToken || null }, usingSiteBot };
+
+  // Bot client — separate user that can send messages. Uses the user's own
+  // bot creds if configured in Settings, otherwise falls back to the
+  // site-wide bot account (TWITCH_SITE_BOT_USERNAME/TOKEN) if one is set.
+  if (effectiveBotUsername && effectiveBotToken) {
     session.botClient = new TwitchIRCClient({
       channel,
-      token: botToken,
-      username: botUsername,
+      token: effectiveBotToken,
+      username: effectiveBotUsername,
       onMessage: () => {}, // don't echo bot's own messages
-      onStatus: (status) => broadcastToAccount(twitchId, { type: "bot_status", status }),
+      onStatus: (status) => broadcastToAccount(twitchId, { type: "bot_status", status, botUsername: effectiveBotUsername, usingSiteBot }),
     });
     session.botClient.connect();
   }

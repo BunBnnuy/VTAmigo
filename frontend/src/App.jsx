@@ -134,6 +134,8 @@ function AppInner({ twitchLogin, tier }) {
   const [micModelStatus, setMicModelStatus] = useState("idle");
   const [micSpeaking, setMicSpeaking] = useState(false);
   const [botStatus, setBotStatus] = useState("disconnected");
+  const [activeBotUsername, setActiveBotUsername] = useState(null);
+  const [usingSiteBot, setUsingSiteBot] = useState(false);
   const [micLastText, setMicLastText] = useState("");
   const [screenWatch, setScreenWatch] = useState({ state: "off", question: null, remaining: 0 });
   const [nowCooldownUntil, setNowCooldownUntil] = useState(0);
@@ -322,7 +324,7 @@ function AppInner({ twitchLogin, tier }) {
       if (data.error) {
         stopThinking();
       } else {
-        if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
+        if (settingsRef.current.autoSendToChat) {
           apiFetch("/say", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -508,7 +510,7 @@ function AppInner({ twitchLogin, tier }) {
       }]);
       if (!data.error) {
         tts.enqueue(text);
-        if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
+        if (settingsRef.current.autoSendToChat) {
           apiFetch("/say", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -579,7 +581,7 @@ function AppInner({ twitchLogin, tier }) {
     }]);
 
     // Post the question to chat so viewers can vote (Twitch caps ~500 chars)
-    if (settingsRef.current.autoSendToChat && settingsRef.current.botUsername) {
+    if (settingsRef.current.autoSendToChat) {
       const inline = options.map((o, i) => `${String.fromCharCode(65 + i)} ) ${o}`).join("  ");
       let chatMsg = `❓ ${question}  ${inline}  — ¡vota A/B/C/D! (${windowSec}s)`;
       if (chatMsg.length > 490) chatMsg = chatMsg.slice(0, 487) + "…";
@@ -739,6 +741,8 @@ function AppInner({ twitchLogin, tier }) {
           setConnStatus(data.status.type);
         } else if (data.type === "bot_status") {
           setBotStatus(data.status.type);
+          if (data.botUsername) setActiveBotUsername(data.botUsername);
+          setUsingSiteBot(!!data.usingSiteBot);
         } else if (data.type === "tiktok_status") {
           const t = data.status.type;
           setTiktokStatus(t);
@@ -1056,14 +1060,16 @@ function AppInner({ twitchLogin, tier }) {
         )}
 
         {/* Bot status */}
-        {settings.botUsername && (
+        {(settings.botUsername || activeBotUsername) && (
           <div style={styles.statusGroup}>
             <span style={{
               ...styles.dot,
               background: botStatus === "connected" ? "var(--green)" : botStatus === "connecting" ? "var(--yellow)" : "var(--red)",
             }} />
             <span style={styles.statusText}>
-              Bot: {botStatus === "connected" ? settings.botUsername : botStatus === "connecting" ? "conectando…" : "desconectado"}
+              Bot: {botStatus === "connected"
+                ? `${activeBotUsername || settings.botUsername}${usingSiteBot ? " (sitio)" : ""}`
+                : botStatus === "connecting" ? "conectando…" : "desconectado"}
             </span>
           </div>
         )}
