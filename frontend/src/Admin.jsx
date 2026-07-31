@@ -39,7 +39,7 @@ export default function Admin() {
   useEffect(() => {
     if (!authed) return;
     loadStats();
-    const id = setInterval(loadStats, 2000);
+    const id = setInterval(loadStats, 30000);
     return () => clearInterval(id);
   }, [authed, loadStats]);
 

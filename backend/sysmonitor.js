@@ -3,7 +3,7 @@
 // works the same on Windows (Electron dev) and the Linux VPS.
 const si = require("systeminformation");
 
-const TOP_PROCESS_COUNT = 15;
+const TOP_PROCESS_COUNT = 5;
 
 async function getStats() {
   const [cpu, mem, time, procs] = await Promise.all([
