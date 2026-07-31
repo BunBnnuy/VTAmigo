@@ -228,8 +228,10 @@ app.post("/say", (req, res) => {
   if (!text) return res.status(400).json({ error: "text is required" });
 
   const session = twitchSessions.get(req.user.twitchId);
+  console.log(`[say] hasSession=${!!session} hasBotClient=${!!(session && session.botClient)}`);
   if (!session || !session.botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
   const sent = session.botClient.say(text);
+  console.log(`[say] sent=${sent}`);
   if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
   res.json({ ok: true });
 });
@@ -256,6 +258,7 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
   const usingSiteBot = !(botUsername && botToken) && !!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN);
   const effectiveBotUsername = botUsername || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
   const effectiveBotToken = botToken || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
+  console.log(`[bot] connect: userBot=${!!(botUsername && botToken)} envSiteBot=${!!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN)} usingSiteBot=${usingSiteBot} effectiveBotUsername=${effectiveBotUsername || "(none)"}`);
 
   const session = { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token, botCreds: { botUsername: botUsername || null, botToken: botToken || null }, usingSiteBot };
 
@@ -268,9 +271,14 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
       token: effectiveBotToken,
       username: effectiveBotUsername,
       onMessage: () => {}, // don't echo bot's own messages
-      onStatus: (status) => broadcastToAccount(twitchId, { type: "bot_status", status, botUsername: effectiveBotUsername, usingSiteBot }),
+      onStatus: (status) => {
+        console.log("[bot]", status.type, status.message || "");
+        broadcastToAccount(twitchId, { type: "bot_status", status, botUsername: effectiveBotUsername, usingSiteBot });
+      },
     });
     session.botClient.connect();
+  } else {
+    console.log("[bot] no bot client created (no user creds and no/incomplete site-wide fallback)");
   }
 
   session.twitchClient = new TwitchIRCClient({
