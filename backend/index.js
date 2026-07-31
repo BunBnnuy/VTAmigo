@@ -7,7 +7,7 @@ const { WebSocketServer, WebSocket } = require("ws");
 const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers } = require("./auth");
 const { sendEvent } = require("./analytics");
 const { router: adminRouter } = require("./adminAuth");
-const { router: devicesRouter, getApprovedDeviceForUser } = require("./devices");
+const { router: devicesRouter } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const usage = require("./usage");
 const memoryExport = require("./memoryExport");
@@ -16,9 +16,7 @@ const { TwitchIRCClient } = require("./twitch");
 const { EventSubClient } = require("./eventsub");
 const { TikTokChatClient } = require("./tiktok");
 const { fetchRandomStory } = require("./reddit");
-const vtube = require("./vtube");
-const phonemes = require("./phonemes");
-const animations = require("./animations");
+const vtubeManager = require("./vtubeManager");
 const xp = require("./xp");
 const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
@@ -602,22 +600,37 @@ app.get("/health", (req, res) => res.json({ ok: true }));
 
 // ── VTube Studio endpoints ────────────────────────────────────────────────────
 
-// GET /vtube/status — { connected, authenticated }
-app.get("/vtube/status", (req, res) => res.json(vtube.getStatus()));
+// Each account's VTS traffic is fully independent (own connection, own idle/
+// speaking animation loop, own phoneme scheduler) — see vtubeManager.js.
+// Accounts without an approved tunnel have nowhere to send VTS data.
+function requireVTubeContext(req, res) {
+  const ctx = vtubeManager.getContext(req.user.twitchId);
+  if (!ctx) res.status(409).json({ error: "No approved VTube Studio tunnel for this account" });
+  return ctx;
+}
 
-// POST /vtube/config — update VTS connection settings and reconnect if URL changed
+// GET /vtube/status — { connected, authenticated }
+app.get("/vtube/status", (req, res) => {
+  const ctx = vtubeManager.getContext(req.user.twitchId);
+  res.json(ctx ? ctx.connection.getStatus() : { connected: false, authenticated: false, lastError: "no_tunnel" });
+});
+
+// POST /vtube/config — update this account's mouth param / sensitivity
 app.post("/vtube/config", (req, res) => {
-  const { url, pluginName, mouthParam, sensitivity } = req.body;
-  if (url || pluginName) vtube.setConfig({ url, pluginName });
-  if (mouthParam) phonemes.setMouthParam(mouthParam);
-  if (sensitivity != null) phonemes.setSensitivity(Number(sensitivity));
+  const { mouthParam, sensitivity } = req.body;
+  const ctx = requireVTubeContext(req, res);
+  if (!ctx) return;
+  if (mouthParam) ctx.phonemes.setMouthParam(mouthParam);
+  if (sensitivity != null) ctx.phonemes.setSensitivity(Number(sensitivity));
   res.json({ ok: true });
 });
 
-// POST /vtube/reconnect — manual reconnect trigger
+// POST /vtube/reconnect — manual reconnect trigger for this account's tunnel
 app.post("/vtube/reconnect", (req, res) => {
-  vtube.disconnect();
-  vtube.connect();
+  const ctx = requireVTubeContext(req, res);
+  if (!ctx) return;
+  ctx.connection.disconnect();
+  ctx.connection.connect();
   res.json({ ok: true });
 });
 
@@ -625,26 +638,24 @@ app.post("/vtube/reconnect", (req, res) => {
 
 // POST /vtube/thinking — { active: boolean } — eyes close while Claude generates
 app.post("/vtube/thinking", (req, res) => {
-  if (req.body.active) animations.startThinking();
-  else animations.stopThinking();
+  const ctx = vtubeManager.getContext(req.user.twitchId);
+  if (ctx) {
+    if (req.body.active) ctx.animations.startThinking();
+    else ctx.animations.stopThinking();
+  }
   res.json({ ok: true });
 });
-
-// ── Lip-sync endpoints ────────────────────────────────────────────────────────
 
 // POST /lipsync/start — { text, durationMs }
 app.post("/lipsync/start", (req, res) => {
   const { text, durationMs } = req.body;
   if (!text || !durationMs) return res.status(400).json({ error: "text and durationMs required" });
 
-  // If this account has its own approved tunnel device (e.g. a co-streamer's
-  // separate VTS instance), route mouth movement there. Otherwise fall back
-  // to whatever VTS connection is already configured (the default/shared one).
-  const device = getApprovedDeviceForUser(req.user.twitchId);
-  if (device) vtube.setConfig({ url: `ws://localhost:${device.assignedPort}` });
+  const ctx = vtubeManager.getContext(req.user.twitchId);
+  if (!ctx) return res.json({ ok: true, skipped: "no_tunnel" });
 
-  animations.startSpeaking();
-  phonemes.schedulePhonemes(text, Number(durationMs));
+  ctx.animations.startSpeaking();
+  ctx.phonemes.schedulePhonemes(text, Number(durationMs));
   res.json({ ok: true });
 });
 
@@ -714,8 +725,11 @@ app.post("/tts/piper", async (req, res) => {
 
 // POST /lipsync/stop — cancel timeline and reset mouth
 app.post("/lipsync/stop", (req, res) => {
-  phonemes.cancelSchedule();
-  animations.stopSpeaking();
+  const ctx = vtubeManager.getContext(req.user.twitchId);
+  if (ctx) {
+    ctx.phonemes.cancelSchedule();
+    ctx.animations.stopSpeaking();
+  }
   res.json({ ok: true });
 });
 
@@ -750,4 +764,5 @@ server.on("error", (err) => {
 
 server.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
+  vtubeManager.bootstrap();
 });

@@ -56,6 +56,14 @@ function getApprovedDeviceForUser(twitchId) {
   return devices.find((d) => d.status === "approved" && d.twitchId === twitchId) || null;
 }
 
+// Distinct twitchIds that currently have an approved tunnel — used to
+// reconnect every known VTS instance at server boot.
+function listApprovedDeviceOwners() {
+  const devices = pruneExpired(readDevices());
+  const ids = new Set(devices.filter((d) => d.status === "approved" && d.twitchId).map((d) => d.twitchId));
+  return [...ids];
+}
+
 const router = express.Router();
 
 // POST /device/init — { publicKey } → { deviceCode, userCode, verifyUrl }
@@ -154,4 +162,4 @@ router.post("/admin/devices/:deviceCode/revoke", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { router, getApprovedDeviceForUser };
+module.exports = { router, getApprovedDeviceForUser, listApprovedDeviceOwners };

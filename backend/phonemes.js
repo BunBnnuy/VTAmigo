@@ -1,6 +1,8 @@
 // Phoneme scheduler — converts text to a mouth-open timeline and drives VTube Studio.
-
-const { injectParam } = require("./vtube");
+//
+// createPhonemeScheduler(injectParam) returns one independent scheduler bound
+// to a single VTS connection's injectParam — callers driving several separate
+// VTS instances create one scheduler per instance.
 
 // Mouth-open value (0–1) per lowercase letter
 const CHAR_VALUE = {
@@ -18,13 +20,6 @@ const CHAR_VALUE = {
   m: 0.0, b: 0.0, p: 0.0,
 };
 
-let mouthParam = "MouthOpen";
-let sensitivity = 0.8;
-let activeTimeouts = [];
-
-function setMouthParam(param) { mouthParam = param; }
-function setSensitivity(s) { sensitivity = Math.max(0, Math.min(1, s)); }
-
 // Build a flat array of [0–1] values, one per character slot
 function textToValues(text) {
   const lower = text.toLowerCase();
@@ -39,34 +34,45 @@ function textToValues(text) {
   return out;
 }
 
-// Kick off phoneme injection timed to durationMs
-function schedulePhonemes(text, durationMs) {
-  cancelSchedule();
-  if (!text || durationMs <= 0) return;
+function createPhonemeScheduler(injectParam) {
+  let mouthParam = "MouthOpen";
+  let sensitivity = 0.8;
+  let activeTimeouts = [];
 
-  const values = textToValues(text);
-  if (values.length === 0) return;
+  function setMouthParam(param) { mouthParam = param; }
+  function setSensitivity(s) { sensitivity = Math.max(0, Math.min(1, s)); }
 
-  const msPerChar = durationMs / values.length;
+  // Kick off phoneme injection timed to durationMs
+  function schedulePhonemes(text, durationMs) {
+    cancelSchedule();
+    if (!text || durationMs <= 0) return;
 
-  values.forEach((val, i) => {
-    const t = setTimeout(() => {
-      injectParam(mouthParam, val * sensitivity);
-    }, Math.round(i * msPerChar));
-    activeTimeouts.push(t);
-  });
+    const values = textToValues(text);
+    if (values.length === 0) return;
 
-  // Smooth return to closed after speech ends
-  activeTimeouts.push(setTimeout(() => {
+    const msPerChar = durationMs / values.length;
+
+    values.forEach((val, i) => {
+      const t = setTimeout(() => {
+        injectParam(mouthParam, val * sensitivity);
+      }, Math.round(i * msPerChar));
+      activeTimeouts.push(t);
+    });
+
+    // Smooth return to closed after speech ends
+    activeTimeouts.push(setTimeout(() => {
+      injectParam(mouthParam, 0);
+    }, durationMs + 150));
+  }
+
+  function cancelSchedule() {
+    for (const t of activeTimeouts) clearTimeout(t);
+    activeTimeouts = [];
+    // Reset mouth immediately
     injectParam(mouthParam, 0);
-  }, durationMs + 150));
+  }
+
+  return { schedulePhonemes, cancelSchedule, setMouthParam, setSensitivity };
 }
 
-function cancelSchedule() {
-  for (const t of activeTimeouts) clearTimeout(t);
-  activeTimeouts = [];
-  // Reset mouth immediately
-  injectParam(mouthParam, 0);
-}
-
-module.exports = { schedulePhonemes, cancelSchedule, setMouthParam, setSensitivity };
+module.exports = { createPhonemeScheduler };
