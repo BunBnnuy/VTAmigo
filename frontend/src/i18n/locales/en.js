@@ -24,6 +24,14 @@ export default {
         title: "Reacts to events",
         desc: "Follows, subs, raids, and cheers all get an instant, on-brand reaction — no manual triggering needed.",
       },
+      leveling: {
+        title: "Built-in leveling system",
+        desc: "Viewers earn XP and levels just by chatting. Drop the animated XP bar and top-viewer ranking into OBS as a Browser Source.",
+      },
+      customize: {
+        title: "Customize your experience",
+        desc: "Rewrite the base prompt to match your vibe — sarcastic, wholesome, hype-man, whatever fits your stream — and the bot's replies follow suit.",
+      },
     },
   },
 

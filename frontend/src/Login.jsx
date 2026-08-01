@@ -1,14 +1,22 @@
-import React from "react";
+import React, { useState } from "react";
 import { apiUrl } from "./api.js";
-import { detectLanguage, useTranslation } from "./i18n/index.js";
+import { detectLanguage, SUPPORTED_LANGUAGES, useTranslation } from "./i18n/index.js";
 import logo from "./img/logo.png";
 
-const FEATURE_ICONS = { chat: "💬", tts: "🗣️", overlay: "🖼️", events: "🎉" };
-const FEATURE_KEYS = ["chat", "tts", "overlay", "events"];
+const FEATURE_ICONS = { chat: "💬", tts: "🗣️", overlay: "🖼️", leveling: "🏆", customize: "🎛️", events: "🎉" };
+const FEATURE_KEYS = ["chat", "tts", "overlay", "leveling", "customize", "events"];
+const LANDING_LANG_KEY = "landingLang";
 
 export default function Login() {
-  const { t } = useTranslation(detectLanguage());
+  const [lang, setLang] = useState(() => localStorage.getItem(LANDING_LANG_KEY) || detectLanguage());
+  const { t } = useTranslation(lang);
   const [titleBefore, titleAfter] = t("login.title").split("{chat}");
+
+  const handleLangChange = (e) => {
+    const next = e.target.value;
+    setLang(next);
+    localStorage.setItem(LANDING_LANG_KEY, next);
+  };
 
   return (
     <div style={styles.page}>
@@ -19,9 +27,16 @@ export default function Login() {
           <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
           <span style={styles.brandName}>VTAmigo</span>
         </div>
-        <a style={styles.headerBtn} href={apiUrl("/auth/twitch/login")}>
-          {t("login.logIn")}
-        </a>
+        <div style={styles.headerRight}>
+          <select style={styles.langSelect} value={lang} onChange={handleLangChange} aria-label="Language">
+            {SUPPORTED_LANGUAGES.map((l) => (
+              <option key={l.code} value={l.code}>{l.label}</option>
+            ))}
+          </select>
+          <a style={styles.headerBtn} href={apiUrl("/auth/twitch/login")}>
+            {t("login.logIn")}
+          </a>
+        </div>
       </header>
 
       <main style={styles.hero}>
@@ -88,6 +103,16 @@ const styles = {
     fontSize: 18,
     color: "var(--purple-light, #bf94ff)",
     letterSpacing: "-0.01em",
+  },
+  headerRight: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+  },
+  langSelect: {
+    width: "auto",
+    padding: "7px 10px",
+    fontSize: 13,
   },
   headerBtn: {
     padding: "8px 16px",

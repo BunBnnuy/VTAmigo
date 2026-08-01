@@ -24,6 +24,14 @@ export default {
         title: "Reacciona a eventos",
         desc: "Follows, subs, raids y cheers reciben una reacción instantánea y acorde a tu estilo — sin activarla manualmente.",
       },
+      leveling: {
+        title: "Sistema de niveles incorporado",
+        desc: "Los espectadores ganan XP y suben de nivel solo por chatear. Añade la barra de XP animada y el ranking de top espectadores a OBS como Browser Source.",
+      },
+      customize: {
+        title: "Personaliza tu experiencia",
+        desc: "Reescribe el prompt base para que encaje con tu estilo — sarcástico, tierno, hype-man, lo que sea que le quede a tu stream — y las respuestas del bot lo reflejan.",
+      },
     },
   },
 
