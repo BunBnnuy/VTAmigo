@@ -1,4 +1,32 @@
 export default {
+  login: {
+    logIn: "Iniciar sesión con Twitch",
+    title: "Un co-presentador de IA que nunca se pierde el {chat}.",
+    titleChat: "chat",
+    subtitle: "VTAmigo lee tu chat de Twitch, responde en voz alta y anima tu avatar — para que tu stream siempre tenga con quién hablar, incluso cuando está tranquilo.",
+    cta: "Inicia sesión con Twitch para empezar",
+    ctaNote: "Gratis para probar — no se necesita tarjeta de crédito.",
+    footer: "VTAmigo funciona junto a tu configuración actual de Twitch y VTube Studio.",
+    features: {
+      chat: {
+        title: "Lee tu chat en vivo",
+        desc: "Agrupa mensajes de Twitch (y TikTok) y reacciona con respuestas ingeniosas y en contexto — no solo repite lo que dice el chat.",
+      },
+      tts: {
+        title: "Responde con voz (TTS)",
+        desc: "Las respuestas se leen en voz alta al instante, así tu co-presentador realmente suena como parte del stream.",
+      },
+      overlay: {
+        title: "Anima un overlay de avatar en OBS",
+        desc: "Añade una Browser Source en OBS y tu avatar cambia entre las imágenes de hablando y en reposo en sincronía con el TTS — sin necesitar VTube Studio.",
+      },
+      events: {
+        title: "Reacciona a eventos",
+        desc: "Follows, subs, raids y cheers reciben una reacción instantánea y acorde a tu estilo — sin activarla manualmente.",
+      },
+    },
+  },
+
   settings: {
     title: "Configuración",
     cancel: "Cancelar",

@@ -1,4 +1,32 @@
 export default {
+  login: {
+    logIn: "Log in with Twitch",
+    title: "An AI co-host that never misses {chat}.",
+    titleChat: "chat",
+    subtitle: "VTAmigo watches your Twitch chat, replies out loud, and animates your avatar — so your stream always has someone to talk to, even when it's quiet.",
+    cta: "Log in with Twitch to get started",
+    ctaNote: "Free to try — no credit card required.",
+    footer: "VTAmigo works alongside your existing Twitch and VTube Studio setup.",
+    features: {
+      chat: {
+        title: "Reads your chat live",
+        desc: "Batches messages from Twitch (and TikTok) and reacts with witty, in-context replies — not just repeating what chat said.",
+      },
+      tts: {
+        title: "Talks back with TTS",
+        desc: "Responses are spoken aloud instantly, so your co-host actually sounds like part of the stream.",
+      },
+      overlay: {
+        title: "Animates an OBS avatar overlay",
+        desc: "Drop a Browser Source into OBS and your avatar switches between speaking and idle images in sync with the TTS — no VTube Studio required.",
+      },
+      events: {
+        title: "Reacts to events",
+        desc: "Follows, subs, raids, and cheers all get an instant, on-brand reaction — no manual triggering needed.",
+      },
+    },
+  },
+
   settings: {
     title: "Settings",
     cancel: "Cancel",

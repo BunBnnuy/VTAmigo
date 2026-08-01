@@ -1,4 +1,32 @@
 export default {
+  login: {
+    logIn: "Twitchでログイン",
+    title: "{chat}を絶対に見逃さないAI共同配信者。",
+    titleChat: "チャット",
+    subtitle: "VTAmigoはTwitchチャットを読み取り、声で返信し、アバターをアニメーションさせます — 静かな時間でも、配信には常に話し相手がいます。",
+    cta: "Twitchでログインして始める",
+    ctaNote: "無料でお試しいただけます — クレジットカード不要。",
+    footer: "VTAmigoは、既存のTwitchおよびVTube Studioの設定と一緒に動作します。",
+    features: {
+      chat: {
+        title: "チャットをリアルタイムで読む",
+        desc: "TwitchとTikTokのメッセージをまとめて、文脈に沿った気の利いた返信をします — チャットの内容をただ繰り返すだけではありません。",
+      },
+      tts: {
+        title: "TTSで声で返信",
+        desc: "返信は即座に読み上げられるので、共同配信者が本当に配信の一員のように聞こえます。",
+      },
+      overlay: {
+        title: "OBSアバターオーバーレイをアニメーション",
+        desc: "OBSにBrowser Sourceを追加するだけで、TTSに合わせてアバターが「話している」画像と「待機」画像を切り替えます — VTube Studio不要。",
+      },
+      events: {
+        title: "イベントに反応",
+        desc: "フォロー、サブスク、レイド、チアーにも即座にブランドに合った反応を返します — 手動でのトリガー不要。",
+      },
+    },
+  },
+
   settings: {
     title: "設定",
     cancel: "キャンセル",

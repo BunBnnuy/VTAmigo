@@ -1,4 +1,32 @@
 export default {
+  login: {
+    logIn: "Twitch로 로그인",
+    title: "{chat}을(를) 절대 놓치지 않는 AI 공동 진행자.",
+    titleChat: "채팅",
+    subtitle: "VTAmigo는 Twitch 채팅을 지켜보고, 소리 내어 답하고, 아바타를 움직입니다 — 방송이 조용할 때도 항상 이야기할 상대가 있습니다.",
+    cta: "Twitch로 로그인하고 시작하기",
+    ctaNote: "무료로 체험해보세요 — 신용카드가 필요하지 않습니다.",
+    footer: "VTAmigo는 기존 Twitch 및 VTube Studio 설정과 함께 작동합니다.",
+    features: {
+      chat: {
+        title: "채팅을 실시간으로 읽어요",
+        desc: "Twitch(및 TikTok) 메시지를 모아서 재치 있고 맥락에 맞는 답변을 합니다 — 단순히 채팅을 반복하지 않아요.",
+      },
+      tts: {
+        title: "TTS로 소리 내어 답해요",
+        desc: "답변이 즉시 음성으로 재생되어, 공동 진행자가 진짜 방송의 일부처럼 들립니다.",
+      },
+      overlay: {
+        title: "OBS 아바타 오버레이 애니메이션",
+        desc: "OBS에 브라우저 소스를 추가하면 TTS에 맞춰 말하는 이미지와 대기 이미지가 전환됩니다 — VTube Studio가 필요 없어요.",
+      },
+      events: {
+        title: "이벤트에 반응해요",
+        desc: "팔로우, 구독, 레이드, 치어에 즉시 어울리는 반응을 보여줍니다 — 수동으로 실행할 필요가 없어요.",
+      },
+    },
+  },
+
   settings: {
     title: "설정",
     cancel: "취소",

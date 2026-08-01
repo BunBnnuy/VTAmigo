@@ -1,31 +1,15 @@
 import React from "react";
 import { apiUrl } from "./api.js";
+import { detectLanguage, useTranslation } from "./i18n/index.js";
 import logo from "./img/logo.png";
 
-const FEATURES = [
-  {
-    icon: "💬",
-    title: "Reads your chat live",
-    desc: "Batches messages from Twitch (and TikTok) and reacts with witty, in-context replies — not just repeating what chat said.",
-  },
-  {
-    icon: "🗣️",
-    title: "Talks back with TTS",
-    desc: "Responses are spoken aloud instantly, so your co-host actually sounds like part of the stream.",
-  },
-  {
-    icon: "🎭",
-    title: "Syncs your avatar",
-    desc: "Drives VTube Studio lip-sync while it talks, so your model reacts in real time.",
-  },
-  {
-    icon: "🎉",
-    title: "Reacts to events",
-    desc: "Follows, subs, raids, and cheers all get an instant, on-brand reaction — no manual triggering needed.",
-  },
-];
+const FEATURE_ICONS = { chat: "💬", tts: "🗣️", overlay: "🖼️", events: "🎉" };
+const FEATURE_KEYS = ["chat", "tts", "overlay", "events"];
 
 export default function Login() {
+  const { t } = useTranslation(detectLanguage());
+  const [titleBefore, titleAfter] = t("login.title").split("{chat}");
+
   return (
     <div style={styles.page}>
       <div style={styles.glow} />
@@ -36,36 +20,35 @@ export default function Login() {
           <span style={styles.brandName}>VTAmigo</span>
         </div>
         <a style={styles.headerBtn} href={apiUrl("/auth/twitch/login")}>
-          Log in with Twitch
+          {t("login.logIn")}
         </a>
       </header>
 
       <main style={styles.hero}>
         <h1 style={styles.title}>
-          An AI co-host that never misses <span style={styles.titleAccent}>chat</span>.
+          {titleBefore}
+          <span style={styles.titleAccent}>{t("login.titleChat")}</span>
+          {titleAfter}
         </h1>
-        <p style={styles.subtitle}>
-          VTAmigo watches your Twitch chat, replies out loud, and animates your avatar —
-          so your stream always has someone to talk to, even when it's quiet.
-        </p>
+        <p style={styles.subtitle}>{t("login.subtitle")}</p>
         <a style={styles.ctaBtn} href={apiUrl("/auth/twitch/login")}>
-          Log in with Twitch to get started
+          {t("login.cta")}
         </a>
-        <p style={styles.ctaNote}>Free to try — no credit card required.</p>
+        <p style={styles.ctaNote}>{t("login.ctaNote")}</p>
       </main>
 
       <section style={styles.features}>
-        {FEATURES.map((f) => (
-          <div key={f.title} style={styles.card}>
-            <div style={styles.cardIcon}>{f.icon}</div>
-            <h3 style={styles.cardTitle}>{f.title}</h3>
-            <p style={styles.cardDesc}>{f.desc}</p>
+        {FEATURE_KEYS.map((key) => (
+          <div key={key} style={styles.card}>
+            <div style={styles.cardIcon}>{FEATURE_ICONS[key]}</div>
+            <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
+            <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
           </div>
         ))}
       </section>
 
       <footer style={styles.footer}>
-        <span>VTAmigo works alongside your existing Twitch and VTube Studio setup.</span>
+        <span>{t("login.footer")}</span>
       </footer>
     </div>
   );
