@@ -142,7 +142,9 @@ app.post("/respond", async (req, res) => {
       inputText: messages.map((m) => m.text || "").join(" "),
       outputText: response,
     });
-    res.json({ response });
+    const upgradedTier = usage.maybeAutoUpgradeTier(req.user?.twitchId);
+    if (upgradedTier) sendEvent("tier_auto_upgraded", { req, twitchLogin: req.user?.login, data: { newTier: upgradedTier } });
+    res.json({ response, tier: upgradedTier || undefined });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {
       return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });

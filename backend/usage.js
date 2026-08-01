@@ -9,9 +9,11 @@
 // users/time, not for billing-grade accounting.
 const fs = require("fs");
 const path = require("path");
+const { readUsers, writeUsers } = require("./auth");
 
 const USAGE_PATH = path.join(__dirname, "usage.json");
 const MAX_AGE_DAYS = 400; // keep a bit over a year of history, then trim
+const FREE_TO_BASIC_THRESHOLD = 20; // all-time AI responses generated
 
 function readLog() {
   try {
@@ -98,4 +100,22 @@ function getSummary() {
   return summary;
 }
 
-module.exports = { recordGeneration, getSummary };
+// Auto-upgrades a Free-tier user to Basic once they've generated
+// FREE_TO_BASIC_THRESHOLD responses all-time. Returns the new tier if an
+// upgrade happened, otherwise null.
+function maybeAutoUpgradeTier(twitchId) {
+  if (!twitchId) return null;
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === twitchId);
+  if (!user || (user.tier || "pro") !== "free") return null;
+
+  const entries = readLog();
+  const total = entries.reduce((n, e) => n + (e.twitchId === twitchId ? 1 : 0), 0);
+  if (total < FREE_TO_BASIC_THRESHOLD) return null;
+
+  user.tier = "basic";
+  writeUsers(users);
+  return "basic";
+}
+
+module.exports = { recordGeneration, getSummary, maybeAutoUpgradeTier };

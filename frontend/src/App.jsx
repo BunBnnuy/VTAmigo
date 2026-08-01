@@ -97,10 +97,10 @@ export default function App() {
   if (!authState.approved) {
     return <Pending displayName={authState.displayName} onLoggedOut={checkAuth} />;
   }
-  return <AppInner twitchLogin={authState.login} tier={authState.tier || "pro"} />;
+  return <AppInner twitchLogin={authState.login} tier={authState.tier || "pro"} onRefreshAuth={checkAuth} />;
 }
 
-function AppInner({ twitchLogin, tier }) {
+function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [settings, setSettings] = useState(() => {
     try {
       const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
@@ -158,6 +158,8 @@ function AppInner({ twitchLogin, tier }) {
   settingsRef.current = settings;
   const tierRef = useRef(tier);
   tierRef.current = tier;
+  const onRefreshAuthRef = useRef(onRefreshAuth);
+  onRefreshAuthRef.current = onRefreshAuth;
 
   // TTS state sync
   useEffect(() => {
@@ -312,6 +314,7 @@ function AppInner({ twitchLogin, tier }) {
         body: JSON.stringify({ messages: batch, style: settingsRef.current.style, basePrompt: settingsRef.current.basePrompt, provider: settingsRef.current.provider || "claude", manual: !!manual }),
       });
       const data = await res.json();
+      if (data.tier) onRefreshAuthRef.current?.();
       const text = data.response || data.error || "No response";
       const entry = {
         id: uid(),
