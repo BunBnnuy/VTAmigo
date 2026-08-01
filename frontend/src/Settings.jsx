@@ -4,6 +4,7 @@ import { voice } from "./VoiceTranscription.js";
 import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation, SUPPORTED_LANGUAGES } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
+import { DEFAULT_BASE_PROMPT } from "./promptDefaults.js";
 
 const TIER_NAMES = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "Pro" };
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
@@ -813,6 +814,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               <textarea
                 value={form.basePrompt || ""}
                 onChange={(e) => set("basePrompt", e.target.value)}
+                placeholder={DEFAULT_BASE_PROMPT}
                 rows={7}
                 style={styles.textarea}
               />

@@ -15,17 +15,13 @@ import logo from "./img/logo.png";
 
 const TIER_LABELS = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "Pro" };
 
-const DEFAULT_BASE_PROMPT = `Eres un co-presentador de IA para un stream de Twitch de gaming y just-chatting.
-
-Responde en 1–3 oraciones. Sé ingenioso, no cringe. Aporta algo — no solo repitas lo que dijo el chat. Iguala la energía: tranquilo cuando ellos están tranquilos, hypeado cuando están hypeados.`;
-
 const DEFAULT_SETTINGS = {
   language: detectLanguage(),
   tiktokUsername: "",
   batchWindow: 20,
   maxMessages: 20,
   style: "auto",
-  basePrompt: DEFAULT_BASE_PROMPT,
+  basePrompt: "",
   idleRedditStories: true,
   idleStoryThreshold: 7,
   subreddits: "HistoriasDeReddit, AskRedditEsp, confesiones, anecdotasgraciosas, es",
