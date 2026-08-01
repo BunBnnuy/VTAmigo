@@ -1,62 +1,26 @@
 import React, { useLayoutEffect, useState } from "react";
+import { useTranslation } from "./i18n/index.js";
 
 // Steps are driven by index. Steps 3 ("settings-btn") and 6 ("save-apply")
 // have no Next button — the user must perform the real action (App.jsx
 // wires those clicks to call onAdvance itself). Step 5 ("ai-prompt") insists
-// up to 3 times via `attempts` before Next is allowed to move on.
+// up to 3 times via `attempts` before Next is allowed to move on. Text for
+// each step lives under the "onboarding.steps.<key>" i18n namespace.
 const STEPS = [
-  {
-    target: "live-chat",
-    title: "Live Chat",
-    body: "This is your live Twitch chat feed. Every message from your viewers shows up here in real time.",
-  },
-  {
-    target: "ai-response",
-    title: "AI Responses",
-    body: "Your AI co-host's replies appear here. You can mute audio, skip a reply, or send one to chat manually from this panel.",
-  },
-  {
-    target: "status-footer",
-    title: "Status Footer",
-    body: "This bar shows your connection status at a glance — Twitch, bot account, VTube Studio — plus the countdown to the next AI response.",
-  },
-  {
-    target: "settings-btn",
-    title: "Open Settings",
-    body: "Click the ⚙ Settings button to configure your bot.",
-    requiresClick: true,
-  },
-  {
-    target: "bot-account",
-    title: "Bot Account (optional)",
-    body: "Connect a separate bot account here so it can post messages into your chat. This step is completely optional — skip it if you'd rather just watch AI responses in this app without posting to chat.",
-  },
-  {
-    target: "ai-prompt",
-    title: "AI Prompt",
-    insistMessages: [
-      "This is the most important setting. Write a base prompt that tells the AI its personality and how it should talk about you and your stream.",
-      "Seriously, don't skip this one — a good base prompt is what makes your AI co-host feel like *your* co-host instead of a generic bot. Take a moment to write one.",
-      "Last reminder: please write your own base prompt before continuing. This is what shapes every single response the AI gives during your stream.",
-    ],
-  },
-  {
-    target: "save-apply",
-    title: "Save & Apply",
-    body: "When you're happy with your settings, click Save to apply them.",
-    requiresClick: true,
-  },
-  {
-    target: null,
-    title: "That's all!",
-    body: "You're all set. You can always reopen Settings later to tweak anything. Have a great stream!",
-    final: true,
-  },
+  { target: "live-chat", key: "liveChat" },
+  { target: "ai-response", key: "aiResponse" },
+  { target: "status-footer", key: "statusFooter" },
+  { target: "settings-btn", key: "openSettings", requiresClick: true },
+  { target: "bot-account", key: "botAccount" },
+  { target: "ai-prompt", key: "aiPrompt", insist: true },
+  { target: "save-apply", key: "saveApply", requiresClick: true },
+  { target: null, key: "done", final: true },
 ];
 
 const PAD = 8;
 
-export default function OnboardingTour({ step, attempts, onNext, onSkipStep, onSkipAll, onFinish }) {
+export default function OnboardingTour({ lang, step, attempts, onNext, onSkipStep, onSkipAll, onFinish }) {
+  const { t } = useTranslation(lang);
   const [rect, setRect] = useState(null);
   const s = STEPS[step];
 
@@ -138,7 +102,10 @@ export default function OnboardingTour({ step, attempts, onNext, onSkipStep, onS
     };
   }
 
-  const body = s.insistMessages ? s.insistMessages[Math.min(attempts, s.insistMessages.length - 1)] : s.body;
+  const title = t(`onboarding.steps.${s.key}.title`);
+  const body = s.insist
+    ? t(`onboarding.steps.${s.key}.insist${Math.min(attempts, 2) + 1}`)
+    : t(`onboarding.steps.${s.key}.body`);
 
   return (
     <div style={styles.root}>
@@ -163,20 +130,20 @@ export default function OnboardingTour({ step, attempts, onNext, onSkipStep, onS
       )}
 
       <div style={tooltipStyle}>
-        <div style={styles.stepLabel}>Step {step + 1} of {STEPS.length}</div>
-        <div style={styles.title}>{s.title}</div>
+        <div style={styles.stepLabel}>{t("onboarding.stepLabel", { step: step + 1, total: STEPS.length })}</div>
+        <div style={styles.title}>{title}</div>
         <div style={styles.body}>{body}</div>
         <div style={styles.actions}>
           {s.final ? (
-            <button style={styles.primaryBtn} onClick={onFinish}>Got it, let's go!</button>
+            <button style={styles.primaryBtn} onClick={onFinish}>{t("onboarding.buttons.gotIt")}</button>
           ) : (
             <>
               <div style={styles.leftActions}>
-                <button style={styles.textBtn} onClick={onSkipStep}>Skip step</button>
-                <button style={styles.textBtn} onClick={onSkipAll}>Skip all</button>
+                <button style={styles.textBtn} onClick={onSkipStep}>{t("onboarding.buttons.skipStep")}</button>
+                <button style={styles.textBtn} onClick={onSkipAll}>{t("onboarding.buttons.skipAll")}</button>
               </div>
               {!s.requiresClick && (
-                <button style={styles.primaryBtn} onClick={onNext}>Next</button>
+                <button style={styles.primaryBtn} onClick={onNext}>{t("onboarding.buttons.next")}</button>
               )}
             </>
           )}

@@ -235,4 +235,50 @@ export default {
       testButton: "Probar animación de boca",
     },
   },
+
+  onboarding: {
+    stepLabel: "Paso {step} de {total}",
+    buttons: {
+      skipStep: "Saltar paso",
+      skipAll: "Saltar todo",
+      next: "Siguiente",
+      gotIt: "¡Entendido, vamos!",
+    },
+    steps: {
+      liveChat: {
+        title: "Chat en vivo",
+        body: "Este es tu feed de chat de Twitch en vivo. Cada mensaje de tus espectadores aparece aquí en tiempo real.",
+      },
+      aiResponse: {
+        title: "Respuestas de la IA",
+        body: "Las respuestas de tu co-presentador IA aparecen aquí. Puedes silenciar el audio, saltar una respuesta o enviar una al chat manualmente desde este panel.",
+      },
+      statusFooter: {
+        title: "Barra de estado",
+        body: "Esta barra muestra tu estado de conexión de un vistazo — Twitch, cuenta del bot, VTube Studio — además de la cuenta regresiva para la próxima respuesta de la IA.",
+      },
+      openSettings: {
+        title: "Abrir configuración",
+        body: "Haz clic en el botón ⚙ Configuración para configurar tu bot.",
+      },
+      botAccount: {
+        title: "Cuenta del bot (opcional)",
+        body: "Conecta aquí una cuenta de bot independiente para que pueda publicar mensajes en tu chat. Este paso es completamente opcional — sáltalo si prefieres solo ver las respuestas de la IA en esta app sin publicarlas en el chat.",
+      },
+      aiPrompt: {
+        title: "Prompt de la IA",
+        insist1: "Este es el ajuste más importante. Escribe un prompt base que le diga a la IA su personalidad y cómo debe hablar sobre ti y tu stream.",
+        insist2: "En serio, no te saltes este paso — un buen prompt base es lo que hace que tu co-presentador IA se sienta como *tu* co-presentador y no como un bot genérico. Tómate un momento para escribir uno.",
+        insist3: "Último recordatorio: por favor escribe tu propio prompt base antes de continuar. Esto es lo que da forma a cada respuesta que da la IA durante tu stream.",
+      },
+      saveApply: {
+        title: "Guardar y aplicar",
+        body: "Cuando estés conforme con tu configuración, haz clic en Guardar para aplicarla.",
+      },
+      done: {
+        title: "¡Eso es todo!",
+        body: "Ya está todo listo. Siempre puedes volver a abrir la configuración más tarde para ajustar cualquier cosa. ¡Que tengas un gran stream!",
+      },
+    },
+  },
 };

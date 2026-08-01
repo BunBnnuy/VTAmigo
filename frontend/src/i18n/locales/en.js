@@ -235,4 +235,50 @@ export default {
       testButton: "Test mouth animation",
     },
   },
+
+  onboarding: {
+    stepLabel: "Step {step} of {total}",
+    buttons: {
+      skipStep: "Skip step",
+      skipAll: "Skip all",
+      next: "Next",
+      gotIt: "Got it, let's go!",
+    },
+    steps: {
+      liveChat: {
+        title: "Live Chat",
+        body: "This is your live Twitch chat feed. Every message from your viewers shows up here in real time.",
+      },
+      aiResponse: {
+        title: "AI Responses",
+        body: "Your AI co-host's replies appear here. You can mute audio, skip a reply, or send one to chat manually from this panel.",
+      },
+      statusFooter: {
+        title: "Status Footer",
+        body: "This bar shows your connection status at a glance — Twitch, bot account, VTube Studio — plus the countdown to the next AI response.",
+      },
+      openSettings: {
+        title: "Open Settings",
+        body: "Click the ⚙ Settings button to configure your bot.",
+      },
+      botAccount: {
+        title: "Bot Account (optional)",
+        body: "Connect a separate bot account here so it can post messages into your chat. This step is completely optional — skip it if you'd rather just watch AI responses in this app without posting to chat.",
+      },
+      aiPrompt: {
+        title: "AI Prompt",
+        insist1: "This is the most important setting. Write a base prompt that tells the AI its personality and how it should talk about you and your stream.",
+        insist2: "Seriously, don't skip this one — a good base prompt is what makes your AI co-host feel like *your* co-host instead of a generic bot. Take a moment to write one.",
+        insist3: "Last reminder: please write your own base prompt before continuing. This is what shapes every single response the AI gives during your stream.",
+      },
+      saveApply: {
+        title: "Save & Apply",
+        body: "When you're happy with your settings, click Save to apply them.",
+      },
+      done: {
+        title: "That's all!",
+        body: "You're all set. You can always reopen Settings later to tweak anything. Have a great stream!",
+      },
+    },
+  },
 };

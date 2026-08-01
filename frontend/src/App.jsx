@@ -1238,6 +1238,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
 
       {tourActive && (
         <OnboardingTour
+          lang={settings.language}
           step={tourStep}
           attempts={tourPromptAttempts}
           onNext={() => tourAdvance(false)}
