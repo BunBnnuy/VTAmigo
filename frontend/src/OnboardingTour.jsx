@@ -100,17 +100,34 @@ export default function OnboardingTour({ step, attempts, onNext, onSkipStep, onS
       }
     : null;
 
-  // Tooltip placement: below the hole if there's room, else above; else centered.
+  // Tooltip placement: try below, then above, then beside (right, then left) the
+  // hole — whichever has enough clear room — so the card never sits on top of
+  // the highlighted element itself. Falls back to a clamped "below" as a last resort.
+  const tooltipWidth = 340;
+  const tooltipHeightEstimate = 200;
   let tooltipStyle = { ...styles.tooltip };
   if (hole) {
-    const tooltipWidth = 340;
-    const left = Math.min(Math.max(hole.left, 12), vw - tooltipWidth - 12);
     const spaceBelow = vh - hole.bottom;
     const spaceAbove = hole.top;
-    if (spaceBelow >= 160 || spaceBelow >= spaceAbove) {
-      tooltipStyle = { ...tooltipStyle, top: hole.bottom + 14, left };
+    const spaceRight = vw - hole.right;
+    const spaceLeft = hole.left;
+    const hLeft = Math.min(Math.max(hole.left, 12), vw - tooltipWidth - 12);
+    const vTop = Math.min(Math.max(hole.top, 12), vh - tooltipHeightEstimate - 12);
+
+    if (spaceBelow >= tooltipHeightEstimate) {
+      tooltipStyle = { ...tooltipStyle, top: hole.bottom + 14, left: hLeft };
+    } else if (spaceAbove >= tooltipHeightEstimate) {
+      tooltipStyle = { ...tooltipStyle, bottom: vh - hole.top + 14, left: hLeft };
+    } else if (spaceRight >= tooltipWidth + 24) {
+      tooltipStyle = { ...tooltipStyle, top: vTop, left: hole.right + 14 };
+    } else if (spaceLeft >= tooltipWidth + 24) {
+      tooltipStyle = { ...tooltipStyle, top: vTop, right: vw - hole.left + 14 };
     } else {
-      tooltipStyle = { ...tooltipStyle, bottom: vh - hole.top + 14, left };
+      tooltipStyle = {
+        ...tooltipStyle,
+        top: Math.min(hole.bottom + 14, vh - tooltipHeightEstimate - 12),
+        left: hLeft,
+      };
     }
   } else {
     tooltipStyle = {
