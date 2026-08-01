@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import Settings from "./Settings.jsx";
+import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
@@ -118,6 +119,38 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     }
   });
   const [showSettings, setShowSettings] = useState(false);
+  const [tourActive, setTourActive] = useState(() => {
+    try {
+      return localStorage.getItem("onboarding_done_v1") !== "1";
+    } catch {
+      return false;
+    }
+  });
+  const [tourStep, setTourStep] = useState(0);
+  const [tourPromptAttempts, setTourPromptAttempts] = useState(0);
+
+  const finishTour = () => {
+    setTourActive(false);
+    try {
+      localStorage.setItem("onboarding_done_v1", "1");
+    } catch {
+      // localStorage unavailable — tour will just replay next launch.
+    }
+  };
+
+  const tourAdvance = (skip) => {
+    setTourStep((s) => {
+      if (s === 5) { // AI prompt step insists up to 3 times before allowing Next
+        if (!skip && tourPromptAttempts < 2) {
+          setTourPromptAttempts((a) => a + 1);
+          return s;
+        }
+        setTourPromptAttempts(0);
+        return 6;
+      }
+      return s + 1;
+    });
+  };
   const [connected, setConnected] = useState(false);
   const [connStatus, setConnStatus] = useState("disconnected");
   const [tiktokConnected, setTiktokConnected] = useState(false);
@@ -872,6 +905,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     setSettings(newSettings);
     localStorage.setItem("settings", JSON.stringify(newSettings));
     setShowSettings(false);
+    if (tourActive && tourStep === 6) setTourStep(7);
     // If window size changed and connected, restart countdown
     if (connected) {
       clearTimeout(batchTimerRef.current);
@@ -973,7 +1007,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         <div style={styles.topRight}>
           <button
             style={styles.settingsBtn}
-            onClick={() => setShowSettings(true)}
+            data-tour="settings-btn"
+            onClick={() => {
+              setShowSettings(true);
+              if (tourActive && tourStep === 3) setTourStep(4);
+            }}
           >
             ⚙ Settings
           </button>
@@ -1001,7 +1039,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       {/* ── Main content ── */}
       <div style={styles.main}>
         {/* Left: chat feed */}
-        <div style={styles.leftPanel}>
+        <div style={styles.leftPanel} data-tour="live-chat">
           <div style={styles.panelHeader}>
             <span style={styles.panelTitle}>Live Chat</span>
             <span style={styles.msgCount}>{messages.length} messages</span>
@@ -1028,7 +1066,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         <div style={styles.divider} />
 
         {/* Right: response history */}
-        <div style={styles.rightPanel}>
+        <div style={styles.rightPanel} data-tour="ai-response">
           <ResponsePanel
             responses={responses}
             loading={loading}
@@ -1059,7 +1097,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       </div>
 
       {/* ── Bottom bar ── */}
-      <div style={styles.bottomBar}>
+      <div style={styles.bottomBar} data-tour="status-footer">
         {/* Twitch status */}
         <div style={styles.statusGroup}>
           <span style={{ ...styles.dot, background: statusColor }} />
@@ -1193,7 +1231,26 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           settings={settings}
           tier={tier}
           onSave={saveSettings}
-          onClose={() => setShowSettings(false)}
+          onClose={() => {
+            setShowSettings(false);
+            // Closed without saving mid-tour — bounce back to the "open settings"
+            // step so the guided steps inside Settings stay reachable.
+            if (tourActive && tourStep >= 4 && tourStep <= 6) setTourStep(3);
+          }}
+        />
+      )}
+
+      {tourActive && (
+        <OnboardingTour
+          step={tourStep}
+          attempts={tourPromptAttempts}
+          onNext={() => tourAdvance(false)}
+          onSkipStep={() => {
+            if (tourStep === 3) setShowSettings(true);
+            tourAdvance(true);
+          }}
+          onSkipAll={finishTour}
+          onFinish={finishTour}
         />
       )}
 

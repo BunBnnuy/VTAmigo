@@ -310,7 +310,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </div>
           </section>
 
-          <section style={styles.section}>
+          <section style={styles.section} data-tour="bot-account">
             <h3 style={styles.sectionTitle}>{t("settings.bot.title")}</h3>
             <div style={styles.field}>
               <label>{t("settings.bot.username")}</label>
@@ -806,7 +806,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             })()}
           </section>
 
-          <section style={styles.section}>
+          <section style={styles.section} data-tour="ai-prompt">
             <h3 style={styles.sectionTitle}>{t("settings.prompt.title")}</h3>
             <div style={styles.field}>
               <label>{t("settings.prompt.label")}</label>
@@ -1082,7 +1082,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
 
         <div style={styles.footer}>
           <button style={styles.cancelBtn} onClick={onClose}>{t("settings.cancel")}</button>
-          <button style={styles.saveBtn} onClick={() => onSave(form)}>{t("settings.save")}</button>
+          <button style={styles.saveBtn} data-tour="save-apply" onClick={() => onSave(form)}>{t("settings.save")}</button>
         </div>
       </div>
     </div>
