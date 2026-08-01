@@ -10,7 +10,7 @@ export default {
     features: {
       chat: {
         title: "Reads your chat live",
-        desc: "Batches messages from Twitch (and TikTok) and reacts with witty, in-context replies — not just repeating what chat said.",
+        desc: "Batches messages from Twitch chat and reacts with witty, in-context replies — not just repeating what chat said.",
       },
       tts: {
         title: "Talks back with TTS",

@@ -10,7 +10,7 @@ export default {
     features: {
       chat: {
         title: "채팅을 실시간으로 읽어요",
-        desc: "Twitch(및 TikTok) 메시지를 모아서 재치 있고 맥락에 맞는 답변을 합니다 — 단순히 채팅을 반복하지 않아요.",
+        desc: "Twitch 채팅 메시지를 모아서 재치 있고 맥락에 맞는 답변을 합니다 — 단순히 채팅을 반복하지 않아요.",
       },
       tts: {
         title: "TTS로 소리 내어 답해요",

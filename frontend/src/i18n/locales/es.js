@@ -10,7 +10,7 @@ export default {
     features: {
       chat: {
         title: "Lee tu chat en vivo",
-        desc: "Agrupa mensajes de Twitch (y TikTok) y reacciona con respuestas ingeniosas y en contexto — no solo repite lo que dice el chat.",
+        desc: "Agrupa mensajes del chat de Twitch y reacciona con respuestas ingeniosas y en contexto — no solo repite lo que dice el chat.",
       },
       tts: {
         title: "Responde con voz (TTS)",
