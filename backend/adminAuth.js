@@ -4,6 +4,7 @@ const jwt = require("jsonwebtoken");
 const { readUsers, writeUsers, clearTwitchTokens } = require("./auth");
 const sysmonitor = require("./sysmonitor");
 const usage = require("./usage");
+const siteConfig = require("./siteConfig");
 
 const ADMIN_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
 const ADMIN_COOKIE = "admin_session";
@@ -91,6 +92,23 @@ router.post("/admin/users/:twitchId/revoke", requireAdmin, (req, res) => {
   writeUsers(users);
   clearTwitchTokens(user.twitchId);
   res.json({ ok: true, user });
+});
+
+// GET /admin/site-config — currently just the site-wide AI provider
+router.get("/admin/site-config", requireAdmin, (req, res) => {
+  res.json({ aiProvider: siteConfig.getProvider() });
+});
+
+// POST /admin/site-config — set the AI provider used for every user's chat
+// responses site-wide (a user's own Settings preference is ignored)
+router.post("/admin/site-config", requireAdmin, (req, res) => {
+  const { aiProvider } = req.body || {};
+  try {
+    siteConfig.setProvider(aiProvider);
+    res.json({ ok: true, aiProvider: siteConfig.getProvider() });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // GET /admin/stats — CPU/RAM/process snapshot for the resource monitor panel

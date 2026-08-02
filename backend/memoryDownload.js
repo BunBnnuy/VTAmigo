@@ -3,7 +3,9 @@
 // refreshing the page. The CLI dump can take a couple of minutes, so this
 // runs as a background job (like memoryExport) instead of blocking a single
 // HTTP request — a synchronous request risked hitting nginx's proxy timeout
-// and getting an HTML error page back instead of JSON.
+// and getting an HTML error page back instead of JSON. Both the job and the
+// cooldown are keyed by Twitch account so one streamer's download/cooldown
+// never blocks or leaks into another account's Settings panel.
 const fs = require("fs");
 const path = require("path");
 const { dumpMemory } = require("./claude");
@@ -22,14 +24,15 @@ const STAGES = [
 ];
 const STAGE_INTERVAL_MS = 4000;
 
-let job = { running: false, pct: 0, stage: "", error: null, markdown: null };
-let stageTimer = null;
+const EMPTY_JOB = { running: false, pct: 0, stage: "", error: null, markdown: null };
+const jobs = new Map(); // twitchId -> job
+const stageTimers = new Map(); // twitchId -> interval handle
 
 function loadState() {
   try {
     return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
   } catch {
-    return { lastDownloadAt: 0 };
+    return {};
   }
 }
 
@@ -41,13 +44,22 @@ function saveState(state) {
   }
 }
 
-function getAvailableAt() {
-  const { lastDownloadAt } = loadState();
+function getAvailableAt(twitchId) {
+  const state = loadState();
+  // Old file shape (pre per-user) was a single { lastDownloadAt } shared
+  // site-wide — ignore it, each account starts with no cooldown.
+  const lastDownloadAt = state[twitchId]?.lastDownloadAt;
   return lastDownloadAt ? lastDownloadAt + COOLDOWN_MS : 0;
 }
 
-function getStatus() {
-  return { ...job, availableAt: getAvailableAt() };
+function setLastDownloadAt(twitchId, ts) {
+  const state = loadState();
+  state[twitchId] = { lastDownloadAt: ts };
+  saveState(state);
+}
+
+function getStatus(twitchId) {
+  return { ...(jobs.get(twitchId) || EMPTY_JOB), availableAt: getAvailableAt(twitchId) };
 }
 
 function friendlyError(message, provider) {
@@ -58,32 +70,36 @@ function friendlyError(message, provider) {
   return message;
 }
 
-function startDownload(provider) {
-  if (job.running) throw new Error("ALREADY_RUNNING");
-  const availableAt = getAvailableAt();
+function startDownload(provider, twitchId) {
+  if (!twitchId) throw new Error("No autenticado");
+  if ((jobs.get(twitchId) || EMPTY_JOB).running) throw new Error("ALREADY_RUNNING");
+  const availableAt = getAvailableAt(twitchId);
   if (Date.now() < availableAt) {
     const err = new Error("COOLDOWN");
     err.availableAt = availableAt;
     throw err;
   }
 
-  job = { running: true, pct: 0, stage: STAGES[0].stage, error: null, markdown: null };
+  jobs.set(twitchId, { running: true, pct: 0, stage: STAGES[0].stage, error: null, markdown: null });
   let stageIndex = 0;
-  stageTimer = setInterval(() => {
+  const timer = setInterval(() => {
     if (stageIndex >= STAGES.length - 1) return;
     stageIndex += 1;
-    job = { ...job, pct: STAGES[stageIndex].pct, stage: STAGES[stageIndex].stage };
+    jobs.set(twitchId, { ...jobs.get(twitchId), pct: STAGES[stageIndex].pct, stage: STAGES[stageIndex].stage });
   }, STAGE_INTERVAL_MS);
+  stageTimers.set(twitchId, timer);
 
-  dumpMemory(provider)
+  dumpMemory(provider, twitchId)
     .then((markdown) => {
-      clearInterval(stageTimer);
-      saveState({ lastDownloadAt: Date.now() });
-      job = { running: false, pct: 100, stage: "Listo", error: null, markdown };
+      clearInterval(stageTimers.get(twitchId));
+      stageTimers.delete(twitchId);
+      setLastDownloadAt(twitchId, Date.now());
+      jobs.set(twitchId, { running: false, pct: 100, stage: "Listo", error: null, markdown });
     })
     .catch((err) => {
-      clearInterval(stageTimer);
-      job = { running: false, pct: 0, stage: "", error: friendlyError(err.message, provider), markdown: null };
+      clearInterval(stageTimers.get(twitchId));
+      stageTimers.delete(twitchId);
+      jobs.set(twitchId, { running: false, pct: 0, stage: "", error: friendlyError(err.message, provider), markdown: null });
     });
 }
 

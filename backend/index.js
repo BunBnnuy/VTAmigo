@@ -10,6 +10,7 @@ const { router: adminRouter } = require("./adminAuth");
 const { router: devicesRouter } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const usage = require("./usage");
+const siteConfig = require("./siteConfig");
 const memoryExport = require("./memoryExport");
 const memoryDownload = require("./memoryDownload");
 const screenwatch = require("./screenwatch");
@@ -126,20 +127,25 @@ function handleChat(twitchId, msg) {
 
 // POST /respond — run Claude CLI with a batch of messages
 app.post("/respond", async (req, res) => {
-  const { messages, style, basePrompt, provider, manual } = req.body;
+  const { messages, style, basePrompt, manual } = req.body;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages array is required" });
   }
 
-  sendEvent("ai_response_generated", { req, twitchLogin: req.user?.login, data: { provider: provider || "claude" } });
+  // The AI provider is a site-wide admin setting — any provider sent by the
+  // client is ignored so a user's own Settings preference can't override it.
+  const provider = siteConfig.getProvider();
+  const twitchId = req.user?.twitchId;
+
+  sendEvent("ai_response_generated", { req, twitchLogin: req.user?.login, data: { provider } });
   if (manual) sendEvent("now_button_click", { req, twitchLogin: req.user?.login });
 
   try {
-    const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider || "claude");
+    const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider, twitchId);
     usage.recordGeneration({
       twitchId: req.user?.twitchId,
       login: req.user?.login,
-      provider: provider || "claude",
+      provider,
       inputText: messages.map((m) => m.text || "").join(" "),
       outputText: response,
     });
@@ -151,11 +157,11 @@ app.post("/respond", async (req, res) => {
       return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
     }
     if (err.message === "CLI_NOT_FOUND") {
-      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      const name = provider.charAt(0).toUpperCase() + provider.slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
     }
     if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
+      return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
     }
     console.error("[ai]", err.message);
     res.status(500).json({ error: err.message });
@@ -166,23 +172,23 @@ app.post("/respond", async (req, res) => {
 app.post("/memory/export", (req, res) => {
   const { from, to } = req.body || {};
   try {
-    memoryExport.startExport(from, to);
+    memoryExport.startExport(from, to, req.user?.twitchId);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err.message });
   }
 });
 
-// GET /memory/export/status — progress of the current/last export job
+// GET /memory/export/status — progress of the current/last export job for this account
 app.get("/memory/export/status", (req, res) => {
-  res.json(memoryExport.getStatus());
+  res.json(memoryExport.getStatus(req.user?.twitchId));
 });
 
 // POST /memory/import — load a hand-picked .md file into a provider's live session
 app.post("/memory/import", async (req, res) => {
   const { provider, markdown } = req.body || {};
   try {
-    const response = await importMemory(markdown, provider || "claude");
+    const response = await importMemory(markdown, provider || "claude", req.user?.twitchId);
     sendEvent("memory_upload", { req, twitchLogin: req.user?.login, data: { provider: provider || "claude" } });
     res.json({ ok: true, response });
   } catch (err) {
@@ -199,9 +205,9 @@ app.post("/memory/import", async (req, res) => {
   }
 });
 
-// GET /memory/download/status — when the 24h cooldown next clears
+// GET /memory/download/status — when this account's 24h cooldown next clears
 app.get("/memory/download/status", (req, res) => {
-  res.json(memoryDownload.getStatus());
+  res.json(memoryDownload.getStatus(req.user?.twitchId));
 });
 
 // POST /memory/download — start a background job dumping the bot's current
@@ -211,7 +217,7 @@ app.get("/memory/download/status", (req, res) => {
 app.post("/memory/download", (req, res) => {
   const { provider } = req.body || {};
   try {
-    memoryDownload.startDownload(provider || "claude");
+    memoryDownload.startDownload(provider || "claude", req.user?.twitchId);
     res.json({ ok: true });
   } catch (err) {
     if (err.message === "COOLDOWN") {
@@ -421,17 +427,18 @@ app.post("/reddit-story", async (req, res) => {
 
 // POST /reddit-thoughts — Claude reacts to the last paragraph of a story
 app.post("/reddit-thoughts", async (req, res) => {
-  const { paragraph, title, subreddit, basePrompt, provider } = req.body || {};
+  const { paragraph, title, subreddit, basePrompt } = req.body || {};
   if (!paragraph) return res.status(400).json({ error: "paragraph is required" });
+  const provider = siteConfig.getProvider();
   try {
-    const response = await queryClaudeCLI([], "auto", basePrompt || "", null, null, { paragraph, title, subreddit }, provider || "claude");
+    const response = await queryClaudeCLI([], "auto", basePrompt || "", null, null, { paragraph, title, subreddit }, provider, req.user?.twitchId);
     res.json({ response });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {
       return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
     }
     if (err.message === "CLI_NOT_FOUND") {
-      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      const name = provider.charAt(0).toUpperCase() + provider.slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
     }
     if (err.message === "TIMEOUT") return res.status(504).json({ error: "Claude CLI timed out" });
@@ -442,21 +449,22 @@ app.post("/reddit-thoughts", async (req, res) => {
 
 // POST /event-response — generate an immediate Claude reaction to a Twitch event
 app.post("/event-response", async (req, res) => {
-  const { event, basePrompt, provider } = req.body;
+  const { event, basePrompt } = req.body;
   if (!event) return res.status(400).json({ error: "event is required" });
+  const provider = siteConfig.getProvider();
   try {
-    const response = await queryClaudeCLI([], "auto", basePrompt || "", event, null, null, provider || "claude");
+    const response = await queryClaudeCLI([], "auto", basePrompt || "", event, null, null, provider, req.user?.twitchId);
     res.json({ response });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {
       return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
     }
     if (err.message === "CLI_NOT_FOUND") {
-      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      const name = provider.charAt(0).toUpperCase() + provider.slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
     }
     if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
+      return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
     }
     console.error("[ai/event]", err.message);
     res.status(500).json({ error: err.message });
@@ -467,7 +475,7 @@ app.post("/event-response", async (req, res) => {
 app.post("/youtube-narrate", async (req, res) => {
   const { basePrompt } = req.body || {};
   try {
-    const response = await queryYouTubeNarration(basePrompt || "");
+    const response = await queryYouTubeNarration(basePrompt || "", siteConfig.getProvider(), req.user?.twitchId);
     res.json({ response });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {
@@ -577,15 +585,17 @@ app.post("/screenwatch/test", (req, res) => {
 
 // POST /screen-answer — answer a detected on-screen question using collected chat
 app.post("/screen-answer", async (req, res) => {
-  const { question, options, messages, basePrompt, provider, windowSec } = req.body || {};
+  const { question, options, messages, basePrompt, windowSec } = req.body || {};
   if (!question) return res.status(400).json({ error: "question is required" });
+  const provider = siteConfig.getProvider();
   try {
     const result = await queryScreenAnswer({
       question,
       options: Array.isArray(options) ? options : [],
       messages: Array.isArray(messages) ? messages : [],
       basePrompt: basePrompt || "",
-      provider: provider || "claude",
+      provider,
+      twitchId: req.user?.twitchId,
       windowSec: Number(windowSec) || 20,
     });
     // { response, choiceIndex, topVoteIndex }
@@ -595,11 +605,11 @@ app.post("/screen-answer", async (req, res) => {
       return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
     }
     if (err.message === "CLI_NOT_FOUND") {
-      const name = (provider || "claude").charAt(0).toUpperCase() + (provider || "claude").slice(1);
+      const name = provider.charAt(0).toUpperCase() + provider.slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
     }
     if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: `${provider || "claude"} CLI timed out (>60s)` });
+      return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
     }
     console.error("[screen-answer]", err.message);
     res.status(500).json({ error: err.message });

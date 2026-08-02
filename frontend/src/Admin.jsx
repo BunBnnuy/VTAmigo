@@ -13,6 +13,8 @@ export default function Admin() {
   const [usage, setUsage] = useState(null);
   const [busy, setBusy] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [siteConfig, setSiteConfig] = useState(null);
+  const [savingProvider, setSavingProvider] = useState(false);
 
   // On mount, check for an existing (still-valid) admin session so a page
   // refresh doesn't force a re-login while the 4h-inactivity cookie is live.
@@ -57,9 +59,17 @@ export default function Admin() {
     setUsage(data.usage);
   }, []);
 
+  const loadSiteConfig = useCallback(async () => {
+    const res = await apiFetch("/admin/site-config");
+    if (res.status === 401) { setAuthed(false); return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    setSiteConfig(data);
+  }, []);
+
   useEffect(() => {
-    if (authed) { loadUsers(); loadDevices(); loadUsage(); }
-  }, [authed, loadUsers, loadDevices, loadUsage]);
+    if (authed) { loadUsers(); loadDevices(); loadUsage(); loadSiteConfig(); }
+  }, [authed, loadUsers, loadDevices, loadUsage, loadSiteConfig]);
 
   useEffect(() => {
     if (!authed) return;
@@ -111,6 +121,23 @@ export default function Admin() {
   const setApproved = async (twitchId, approve) => {
     await apiFetch(`/admin/users/${twitchId}/${approve ? "approve" : "revoke"}`, { method: "POST" });
     loadUsers();
+  };
+
+  const setAiProvider = async (aiProvider) => {
+    setSavingProvider(true);
+    try {
+      const res = await apiFetch("/admin/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiProvider }),
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setSiteConfig(data);
+      }
+    } finally {
+      setSavingProvider(false);
+    }
   };
 
   const setTier = async (twitchId, tier) => {
@@ -214,6 +241,25 @@ export default function Admin() {
               </tbody>
             </table>
           </div>
+        )}
+
+        <h1 style={{ ...styles.title, marginTop: 32 }}>AI agent</h1>
+        <p style={{ opacity: 0.5, fontSize: 12, margin: "-8px 0 12px 0" }}>
+          Controls which AI answers chat/events for everyone on the site. A user's own model
+          preference in Settings is ignored — this is the only switch that matters.
+        </p>
+        {!siteConfig ? (
+          <p>Loading…</p>
+        ) : (
+          <select
+            value={siteConfig.aiProvider}
+            onChange={(e) => setAiProvider(e.target.value)}
+            disabled={savingProvider}
+            style={{ ...styles.tierSelect, marginBottom: 32, fontSize: 14, padding: "8px 12px" }}
+          >
+            <option value="claude">Claude</option>
+            <option value="grok">Grok</option>
+          </select>
         )}
 
         <h1 style={styles.title}>User approvals</h1>

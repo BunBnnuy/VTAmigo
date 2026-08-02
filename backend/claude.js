@@ -153,26 +153,35 @@ function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS } = {}) {
     .finally(() => clearTimeout(timer));
 }
 
-// Per-provider persistent sessions: the first query opens the session with
-// --session-id, later queries --resume it so the co-host remembers the whole
-// stream. Claude and grok each get their own. IDs live in a JSON file next to
-// the backend so memory survives restarts — delete the file (or a provider's
-// entry) to give the bot a clean slate.
+// Per-provider, per-user persistent sessions: the first query from a given
+// Twitch account opens the session with --session-id, later queries from
+// that same account --resume it, so each streamer's co-host remembers their
+// own stream without mixing memories with anyone else on the site. IDs live
+// in a JSON file next to the backend so memory survives restarts — delete
+// the file (or a user's entry) to give that account's bot a clean slate.
 const SESSIONS_FILE = path.join(__dirname, ".agent-sessions.json");
 
 function loadSessions() {
-  const fresh = () => ({ id: randomUUID(), started: false });
   let saved = {};
   try {
     saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf8"));
   } catch {
-    // Missing or unreadable file → start fresh sessions
+    // Missing or unreadable file → start fresh
   }
-  const restore = (p) =>
-    saved[p] && typeof saved[p].id === "string"
-      ? { id: saved[p].id, started: !!saved[p].started }
-      : fresh();
-  return { claude: restore("claude"), grok: restore("grok"), agy: restore("agy") };
+  // Old file shape (pre per-user sessions) was a single { id, started } per
+  // provider shared site-wide — there's no safe owner to migrate it to, so
+  // it's discarded and each account starts a clean session instead.
+  const restoreProvider = (p) => {
+    const entry = saved[p];
+    const out = {};
+    if (entry && typeof entry === "object" && typeof entry.id !== "string") {
+      for (const [twitchId, s] of Object.entries(entry)) {
+        if (s && typeof s.id === "string") out[twitchId] = { id: s.id, started: !!s.started };
+      }
+    }
+    return out;
+  };
+  return { claude: restoreProvider("claude"), grok: restoreProvider("grok"), agy: restoreProvider("agy") };
 }
 
 function saveSessions() {
@@ -185,32 +194,50 @@ function saveSessions() {
 
 const sessions = loadSessions();
 
-// A session can't be resumed by two processes at once, so serialize calls
-// per provider with a promise chain.
-const queues = { claude: Promise.resolve(), grok: Promise.resolve(), agy: Promise.resolve() };
+function getSession(provider, twitchId) {
+  if (!sessions[provider][twitchId]) {
+    sessions[provider][twitchId] = { id: randomUUID(), started: false };
+  }
+  return sessions[provider][twitchId];
+}
 
-function resetSession(provider) {
-  sessions[provider] = { id: randomUUID(), started: false };
+// A session can't be resumed by two processes at once, so serialize calls
+// per (provider, twitchId) pair with a promise chain.
+const queues = { claude: new Map(), grok: new Map(), agy: new Map() };
+
+function getQueue(provider, twitchId) {
+  const m = queues[provider];
+  if (!m.has(twitchId)) m.set(twitchId, Promise.resolve());
+  return m.get(twitchId);
+}
+
+function setQueue(provider, twitchId, promise) {
+  queues[provider].set(twitchId, promise);
+}
+
+function resetSession(provider, twitchId) {
+  sessions[provider][twitchId] = { id: randomUUID(), started: false };
   saveSessions();
 }
 
-// Run fn with exclusive access to the given providers' sessions: fn starts
-// after their pending queries finish, and new queries wait until fn settles.
-// Used by the memory exporter so it never races the co-host's own queries.
-function withSessions(providers, fn) {
-  const run = Promise.all(providers.map((p) => queues[p])).then(() => fn(sessions));
-  for (const p of providers) queues[p] = run.catch(() => {});
+// Run fn with exclusive access to the given providers' sessions for one
+// Twitch account: fn starts after that account's pending queries on those
+// providers finish, and new queries wait until fn settles. Used by the
+// memory exporter so it never races the co-host's own queries.
+function withSessions(providers, twitchId, fn) {
+  const run = Promise.all(providers.map((p) => getQueue(p, twitchId))).then(() => fn(sessions, twitchId));
+  for (const p of providers) setQueue(p, twitchId, run.catch(() => {}));
   return run;
 }
 
-function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, session = true } = {}) {
+function runCLI(prompt, { provider = "claude", twitchId = null, model = null, cwd = null, timeoutMs = TIMEOUT_MS, session = true } = {}) {
   if (provider === "chatgpt") return runOpenAI(prompt, { timeoutMs });
-  if (!session || !sessions[provider]) {
+  if (!session || !twitchId || !sessions[provider]) {
     return spawnCLI(prompt, { provider, model, cwd, timeoutMs });
   }
 
-  const run = queues[provider].then(async () => {
-    const sess = sessions[provider];
+  const run = getQueue(provider, twitchId).then(async () => {
+    const sess = getSession(provider, twitchId);
     let sessionArgs = [];
     if (provider === "agy") {
       if (sess.started && sess.id) {
@@ -222,7 +249,7 @@ function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeout
         : ["--session-id", sess.id];
     }
     try {
-      const out = await spawnCLI(prompt, { provider, model, cwd, timeoutMs, sessionArgs });
+      const out = await spawnCLI(prompt, { provider, model, cwd, timeoutMs, sessionArgs, sessionRef: sess });
       if (!sess.started) {
         sess.started = true;
         saveSessions();
@@ -233,14 +260,15 @@ function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeout
       // fresh one and retry once. Timeouts and missing CLIs aren't session
       // problems, so let those surface.
       if (sess.started && err.message !== "TIMEOUT" && err.message !== "CLI_NOT_FOUND") {
-        resetSession(provider);
-        const fresh = sessions[provider];
+        resetSession(provider, twitchId);
+        const fresh = getSession(provider, twitchId);
         const freshArgs = provider === "agy"
           ? (fresh.started && fresh.id ? ["--conversation", fresh.id] : [])
           : ["--session-id", fresh.id];
         const out = await spawnCLI(prompt, {
           provider, model, cwd, timeoutMs,
           sessionArgs: freshArgs,
+          sessionRef: fresh,
         });
         fresh.started = true;
         saveSessions();
@@ -250,11 +278,11 @@ function runCLI(prompt, { provider = "claude", model = null, cwd = null, timeout
     }
   });
 
-  queues[provider] = run.catch(() => {});
+  setQueue(provider, twitchId, run.catch(() => {}));
   return run;
 }
 
-function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, sessionArgs = [] } = {}) {
+function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, sessionArgs = [], sessionRef = null } = {}) {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
@@ -306,8 +334,8 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
       if (provider === "agy") {
         try {
           const parsed = JSON.parse(stdout.trim());
-          if (parsed.conversation_id && sessions.agy) {
-            sessions.agy.id = parsed.conversation_id;
+          if (parsed.conversation_id && sessionRef) {
+            sessionRef.id = parsed.conversation_id;
           }
           if (parsed.response != null) {
             return resolve(parsed.response.trim());
@@ -331,7 +359,7 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
   });
 }
 
-async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event = null, story = null, thoughts = null, provider = "claude") {
+async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event = null, story = null, thoughts = null, provider = "claude", twitchId = null) {
   const prompt = event
     ? buildEventPrompt(event, basePrompt)
     : story
@@ -340,7 +368,7 @@ async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event =
     ? buildThoughtsPrompt(thoughts, basePrompt)
     : buildPrompt(messages, style, basePrompt);
 
-  return runCLI(prompt, { provider });
+  return runCLI(prompt, { provider, twitchId });
 }
 
 // Use Windows UI Automation to enumerate ALL Chrome windows (including background ones)
@@ -373,7 +401,7 @@ if ($found) { $found } else { '' }
   });
 }
 
-async function queryYouTubeNarration(basePrompt) {
+async function queryYouTubeNarration(basePrompt, provider = "claude", twitchId = null) {
   const rawTitle = await getYouTubeTitleFromAllWindows();
   // Strip " - YouTube - Google Chrome" → keep just the video title
   const videoTitle = rawTitle
@@ -392,7 +420,7 @@ El streamer está viendo en YouTube: "${videoTitle}".
 
 Comenta brevemente en 1–3 oraciones como co-presentador del stream: de qué trata, por qué puede ser interesante, o una reacción natural. Sé espontáneo, como si lo comentaras en directo.`;
 
-  return runCLI(prompt);
+  return runCLI(prompt, { provider, twitchId });
 }
 
 // ── Screen question detection (screenwatch) ───────────────────────────────────
@@ -455,7 +483,7 @@ function tallyVotes(options, messages) {
   return counts;
 }
 
-async function queryScreenAnswer({ question, options, messages, basePrompt, provider = "claude", windowSec = 20 }) {
+async function queryScreenAnswer({ question, options, messages, basePrompt, provider = "claude", twitchId = null, windowSec = 20 }) {
   const base = (basePrompt || DEFAULT_BASE_PROMPT).trim();
   const letters = "ABCDEFGHIJ";
 
@@ -487,7 +515,7 @@ ${chatLines}
 ${voteLines ? `\n${voteLines}\n` : ""}
 Da tu respuesta final como co-presentador: di qué opción eliges y por qué, en 1–3 oraciones. Ten en cuenta lo que dijo el chat, pero usa tu propio conocimiento — si crees que el chat se equivoca, dilo con gracia. Empieza tu respuesta EXACTAMENTE con la letra de la opción elegida entre corchetes, por ejemplo "[B] " y después tu comentario. Responde ahora.`;
 
-  const raw = await runCLI(prompt, { provider });
+  const raw = await runCLI(prompt, { provider, twitchId });
 
   // Pull the leading "[B]" marker out of the spoken text
   let choiceIndex = null;
@@ -515,12 +543,12 @@ Responde únicamente "OK" para confirmar que la has integrado.
 
 ${memory}`;
 
-async function importMemory(markdown, provider = "claude") {
+async function importMemory(markdown, provider = "claude", twitchId = null) {
   if (!markdown || !markdown.trim()) throw new Error("MEMORY_EMPTY");
   if (!["claude", "grok", "agy"].includes(provider)) {
     throw new Error("Solo Claude, Grok y AGY tienen sesión persistente");
   }
-  return runCLI(IMPORT_PROMPT(markdown), { provider, timeoutMs: 180000 });
+  return runCLI(IMPORT_PROMPT(markdown), { provider, twitchId, timeoutMs: 180000 });
 }
 
 // Same prompt shape as the export worker's dump step, but for downloading the
@@ -529,14 +557,14 @@ const DUMP_PROMPT = `Escribe en Markdown un volcado completo y detallado de todo
 
 Responde ÚNICAMENTE con el Markdown de la memoria, sin introducción ni comentarios adicionales.`;
 
-async function dumpMemory(provider = "claude") {
+async function dumpMemory(provider = "claude", twitchId = null) {
   if (!["claude", "grok", "agy"].includes(provider)) {
     throw new Error("Solo Claude, Grok y AGY tienen sesión persistente");
   }
-  if (!sessions[provider] || !sessions[provider].started) {
+  if (!twitchId || !sessions[provider][twitchId] || !sessions[provider][twitchId].started) {
     throw new Error("NO_MEMORY_YET");
   }
-  const result = await runCLI(DUMP_PROMPT, { provider, timeoutMs: 180000 });
+  const result = await runCLI(DUMP_PROMPT, { provider, twitchId, timeoutMs: 180000 });
   if (!result || !result.trim()) throw new Error("MEMORY_EMPTY");
   return result;
 }
