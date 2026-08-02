@@ -523,12 +523,31 @@ async function importMemory(markdown, provider = "claude") {
   return runCLI(IMPORT_PROMPT(markdown), { provider, timeoutMs: 180000 });
 }
 
+// Same prompt shape as the export worker's dump step, but for downloading the
+// bot's current memory as a file rather than handing it to another provider.
+const DUMP_PROMPT = `Escribe en Markdown un volcado completo y detallado de todo lo que recuerdas de nuestras conversaciones: eventos del stream, viewers recurrentes y lo que sabes de cada uno, bromas internas, historias que contamos, preferencias y datos del streamer, decisiones tomadas y cualquier otro contexto relevante.
+
+Responde ÚNICAMENTE con el Markdown de la memoria, sin introducción ni comentarios adicionales.`;
+
+async function dumpMemory(provider = "claude") {
+  if (!["claude", "grok", "agy"].includes(provider)) {
+    throw new Error("Solo Claude, Grok y AGY tienen sesión persistente");
+  }
+  if (!sessions[provider] || !sessions[provider].started) {
+    throw new Error("NO_MEMORY_YET");
+  }
+  const result = await runCLI(DUMP_PROMPT, { provider, timeoutMs: 180000 });
+  if (!result || !result.trim()) throw new Error("MEMORY_EMPTY");
+  return result;
+}
+
 module.exports = {
   queryClaudeCLI,
   queryYouTubeNarration,
   extractScreenQuestion,
   queryScreenAnswer,
   importMemory,
+  dumpMemory,
   withSessions,
   saveSessions,
   CLI_PATHS: { claude: CLAUDE_EXE, grok: GROK_EXE, agy: AGY_EXE },

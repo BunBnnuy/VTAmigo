@@ -31,6 +31,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
   const [importFile, setImportFile] = useState(null); // { name, content }
   const [importStatus, setImportStatus] = useState(null); // null | {running, error, ok}
+  const [downloadMemoryStatus, setDownloadMemoryStatus] = useState({ availableAt: 0 });
+  const [downloadMemoryState, setDownloadMemoryState] = useState(null); // null | {running, error}
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
   const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
@@ -170,6 +172,40 @@ export default function Settings({ settings, tier, onSave, onClose }) {
       setImportStatus({ running: false, error: null, ok: true });
     } catch (err) {
       setImportStatus({ running: false, error: err.message, ok: false });
+    }
+  };
+
+  useEffect(() => {
+    apiFetch("/memory/download/status")
+      .then((r) => r.json())
+      .then(setDownloadMemoryStatus)
+      .catch(() => {});
+  }, []);
+
+  const downloadMemories = async (provider) => {
+    setDownloadMemoryState({ running: true, error: null });
+    try {
+      const res = await apiFetch("/memory/download", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ provider }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.availableAt) setDownloadMemoryStatus({ availableAt: data.availableAt });
+        throw new Error(data.error || `HTTP ${res.status}`);
+      }
+      const blob = new Blob([data.markdown], { type: "text/markdown" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `vtamigo-memory-${new Date().toISOString().slice(0, 10)}.md`;
+      a.click();
+      URL.revokeObjectURL(url);
+      setDownloadMemoryStatus({ availableAt: Date.now() + 24 * 60 * 60 * 1000 });
+      setDownloadMemoryState({ running: false, error: null });
+    } catch (err) {
+      setDownloadMemoryState({ running: false, error: err.message });
     }
   };
 
@@ -805,6 +841,42 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     </span>
                   )}
                   <span style={styles.hint}>{t("settings.aiProvider.importHint")}</span>
+                </div>
+              );
+            })()}
+            {(() => {
+              const onCooldown = Date.now() < (downloadMemoryStatus.availableAt || 0);
+              const canDownload = !onCooldown && !downloadMemoryState?.running;
+              return (
+                <div style={styles.field}>
+                  <label>{t("settings.aiProvider.downloadMemoryLabel")}</label>
+                  <button
+                    type="button"
+                    onClick={() => downloadMemories("claude")}
+                    disabled={!canDownload}
+                    style={{
+                      background: "var(--surface2)",
+                      border: "1px solid var(--border)",
+                      color: "var(--text)",
+                      opacity: !canDownload ? 0.5 : 1,
+                      width: "100%",
+                    }}
+                  >
+                    {downloadMemoryState?.running
+                      ? t("settings.aiProvider.downloading")
+                      : t("settings.aiProvider.downloadMemoryButton")}
+                  </button>
+                  {onCooldown && (
+                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                      {t("settings.aiProvider.downloadCooldown", { time: new Date(downloadMemoryStatus.availableAt).toLocaleString() })}
+                    </span>
+                  )}
+                  {downloadMemoryState?.error && (
+                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                      ❌ {downloadMemoryState.error === "COOLDOWN" ? t("settings.aiProvider.downloadCooldownError") : downloadMemoryState.error}
+                    </span>
+                  )}
+                  <span style={styles.hint}>{t("settings.aiProvider.downloadMemoryHint")}</span>
                 </div>
               );
             })()}

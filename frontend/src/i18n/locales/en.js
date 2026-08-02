@@ -176,6 +176,12 @@ export default {
       importButton: "📥 Load{file} into current session",
       importSuccess: "✅ Memory merged into the session",
       importHint: "Loads a .md file (for example one exported earlier) as memories for the model selected above, into its current saved session. ChatGPT has no persistent session, so it doesn't participate.",
+      downloadMemoryLabel: "Download current memories",
+      downloadMemoryButton: "💾 Download memory (.md)",
+      downloading: "Downloading…",
+      downloadCooldown: "Available again at {time}.",
+      downloadCooldownError: "This can only be downloaded once every 24 hours.",
+      downloadMemoryHint: "Saves everything the bot currently remembers as a .md file. Limited to once every 24 hours.",
     },
 
     prompt: {

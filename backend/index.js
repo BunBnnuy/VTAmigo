@@ -11,6 +11,7 @@ const { router: devicesRouter } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
 const usage = require("./usage");
 const memoryExport = require("./memoryExport");
+const memoryDownload = require("./memoryDownload");
 const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
 const { EventSubClient } = require("./eventsub");
@@ -193,6 +194,37 @@ app.post("/memory/import", async (req, res) => {
     }
     if (err.message === "TIMEOUT") {
       return res.status(504).json({ error: `${provider || "claude"} CLI tardó demasiado (>60s)` });
+    }
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /memory/download/status — when the 24h cooldown next clears
+app.get("/memory/download/status", (req, res) => {
+  res.json(memoryDownload.getStatus());
+});
+
+// POST /memory/download — dump the bot's current memory as Markdown, gated by a 24h cooldown
+app.post("/memory/download", async (req, res) => {
+  const { provider } = req.body || {};
+  try {
+    const markdown = await memoryDownload.download(provider || "claude");
+    res.json({ markdown });
+  } catch (err) {
+    if (err.message === "COOLDOWN") {
+      return res.status(429).json({ error: "COOLDOWN", availableAt: err.availableAt });
+    }
+    if (err.message === "NO_MEMORY_YET") {
+      return res.status(400).json({ error: "El bot todavía no tiene memoria que descargar (ninguna consulta hecha)" });
+    }
+    if (err.message === "MEMORY_EMPTY") {
+      return res.status(500).json({ error: "El bot devolvió una memoria vacía" });
+    }
+    if (err.message === "CLI_NOT_FOUND") {
+      return res.status(503).json({ error: `${provider || "claude"} CLI no encontrado` });
+    }
+    if (err.message === "TIMEOUT") {
+      return res.status(504).json({ error: `${provider || "claude"} CLI tardó demasiado (>3 min)` });
     }
     res.status(400).json({ error: err.message });
   }

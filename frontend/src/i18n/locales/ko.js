@@ -176,6 +176,12 @@ export default {
       importButton: "📥 {file}을(를) 현재 세션에 불러오기",
       importSuccess: "✅ 메모리가 세션에 통합되었습니다",
       importHint: "위에서 선택한 모델의 현재 저장된 세션에 .md 파일(예: 이전에 내보낸 파일)을 기억으로 불러옵니다. ChatGPT는 영구 세션이 없어 대상에서 제외됩니다.",
+      downloadMemoryLabel: "현재 기억 다운로드",
+      downloadMemoryButton: "💾 기억 다운로드 (.md)",
+      downloading: "다운로드 중…",
+      downloadCooldown: "{time}에 다시 이용할 수 있습니다.",
+      downloadCooldownError: "24시간에 한 번만 다운로드할 수 있습니다.",
+      downloadMemoryHint: "봇이 현재 기억하고 있는 모든 내용을 .md 파일로 저장합니다. 24시간에 한 번만 사용할 수 있습니다.",
     },
 
     prompt: {

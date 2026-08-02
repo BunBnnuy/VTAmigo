@@ -176,6 +176,12 @@ export default {
       importButton: "📥 {file}を現在のセッションに読み込む",
       importSuccess: "✅ メモリがセッションに統合されました",
       importHint: "上で選択したモデルの現在の保存済みセッションに、.mdファイル（例えば以前エクスポートしたもの）を記憶として読み込みます。ChatGPTには永続セッションがないため対象外です。",
+      downloadMemoryLabel: "現在の記憶をダウンロード",
+      downloadMemoryButton: "💾 記憶をダウンロード (.md)",
+      downloading: "ダウンロード中…",
+      downloadCooldown: "{time} に再度利用可能になります。",
+      downloadCooldownError: "24時間に1回のみダウンロードできます。",
+      downloadMemoryHint: "ボットが現在覚えていることをすべて.mdファイルとして保存します。24時間に1回まで利用できます。",
     },
 
     prompt: {
