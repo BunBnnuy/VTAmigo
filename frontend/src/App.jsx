@@ -197,6 +197,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [loading, setLoading] = useState(false);
   const [muted, setMuted] = useState(false);
   const [ttsPlaying, setTtsPlaying] = useState(false);
+  const [ttsSpeaking, setTtsSpeaking] = useState(false); // true only once audio is actually audible, unlike ttsPlaying (true from the start of generation)
   const [countdown, setCountdown] = useState(null);
   const [vtubeStatus, setVtubeStatus] = useState({ connected: false, authenticated: false });
   const [micActive, setMicActive] = useState(false);
@@ -233,7 +234,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
 
   // TTS state sync
   useEffect(() => {
-    tts.onStateChange = () => setTtsPlaying(tts.playing);
+    tts.onStateChange = () => {
+      setTtsPlaying(tts.playing);
+      setTtsSpeaking(tts.speaking);
+    };
   }, []);
 
   // Auto-connect on mount — login always implies a channel now (the user's
@@ -1145,6 +1149,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           muted={muted}
           onToggleMute={toggleMute}
           ttsPlaying={ttsPlaying}
+          ttsSpeaking={ttsSpeaking}
           onSkipTts={() => tts.skip()}
           nowDisabled={nowDisabled}
           nowOnCooldown={nowOnCooldown}

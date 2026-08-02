@@ -30,7 +30,7 @@ export default function QuickControls({
   collapsed, onToggleCollapse,
   autoSendToChat, onToggleAutoSend,
   muted, onToggleMute,
-  ttsPlaying, onSkipTts,
+  ttsPlaying, ttsSpeaking, onSkipTts,
   nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
   settings, onUpdateSetting,
 }) {
@@ -106,7 +106,7 @@ export default function QuickControls({
     reader.readAsDataURL(file);
   };
 
-  const previewSlot = ttsPlaying ? "speaking" : "silent";
+  const previewSlot = ttsSpeaking ? "speaking" : "silent";
   const previewSrc = avatarImageSrc(previewSlot);
 
   // ── TTS provider / voice ─────────────────────────────────────────────────
@@ -224,7 +224,7 @@ export default function QuickControls({
             {!previewSrc && <span style={styles.avatarPreviewEmpty}>—</span>}
           </div>
           <span style={styles.avatarPreviewLabel}>
-            {ttsPlaying ? "🗣️ Hablando" : "🤫 Silencio"}
+            {ttsSpeaking ? "🗣️ Hablando" : "🤫 Silencio"}
           </span>
         </div>
 

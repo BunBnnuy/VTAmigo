@@ -22,7 +22,8 @@ class TTSController {
   constructor() {
     this.synth = window.speechSynthesis;
     this.queue = [];
-    this.playing = false;
+    this.playing = false; // true while the queue has/is processing an item (including mid-generation)
+    this.speaking = false; // true only once audio is actually audible — same instant as lipsyncStart/lipsyncStop
     this.muted = false;
     this.volume = 1;
     this.rate = 1;
@@ -69,9 +70,16 @@ class TTSController {
     this.muted = m;
     if (m) {
       lipsyncStop();
+      this._setSpeaking(false);
       this._stopCurrentAudio();
       this.synth.cancel();
     }
+  }
+
+  _setSpeaking(v) {
+    if (this.speaking === v) return;
+    this.speaking = v;
+    this._notify();
   }
 
   // onDone: optional callback fired when this specific item finishes playing
@@ -84,6 +92,7 @@ class TTSController {
 
   skip() {
     lipsyncStop();
+    this._setSpeaking(false);
     if (this.currentAudio) {
       this._stopCurrentAudio(true); // fires its onDone → _next()
     } else {
@@ -94,6 +103,7 @@ class TTSController {
 
   clearQueue() {
     lipsyncStop();
+    this._setSpeaking(false);
     this.queue = [];
     this._stopCurrentAudio();
     this.synth.cancel();
@@ -148,16 +158,19 @@ class TTSController {
     utt.onstart = () => {
       const durationMs = Math.round((text.length / (AVG_CHARS_PER_SEC * this.rate)) * 1000);
       lipsyncStart(text, durationMs);
+      this._setSpeaking(true);
     };
 
     utt.onend = () => {
       lipsyncStop();
+      this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
     };
 
     utt.onerror = () => {
       lipsyncStop();
+      this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
     };
@@ -200,11 +213,13 @@ class TTSController {
         if (audio.src) URL.revokeObjectURL(audio.src);
       }
       lipsyncStop();
+      this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
     };
     audio._onFinished = () => {
       lipsyncStop();
+      this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
     };
@@ -216,6 +231,7 @@ class TTSController {
       // Real clip length drives the mouth-sync phoneme timeline
       const durationMs = Math.round(((audio.duration || text.length / AVG_CHARS_PER_SEC) / this.rate) * 1000);
       lipsyncStart(text, durationMs);
+      this._setSpeaking(true);
     } catch {
       finish();
     }
