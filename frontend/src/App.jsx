@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
+import QuickControls from "./QuickControls.jsx";
 import Settings from "./Settings.jsx";
 import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
@@ -114,6 +115,46 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       return DEFAULT_SETTINGS;
     }
   });
+  const [theme, setTheme] = useState(() => {
+    try {
+      return localStorage.getItem("theme") || "system";
+    } catch {
+      return "system";
+    }
+  });
+  useEffect(() => {
+    if (theme === "system") {
+      document.documentElement.removeAttribute("data-theme");
+    } else {
+      document.documentElement.setAttribute("data-theme", theme);
+    }
+    try {
+      localStorage.setItem("theme", theme);
+    } catch {
+      // localStorage unavailable — theme choice won't persist.
+    }
+  }, [theme]);
+  const cycleTheme = () => {
+    setTheme((t) => (t === "system" ? "light" : t === "light" ? "dark" : "system"));
+  };
+  const [quickControlsCollapsed, setQuickControlsCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("quickControlsCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleQuickControls = () => {
+    setQuickControlsCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("quickControlsCollapsed", next ? "1" : "0");
+      } catch {
+        // localStorage unavailable — collapse choice won't persist.
+      }
+      return next;
+    });
+  };
   const [showSettings, setShowSettings] = useState(false);
   const [tourActive, setTourActive] = useState(() => {
     try {
@@ -1003,6 +1044,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         <div style={styles.topRight}>
           <button
             style={styles.settingsBtn}
+            onClick={cycleTheme}
+            title={`Theme: ${theme} (click to change)`}
+          >
+            {theme === "light" ? "☀️" : theme === "dark" ? "🌙" : "🖥️"}
+          </button>
+          <button
+            style={styles.settingsBtn}
             data-tour="settings-btn"
             onClick={() => {
               setShowSettings(true);
@@ -1068,17 +1116,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             responses={responses}
             loading={loading}
             botConnected={botStatus === "connected"}
-            autoSendToChat={settings.autoSendToChat}
-            onToggleAutoSend={toggleAutoSend}
-            muted={muted}
-            onToggleMute={toggleMute}
-            ttsPlaying={ttsPlaying}
-            onSkipTts={() => tts.skip()}
-            nowDisabled={nowDisabled}
-            nowOnCooldown={nowOnCooldown}
-            nowRemainingSec={nowRemainingSec}
-            nowTitle={nowTitle}
-            onNowClick={handleNowClick}
             onSendToChat={(text) => apiFetch("/say", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
@@ -1091,6 +1128,22 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             }).catch((e) => alert(`Bot error: ${e.message}`))}
           />
         </div>
+
+        <QuickControls
+          collapsed={quickControlsCollapsed}
+          onToggleCollapse={toggleQuickControls}
+          autoSendToChat={settings.autoSendToChat}
+          onToggleAutoSend={toggleAutoSend}
+          muted={muted}
+          onToggleMute={toggleMute}
+          ttsPlaying={ttsPlaying}
+          onSkipTts={() => tts.skip()}
+          nowDisabled={nowDisabled}
+          nowOnCooldown={nowOnCooldown}
+          nowRemainingSec={nowRemainingSec}
+          nowTitle={nowTitle}
+          onNowClick={handleNowClick}
+        />
       </div>
 
       {/* ── Bottom bar ── */}
@@ -1100,36 +1153,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           <span style={{ ...styles.dot, background: statusColor }} />
           <span style={styles.statusText}>{statusLabel}</span>
         </div>
-
-        {/* TikTok status */}
-        {settings.tiktokUsername && (
-          <div style={styles.statusGroup}>
-            <span style={{
-              ...styles.dot,
-              background: tiktokConnected ? "var(--green)" : tiktokStatus === "connecting" ? "var(--yellow)" : "var(--text-muted)",
-            }} />
-            <span style={styles.statusText}>
-              TikTok: {tiktokConnected ? `@${settings.tiktokUsername.replace(/^@/, "")}` : tiktokStatus === "connecting" ? "conectando…" : "desconectado"}
-            </span>
-            {tiktokConnected ? (
-              <button
-                style={{ ...styles.iconBtn, fontSize: 10, padding: "2px 6px" }}
-                onClick={handleTikTokDisconnect}
-                title="Disconnect TikTok"
-              >
-                ✕
-              </button>
-            ) : (
-              <button
-                style={{ ...styles.iconBtn, fontSize: 10, padding: "2px 6px" }}
-                onClick={handleTikTokConnect}
-                title="Connect TikTok"
-              >
-                ↻
-              </button>
-            )}
-          </div>
-        )}
 
         {/* Bot status */}
         {(settings.botUsername || activeBotUsername) && (
@@ -1145,37 +1168,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             </span>
           </div>
         )}
-
-        {/* VTube Studio status */}
-        <div style={styles.statusGroup}>
-          <span
-            style={{
-              ...styles.dot,
-              background: vtubeStatus.authenticated
-                ? "var(--green)"
-                : vtubeStatus.connected
-                ? "var(--yellow)"
-                : "var(--text-muted)",
-            }}
-          />
-          <span style={styles.statusText}>
-            VTube:{" "}
-            {vtubeStatus.authenticated
-              ? "connected"
-              : vtubeStatus.connected
-              ? "authenticating…"
-              : "disconnected"}
-          </span>
-          {!vtubeStatus.connected && (
-            <button
-              style={{ ...styles.iconBtn, fontSize: 10, padding: "2px 6px" }}
-              onClick={() => apiFetch("/vtube/reconnect", { method: "POST" }).catch(() => {})}
-              title="Retry VTube Studio connection"
-            >
-              ↻
-            </button>
-          )}
-        </div>
 
         {/* Screen watch status */}
         {settings.screenWatchEnabled && (

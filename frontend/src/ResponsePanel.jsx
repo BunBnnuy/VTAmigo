@@ -6,9 +6,6 @@ function formatTime(ts) {
 
 export default function ResponsePanel({
   responses, loading, onSendToChat, botConnected,
-  autoSendToChat, onToggleAutoSend,
-  muted, onToggleMute, ttsPlaying, onSkipTts,
-  nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
 }) {
   const bottomRef = useRef(null);
 
@@ -21,41 +18,6 @@ export default function ResponsePanel({
       <div style={styles.header}>
         <span style={styles.title}>AI Responses</span>
         {loading && <span style={styles.thinking}>thinking…</span>}
-        <div style={styles.headerControls}>
-          {onToggleAutoSend && (
-            <button
-              style={{ ...styles.controlBtn, color: autoSendToChat ? "var(--green)" : "var(--text-muted)" }}
-              onClick={onToggleAutoSend}
-              title="Auto-send AI responses to chat"
-            >
-              {autoSendToChat ? "💬 Auto-send ON" : "💬 Auto-send OFF"}
-            </button>
-          )}
-          {ttsPlaying && onSkipTts && (
-            <button style={{ ...styles.controlBtn, color: "var(--purple-light)" }} onClick={onSkipTts} title="Skip current TTS">
-              ⏭ Skip
-            </button>
-          )}
-          {onToggleMute && (
-            <button
-              style={{ ...styles.controlBtn, color: muted ? "var(--red)" : "var(--text)" }}
-              onClick={onToggleMute}
-              title={muted ? "Unmute TTS" : "Mute TTS"}
-            >
-              {muted ? "🔇 Muted" : "🔊 TTS"}
-            </button>
-          )}
-          {onNowClick && (
-            <button
-              style={{ ...styles.controlBtn, color: "var(--text-muted)", opacity: nowDisabled && !loading ? 0.5 : 1 }}
-              onClick={onNowClick}
-              disabled={nowDisabled}
-              title={nowTitle}
-            >
-              ▶ Now{nowOnCooldown ? ` (${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")})` : ""}
-            </button>
-          )}
-        </div>
       </div>
       <div style={styles.list}>
         {responses.length === 0 && (
