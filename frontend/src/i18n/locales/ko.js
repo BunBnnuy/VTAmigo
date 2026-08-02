@@ -213,6 +213,7 @@ export default {
     voice: {
       title: "음성 전사 (마이크)",
       unsupported: "⚠ 이 브라우저에서는 SpeechRecognition을 지원하지 않습니다. Chromium/Chrome을 사용하세요.",
+      chromeOnly: "⚠ 음성 전사 기능은 Google Chrome에서만 작동합니다.",
       enableLabel: "마이크를 전사하여 Claude 배치에 포함",
       micDevice: "마이크 장치",
       systemDefault: "시스템 기본값",

@@ -1,5 +1,14 @@
 const FATAL_ERRORS = new Set(["not-allowed", "service-not-allowed"]);
 
+export function isChromeBrowser() {
+  const nav = window.navigator;
+  if (nav.userAgentData && Array.isArray(nav.userAgentData.brands)) {
+    return nav.userAgentData.brands.some((b) => b.brand === "Google Chrome");
+  }
+  const ua = nav.userAgent || "";
+  return /Chrome\//.test(ua) && !/Edg\/|OPR\/|Brave|SamsungBrowser/.test(ua);
+}
+
 class VoiceTranscriptionController {
   constructor() {
     this.running = false;

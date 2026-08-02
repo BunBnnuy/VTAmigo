@@ -213,6 +213,7 @@ export default {
     voice: {
       title: "Voice Transcription (Mic)",
       unsupported: "⚠ SpeechRecognition not supported in this browser. Use Chromium/Chrome.",
+      chromeOnly: "⚠ Voice transcription only works in Google Chrome.",
       enableLabel: "Transcribe mic and include in Claude batches",
       micDevice: "Microphone device",
       systemDefault: "System default",

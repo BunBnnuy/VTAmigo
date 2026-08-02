@@ -6,7 +6,7 @@ import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
-import { voice } from "./VoiceTranscription.js";
+import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
 import { detectLanguage } from "./i18n/index.js";
@@ -1044,6 +1044,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             messages={messages}
             onSend={handleSendTyped}
             micSupported={voice.supported}
+            micChromeAllowed={voice.supported && isChromeBrowser()}
             micActive={micActive}
             micError={micError}
             micModelStatus={micModelStatus}

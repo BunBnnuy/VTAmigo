@@ -213,6 +213,7 @@ export default {
     voice: {
       title: "音声文字起こし（マイク）",
       unsupported: "⚠ このブラウザではSpeechRecognitionがサポートされていません。Chromium/Chromeを使用してください。",
+      chromeOnly: "⚠ 音声文字起こしはGoogle Chromeでのみ動作します。",
       enableLabel: "マイクを文字起こしし、Claudeのバッチに含める",
       micDevice: "マイクデバイス",
       systemDefault: "システムのデフォルト",

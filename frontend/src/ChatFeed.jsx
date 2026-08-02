@@ -15,7 +15,7 @@ const EVENT_ICONS = {
 
 export default function ChatFeed({
   messages, onSend,
-  micSupported, micActive, micError, micModelStatus, micSpeaking, micLastText, onToggleMic,
+  micSupported, micChromeAllowed, micActive, micError, micModelStatus, micSpeaking, micLastText, onToggleMic,
 }) {
   const bottomRef = useRef(null);
   const [draft, setDraft] = useState("");
@@ -86,14 +86,21 @@ export default function ChatFeed({
           {micSupported && (
             <button
               type="button"
+              disabled={!micChromeAllowed}
               style={{
                 ...styles.micBtn,
                 color: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--text-muted)",
                 borderColor: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--border)",
                 animation: micSpeaking ? "pulse 0.8s infinite" : "none",
+                opacity: micChromeAllowed ? 1 : 0.4,
+                cursor: micChromeAllowed ? "pointer" : "not-allowed",
               }}
               onClick={onToggleMic}
-              title={micError || (micActive ? "Mic activo — click para desactivar" : "Activar micrófono")}
+              title={
+                !micChromeAllowed
+                  ? "Voice transcription only works in Google Chrome"
+                  : micError || (micActive ? "Mic activo — click para desactivar" : "Activar micrófono")
+              }
             >
               {micError ? "🎙 Error" : micModelStatus === "loading" ? "🎙 Loading…" : micActive ? "🎙 Live" : "🎙 Mic"}
             </button>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { tts } from "./TTSController.js";
-import { voice } from "./VoiceTranscription.js";
+import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation, SUPPORTED_LANGUAGES } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
@@ -20,6 +20,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [form, setForm] = useState(() => ({ ...settings, ...clampToTier(tier, settings) }));
   const limits = tierLimits(tier);
   const { t } = useTranslation(form.language);
+  const micChromeAllowed = voice.supported && isChromeBrowser();
   const [voices, setVoices] = useState([]);
   const [micDevices, setMicDevices] = useState([]);
   const [elevenVoices, setElevenVoices] = useState([]);
@@ -311,7 +312,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </div>
           </section>
 
-          <section style={styles.section} data-tour="bot-account">
+          <section style={{ ...styles.section, ...styles.grayedOutSection }} data-tour="bot-account">
             <h3 style={styles.sectionTitle}>{t("settings.bot.title")}</h3>
             <div style={styles.field}>
               <label>{t("settings.bot.username")}</label>
@@ -319,6 +320,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 value={form.botUsername || ""}
                 onChange={(e) => set("botUsername", e.target.value)}
                 placeholder="mybotname"
+                disabled
               />
             </div>
             <div style={styles.field}>
@@ -328,6 +330,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 value={form.botToken || ""}
                 onChange={(e) => set("botToken", e.target.value)}
                 placeholder="oauth:xxxxxxxxxxxxxxx"
+                disabled
               />
               <span style={styles.hint}>
                 {t("settings.bot.tokenHintPrefix")} <code>{t("settings.bot.tokenHintScope")}</code> {t("settings.bot.tokenHintMiddle")}{" "}
@@ -973,11 +976,16 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </div>
           </section>
 
-          <section style={styles.section}>
+          <section style={{ ...styles.section, ...(!micChromeAllowed ? styles.grayedOutSection : {}) }}>
             <h3 style={styles.sectionTitle}>{t("settings.voice.title")}</h3>
             {!voice.supported && (
               <p style={{ ...styles.hint, color: "var(--red)", marginBottom: 10 }}>
                 {t("settings.voice.unsupported")}
+              </p>
+            )}
+            {voice.supported && !isChromeBrowser() && (
+              <p style={{ ...styles.hint, color: "var(--red)", marginBottom: 10 }}>
+                {t("settings.voice.chromeOnly")}
               </p>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
@@ -987,7 +995,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 checked={form.micEnabled || false}
                 onChange={(e) => set("micEnabled", e.target.checked)}
                 style={{ width: "auto", accentColor: "var(--purple)" }}
-                disabled={!voice.supported}
+                disabled={!micChromeAllowed}
               />
               <label htmlFor="micEnabled" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                 {t("settings.voice.enableLabel")}
@@ -998,7 +1006,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               <select
                 value={form.micDeviceId || ""}
                 onChange={(e) => set("micDeviceId", e.target.value)}
-                disabled={!voice.supported}
+                disabled={!micChromeAllowed}
               >
                 <option value="">{t("settings.voice.systemDefault")}</option>
                 {micDevices.map((d) => (
@@ -1014,7 +1022,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 <select
                   value={form.micLang || "es-ES"}
                   onChange={(e) => set("micLang", e.target.value)}
-                  disabled={!voice.supported}
+                  disabled={!micChromeAllowed}
                 >
                   <option value="es-ES">Español (ES)</option>
                   <option value="es-MX">Español (MX)</option>
@@ -1032,14 +1040,14 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   value={form.micLabel || "Streamer"}
                   onChange={(e) => set("micLabel", e.target.value)}
                   placeholder={t("settings.voice.chatLabelPlaceholder")}
-                  disabled={!voice.supported}
+                  disabled={!micChromeAllowed}
                 />
                 <span style={styles.hint}>{t("settings.voice.chatLabelHint")}</span>
               </div>
             </div>
           </section>
 
-          <section style={styles.section}>
+          <section style={{ ...styles.section, ...styles.disabledSection }}>
             <h3 style={styles.sectionTitle}>{t("settings.copySettings.title")}</h3>
             <div style={styles.field}>
               <label>{t("settings.copySettings.label")}</label>
@@ -1107,6 +1115,10 @@ const styles = {
   disabledSection: {
     opacity: 0.45,
     display: "none",
+  },
+  grayedOutSection: {
+    opacity: 0.45,
+    pointerEvents: "none",
   },
   disabledFieldset: {
     border: "none",

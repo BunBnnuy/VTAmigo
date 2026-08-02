@@ -213,6 +213,7 @@ export default {
     voice: {
       title: "Transcripción de voz (micrófono)",
       unsupported: "⚠ SpeechRecognition no es compatible en este navegador. Usa Chromium/Chrome.",
+      chromeOnly: "⚠ La transcripción de voz solo funciona en Google Chrome.",
       enableLabel: "Transcribir micrófono e incluirlo en los lotes de Claude",
       micDevice: "Dispositivo de micrófono",
       systemDefault: "Predeterminado del sistema",
