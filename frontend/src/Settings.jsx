@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, apiUrl } from "./api.js";
@@ -31,8 +31,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
   const [importFile, setImportFile] = useState(null); // { name, content }
   const [importStatus, setImportStatus] = useState(null); // null | {running, error, ok}
-  const [downloadMemoryStatus, setDownloadMemoryStatus] = useState({ availableAt: 0 });
-  const [downloadMemoryState, setDownloadMemoryState] = useState(null); // null | {running, error}
+  const [downloadMemoryStatus, setDownloadMemoryStatus] = useState({ running: false, pct: 0, stage: "", error: null, markdown: null, availableAt: 0 });
+  const downloadTriggeredRef = useRef(false);
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
   const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
@@ -182,8 +182,39 @@ export default function Settings({ settings, tier, onSave, onClose }) {
       .catch(() => {});
   }, []);
 
+  const triggerMemoryFileDownload = (markdown) => {
+    const blob = new Blob([markdown], { type: "text/markdown" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `vtamigo-memory-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  // Poll download progress while a job is running — the CLI dump can take a
+  // couple of minutes, so the backend runs it as a background job instead of
+  // one long request (which risked hitting nginx's proxy timeout).
+  useEffect(() => {
+    if (!downloadMemoryStatus.running) return;
+    const timer = setInterval(async () => {
+      try {
+        const res = await apiFetch("/memory/download/status");
+        const data = await res.json();
+        setDownloadMemoryStatus(data);
+        if (!data.running && data.markdown && !downloadTriggeredRef.current) {
+          downloadTriggeredRef.current = true;
+          triggerMemoryFileDownload(data.markdown);
+        }
+      } catch {
+        // Backend unreachable — keep last known state and retry
+      }
+    }, 700);
+    return () => clearInterval(timer);
+  }, [downloadMemoryStatus.running]);
+
   const downloadMemories = async (provider) => {
-    setDownloadMemoryState({ running: true, error: null });
+    downloadTriggeredRef.current = false;
     try {
       const res = await apiFetch("/memory/download", {
         method: "POST",
@@ -192,20 +223,12 @@ export default function Settings({ settings, tier, onSave, onClose }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        if (data.availableAt) setDownloadMemoryStatus({ availableAt: data.availableAt });
-        throw new Error(data.error || `HTTP ${res.status}`);
+        setDownloadMemoryStatus((s) => ({ ...s, running: false, error: data.error, availableAt: data.availableAt || s.availableAt }));
+        return;
       }
-      const blob = new Blob([data.markdown], { type: "text/markdown" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-      a.download = `vtamigo-memory-${new Date().toISOString().slice(0, 10)}.md`;
-      a.click();
-      URL.revokeObjectURL(url);
-      setDownloadMemoryStatus({ availableAt: Date.now() + 24 * 60 * 60 * 1000 });
-      setDownloadMemoryState({ running: false, error: null });
+      setDownloadMemoryStatus((s) => ({ ...s, running: true, pct: 0, stage: t("settings.aiProvider.downloadStarting"), error: null, markdown: null }));
     } catch (err) {
-      setDownloadMemoryState({ running: false, error: err.message });
+      setDownloadMemoryStatus((s) => ({ ...s, running: false, error: err.message }));
     }
   };
 
@@ -845,8 +868,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               );
             })()}
             {(() => {
-              const onCooldown = Date.now() < (downloadMemoryStatus.availableAt || 0);
-              const canDownload = !onCooldown && !downloadMemoryState?.running;
+              const onCooldown = !downloadMemoryStatus.running && Date.now() < (downloadMemoryStatus.availableAt || 0);
+              const canDownload = !onCooldown && !downloadMemoryStatus.running;
               return (
                 <div style={styles.field}>
                   <label>{t("settings.aiProvider.downloadMemoryLabel")}</label>
@@ -862,18 +885,46 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                       width: "100%",
                     }}
                   >
-                    {downloadMemoryState?.running
+                    {downloadMemoryStatus.running
                       ? t("settings.aiProvider.downloading")
                       : t("settings.aiProvider.downloadMemoryButton")}
                   </button>
+                  {downloadMemoryStatus.running && (
+                    <div style={{ marginTop: 8 }}>
+                      <div
+                        style={{
+                          height: 10,
+                          background: "var(--surface2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 5,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${downloadMemoryStatus.pct || 0}%`,
+                            background: "var(--purple)",
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+                      <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                        {downloadMemoryStatus.stage} ({downloadMemoryStatus.pct || 0}%)
+                      </span>
+                    </div>
+                  )}
+                  {!downloadMemoryStatus.running && downloadMemoryStatus.pct >= 100 && !downloadMemoryStatus.error && (
+                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>✅ {t("settings.aiProvider.downloadDone")}</span>
+                  )}
                   {onCooldown && (
                     <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
                       {t("settings.aiProvider.downloadCooldown", { time: new Date(downloadMemoryStatus.availableAt).toLocaleString() })}
                     </span>
                   )}
-                  {downloadMemoryState?.error && (
+                  {downloadMemoryStatus.error && (
                     <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                      ❌ {downloadMemoryState.error === "COOLDOWN" ? t("settings.aiProvider.downloadCooldownError") : downloadMemoryState.error}
+                      ❌ {downloadMemoryStatus.error === "COOLDOWN" ? t("settings.aiProvider.downloadCooldownError") : downloadMemoryStatus.error}
                     </span>
                   )}
                   <span style={styles.hint}>{t("settings.aiProvider.downloadMemoryHint")}</span>

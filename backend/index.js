@@ -204,27 +204,21 @@ app.get("/memory/download/status", (req, res) => {
   res.json(memoryDownload.getStatus());
 });
 
-// POST /memory/download — dump the bot's current memory as Markdown, gated by a 24h cooldown
-app.post("/memory/download", async (req, res) => {
+// POST /memory/download — start a background job dumping the bot's current
+// memory as Markdown, gated by a 24h cooldown. Returns immediately; poll
+// GET /memory/download/status for progress (the CLI call itself can take a
+// couple of minutes, longer than nginx's proxy timeout allows for one request).
+app.post("/memory/download", (req, res) => {
   const { provider } = req.body || {};
   try {
-    const markdown = await memoryDownload.download(provider || "claude");
-    res.json({ markdown });
+    memoryDownload.startDownload(provider || "claude");
+    res.json({ ok: true });
   } catch (err) {
     if (err.message === "COOLDOWN") {
       return res.status(429).json({ error: "COOLDOWN", availableAt: err.availableAt });
     }
-    if (err.message === "NO_MEMORY_YET") {
-      return res.status(400).json({ error: "El bot todavía no tiene memoria que descargar (ninguna consulta hecha)" });
-    }
-    if (err.message === "MEMORY_EMPTY") {
-      return res.status(500).json({ error: "El bot devolvió una memoria vacía" });
-    }
-    if (err.message === "CLI_NOT_FOUND") {
-      return res.status(503).json({ error: `${provider || "claude"} CLI no encontrado` });
-    }
-    if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: `${provider || "claude"} CLI tardó demasiado (>3 min)` });
+    if (err.message === "ALREADY_RUNNING") {
+      return res.status(409).json({ error: "Ya hay una descarga en curso" });
     }
     res.status(400).json({ error: err.message });
   }

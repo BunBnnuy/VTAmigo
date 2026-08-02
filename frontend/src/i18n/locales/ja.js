@@ -179,6 +179,8 @@ export default {
       downloadMemoryLabel: "現在の記憶をダウンロード",
       downloadMemoryButton: "💾 記憶をダウンロード (.md)",
       downloading: "ダウンロード中…",
+      downloadStarting: "開始しています…",
+      downloadDone: "記憶をダウンロードしました",
       downloadCooldown: "{time} に再度利用可能になります。",
       downloadCooldownError: "24時間に1回のみダウンロードできます。",
       downloadMemoryHint: "ボットが現在覚えていることをすべて.mdファイルとして保存します。24時間に1回まで利用できます。",

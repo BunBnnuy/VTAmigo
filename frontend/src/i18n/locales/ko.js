@@ -179,6 +179,8 @@ export default {
       downloadMemoryLabel: "현재 기억 다운로드",
       downloadMemoryButton: "💾 기억 다운로드 (.md)",
       downloading: "다운로드 중…",
+      downloadStarting: "시작하는 중…",
+      downloadDone: "기억을 다운로드했습니다",
       downloadCooldown: "{time}에 다시 이용할 수 있습니다.",
       downloadCooldownError: "24시간에 한 번만 다운로드할 수 있습니다.",
       downloadMemoryHint: "봇이 현재 기억하고 있는 모든 내용을 .md 파일로 저장합니다. 24시간에 한 번만 사용할 수 있습니다.",

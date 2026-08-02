@@ -179,6 +179,8 @@ export default {
       downloadMemoryLabel: "Descargar memoria actual",
       downloadMemoryButton: "💾 Descargar memoria (.md)",
       downloading: "Descargando…",
+      downloadStarting: "Iniciando…",
+      downloadDone: "Memoria descargada",
       downloadCooldown: "Disponible de nuevo a las {time}.",
       downloadCooldownError: "Solo se puede descargar una vez cada 24 horas.",
       downloadMemoryHint: "Guarda todo lo que el bot recuerda actualmente como archivo .md. Limitado a una vez cada 24 horas.",
