@@ -212,7 +212,7 @@ export default {
       pasteVoiceIdHint: "Útil para voces de biblioteca/compartidas que no aparecen en «Mis voces». Encuentra el ID en ElevenLabs → Voices → ⋯ → Copy voice ID.",
       piperVoice: "Voz de Piper",
       piperDefault: "Predeterminada (es_MX claude, alta calidad)",
-      piperMissing: "⚠ No se encontró piper.exe en projects\\piperttsspanish",
+      piperMissing: "⚠ Piper no está instalado en el servidor",
       piperHint: "Funciona totalmente sin conexión en CPU — no necesita API key ni servidor. Vuelve al TTS de Windows si falla la generación.",
       speed: "Velocidad ({rate}x)",
       volume: "Volumen ({volume}%)",
