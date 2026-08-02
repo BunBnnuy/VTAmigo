@@ -932,6 +932,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     });
   }, []);
 
+  const updateSetting = useCallback((key, value) => {
+    setSettings((prev) => {
+      const next = { ...prev, [key]: value };
+      localStorage.setItem("settings", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   const saveSettings = (newSettings) => {
     const prev = settingsRef.current;
     track("save_apply_click");
@@ -1143,6 +1151,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           nowRemainingSec={nowRemainingSec}
           nowTitle={nowTitle}
           onNowClick={handleNowClick}
+          settings={settings}
+          onUpdateSetting={updateSetting}
         />
       </div>
 

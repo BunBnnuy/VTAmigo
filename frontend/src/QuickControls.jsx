@@ -1,4 +1,9 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
+import { apiFetch, apiUrl } from "./api.js";
+import { tts } from "./TTSController.js";
+
+const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 function Toggle({ checked, onChange }) {
   return (
@@ -27,7 +32,137 @@ export default function QuickControls({
   muted, onToggleMute,
   ttsPlaying, onSkipTts,
   nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
+  settings, onUpdateSetting,
 }) {
+  // ── Avatar overlay: URL, uploads, live preview ──────────────────────────
+  const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
+  const [avatarOverlayToken, setAvatarOverlayToken] = useState("");
+  const [avatarOverlayCopied, setAvatarOverlayCopied] = useState(false);
+  const [avatarStatus, setAvatarStatus] = useState({ hasSpeaking: false, hasSilent: false });
+  const [avatarPreviews, setAvatarPreviews] = useState({ speaking: null, silent: null });
+  const [avatarUploading, setAvatarUploading] = useState({ speaking: false, silent: false });
+  const [avatarError, setAvatarError] = useState({ speaking: "", silent: "" });
+
+  useEffect(() => {
+    apiFetch("/overlay/avatar/overlay-url")
+      .then((res) => res.json())
+      .then((data) => {
+        setAvatarOverlayUrl(data.url || "");
+        setAvatarOverlayToken(data.token || "");
+        setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
+      })
+      .catch(() => {});
+  }, []);
+
+  const copyAvatarOverlayUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(avatarOverlayUrl);
+      setAvatarOverlayCopied(true);
+      setTimeout(() => setAvatarOverlayCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable — user can still copy from Settings instead.
+    }
+  };
+
+  const avatarImageSrc = (slot) => {
+    if (avatarPreviews[slot]) return avatarPreviews[slot];
+    const has = slot === "speaking" ? avatarStatus.hasSpeaking : avatarStatus.hasSilent;
+    if (!has || !avatarOverlayToken) return null;
+    return apiUrl(`/overlay/avatar/image?slot=${slot}&token=${avatarOverlayToken}`);
+  };
+
+  const uploadAvatarImage = (slot, file) => {
+    if (!file) return;
+    setAvatarError((prev) => ({ ...prev, [slot]: "" }));
+    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
+      setAvatarError((prev) => ({ ...prev, [slot]: "Formato no admitido" }));
+      return;
+    }
+    if (file.size > MAX_AVATAR_BYTES) {
+      setAvatarError((prev) => ({ ...prev, [slot]: "Imagen demasiado grande (máx. 5MB)" }));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setAvatarPreviews((prev) => ({ ...prev, [slot]: dataUrl }));
+      setAvatarUploading((prev) => ({ ...prev, [slot]: true }));
+      try {
+        const res = await apiFetch("/overlay/avatar/upload", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ slot, dataUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
+      } catch (err) {
+        setAvatarError((prev) => ({ ...prev, [slot]: `Error al subir: ${err.message}` }));
+      } finally {
+        setAvatarUploading((prev) => ({ ...prev, [slot]: false }));
+      }
+    };
+    reader.onerror = () => setAvatarError((prev) => ({ ...prev, [slot]: `Error al leer ${file.name}` }));
+    reader.readAsDataURL(file);
+  };
+
+  const previewSlot = ttsPlaying ? "speaking" : "silent";
+  const previewSrc = avatarImageSrc(previewSlot);
+
+  // ── TTS provider / voice ─────────────────────────────────────────────────
+  const [voices, setVoices] = useState([]);
+  const [elevenVoices, setElevenVoices] = useState([]);
+  const [elevenVoicesStatus, setElevenVoicesStatus] = useState("");
+  const [piperVoices, setPiperVoices] = useState([]);
+  const [piperStatus, setPiperStatus] = useState("");
+
+  useEffect(() => {
+    const load = () => setVoices(tts.getVoices());
+    load();
+    window.speechSynthesis.onvoiceschanged = load;
+  }, []);
+
+  const loadPiperVoices = async () => {
+    setPiperStatus("loading");
+    try {
+      const res = await apiFetch("/tts/piper/voices");
+      const data = await res.json();
+      setPiperVoices(data.voices || []);
+      setPiperStatus(data.installed ? "ok" : "missing");
+    } catch (err) {
+      setPiperVoices([]);
+      setPiperStatus(err.message);
+    }
+  };
+
+  const loadElevenVoices = async (apiKey) => {
+    if (!apiKey) return;
+    setElevenVoicesStatus("loading");
+    try {
+      const res = await apiFetch("/tts/elevenlabs/voices", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      setElevenVoices(data.voices || []);
+      setElevenVoicesStatus("");
+    } catch (err) {
+      setElevenVoices([]);
+      setElevenVoicesStatus(err.message);
+    }
+  };
+
+  useEffect(() => {
+    if (!settings) return;
+    if (settings.ttsProvider === "elevenlabs" && settings.elevenLabsKey) loadElevenVoices(settings.elevenLabsKey);
+    if (settings.ttsProvider === "piper") loadPiperVoices();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const ttsProvider = settings?.ttsProvider || "windows";
+
   if (collapsed) {
     return (
       <div style={styles.collapsedPanel}>
@@ -73,6 +208,172 @@ export default function QuickControls({
           >
             ▶ Now{nowOnCooldown ? ` (${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")})` : ""}
           </button>
+        )}
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionLabel}>Avatar</div>
+
+        <div style={styles.avatarPreviewWrap}>
+          <div
+            style={{
+              ...styles.avatarPreview,
+              backgroundImage: previewSrc ? `url("${previewSrc.replace(/"/g, "%22")}")` : "none",
+            }}
+          >
+            {!previewSrc && <span style={styles.avatarPreviewEmpty}>—</span>}
+          </div>
+          <span style={styles.avatarPreviewLabel}>
+            {ttsPlaying ? "🗣️ Hablando" : "🤫 Silencio"}
+          </span>
+        </div>
+
+        <button
+          style={styles.actionBtn}
+          onClick={copyAvatarOverlayUrl}
+          disabled={!avatarOverlayUrl}
+          title="Copiar la URL del overlay del avatar para OBS"
+        >
+          {avatarOverlayCopied ? "✓ Copiado" : "🔗 Copiar overlay"}
+        </button>
+
+        <div style={styles.avatarUploadRow}>
+          {["speaking", "silent"].map((slot) => (
+            <div key={slot} style={styles.avatarUploadCol}>
+              <label
+                style={{
+                  ...styles.uploadLabel,
+                  cursor: avatarUploading[slot] ? "default" : "pointer",
+                  opacity: avatarUploading[slot] ? 0.6 : 1,
+                }}
+              >
+                {avatarUploading[slot]
+                  ? "Subiendo…"
+                  : slot === "speaking" ? "📤 Hablando" : "📤 Silencio"}
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/gif,image/webp"
+                  disabled={avatarUploading[slot]}
+                  onChange={(e) => {
+                    uploadAvatarImage(slot, e.target.files[0]);
+                    e.target.value = "";
+                  }}
+                  style={{ display: "none" }}
+                />
+              </label>
+              {avatarError[slot] && (
+                <span style={styles.avatarErrorText}>{avatarError[slot]}</span>
+              )}
+            </div>
+          ))}
+        </div>
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionLabel}>Voz</div>
+
+        {settings && onUpdateSetting && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.fieldLabel}>Proveedor</label>
+              <select
+                value={ttsProvider}
+                onChange={(e) => {
+                  onUpdateSetting("ttsProvider", e.target.value);
+                  if (e.target.value === "piper") loadPiperVoices();
+                }}
+              >
+                <option value="windows">Windows (navegador)</option>
+                <option value="elevenlabs" disabled={ttsProvider !== "elevenlabs"}>
+                  ElevenLabs{ttsProvider !== "elevenlabs" ? " (no disponible)" : ""}
+                </option>
+                <option value="piper">Piper</option>
+              </select>
+            </div>
+
+            {ttsProvider === "windows" && (
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>Voz</label>
+                <select
+                  value={settings.voiceURI || ""}
+                  onChange={(e) => onUpdateSetting("voiceURI", e.target.value)}
+                >
+                  <option value="">Predeterminada del sistema</option>
+                  {voices.map((v) => (
+                    <option key={v.voiceURI} value={v.voiceURI}>
+                      {v.name} ({v.lang})
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {ttsProvider === "elevenlabs" && (
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>Voz</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <select
+                    value={settings.elevenLabsVoiceId || ""}
+                    onChange={(e) => onUpdateSetting("elevenLabsVoiceId", e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Elegir voz</option>
+                    {elevenVoices.map((v) => (
+                      <option key={v.voice_id} value={v.voice_id}>
+                        {v.name}{v.category ? ` (${v.category})` : ""}
+                      </option>
+                    ))}
+                    {settings.elevenLabsVoiceId && !elevenVoices.some((v) => v.voice_id === settings.elevenLabsVoiceId) && (
+                      <option value={settings.elevenLabsVoiceId}>{settings.elevenLabsVoiceId} (guardada)</option>
+                    )}
+                  </select>
+                  <button
+                    type="button"
+                    style={styles.smallBtn}
+                    onClick={() => loadElevenVoices(settings.elevenLabsKey)}
+                    disabled={!settings.elevenLabsKey || elevenVoicesStatus === "loading"}
+                  >
+                    ↻
+                  </button>
+                </div>
+                {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
+                  <span style={styles.avatarErrorText}>⚠ {elevenVoicesStatus}</span>
+                )}
+              </div>
+            )}
+
+            {ttsProvider === "piper" && (
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>Voz</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <select
+                    value={settings.piperVoice || ""}
+                    onChange={(e) => onUpdateSetting("piperVoice", e.target.value)}
+                    style={{ flex: 1 }}
+                  >
+                    <option value="">Predeterminada</option>
+                    {piperVoices.map((v) => (
+                      <option key={v.id} value={v.id}>{v.name}</option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    style={styles.smallBtn}
+                    onClick={loadPiperVoices}
+                    disabled={piperStatus === "loading"}
+                  >
+                    ↻
+                  </button>
+                </div>
+                {piperStatus === "missing" && (
+                  <span style={styles.avatarErrorText}>Piper no está instalado</span>
+                )}
+                {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
+                  <span style={styles.avatarErrorText}>⚠ {piperStatus}</span>
+                )}
+              </div>
+            )}
+          </>
         )}
       </div>
       <div style={styles.hint}>Este panel se puede ocultar en modo compacto</div>
@@ -162,6 +463,88 @@ const styles = {
     fontSize: 12,
     padding: "6px 10px",
     textAlign: "left",
+  },
+  divider: {
+    height: 1,
+    background: "var(--border)",
+    margin: "2px 0",
+  },
+  sectionLabel: {
+    fontSize: 11,
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    textTransform: "uppercase",
+    letterSpacing: "0.03em",
+  },
+  avatarPreviewWrap: {
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    gap: 6,
+  },
+  avatarPreview: {
+    width: "100%",
+    aspectRatio: "1 / 1",
+    borderRadius: 8,
+    border: "1px solid var(--border)",
+    background: "var(--surface2)",
+    backgroundSize: "contain",
+    backgroundPosition: "center",
+    backgroundRepeat: "no-repeat",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  avatarPreviewEmpty: {
+    color: "var(--text-muted)",
+    fontSize: 11,
+  },
+  avatarPreviewLabel: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+  },
+  avatarUploadRow: {
+    display: "flex",
+    gap: 8,
+  },
+  avatarUploadCol: {
+    flex: 1,
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  uploadLabel: {
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    padding: "6px 4px",
+    fontSize: 11,
+    fontWeight: 600,
+    textAlign: "center",
+  },
+  avatarErrorText: {
+    fontSize: 10,
+    color: "var(--red)",
+  },
+  field: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+  },
+  fieldLabel: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+  },
+  smallBtn: {
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    fontSize: 12,
+    padding: "0 8px",
   },
   hint: {
     fontSize: 11,
