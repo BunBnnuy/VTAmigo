@@ -31,14 +31,26 @@ function emptyAccount() {
     defaultPlaylistCache: null, // { items: [{videoId,title,thumbnail}], fetchedAt, index }
     nowPlaying: null, // { videoId, title, thumbnail, source, startedAt, paused }
     history: [], // previously-played nowPlaying entries, oldest first
+    viewerRequestsEnabled: true, // !sr chat requests — the streamer's own site controls are never gated by this
+    skipDefaultOnRequest: false, // a viewer !sr request skips a currently-playing default-playlist song
   };
 }
 
 function getState(twitchId) {
   const all = readAll();
   const account = all[twitchId] || emptyAccount();
-  if (!account.history) account.history = []; // back-compat with state saved before history existed
+  // back-compat with state saved before these fields existed
+  if (!account.history) account.history = [];
+  if (account.viewerRequestsEnabled === undefined) account.viewerRequestsEnabled = true;
+  if (account.skipDefaultOnRequest === undefined) account.skipDefaultOnRequest = false;
   return account;
+}
+
+function setSettings(twitchId, { viewerRequestsEnabled, skipDefaultOnRequest } = {}) {
+  const account = getState(twitchId);
+  if (viewerRequestsEnabled !== undefined) account.viewerRequestsEnabled = !!viewerRequestsEnabled;
+  if (skipDefaultOnRequest !== undefined) account.skipDefaultOnRequest = !!skipDefaultOnRequest;
+  return saveAccount(twitchId, account);
 }
 
 function saveAccount(twitchId, account) {
@@ -146,4 +158,4 @@ function setPaused(twitchId, paused) {
   return saveAccount(twitchId, account);
 }
 
-module.exports = { getState, enqueue, removeFromQueue, setDefaultPlaylist, advance, previous, setPaused };
+module.exports = { getState, enqueue, removeFromQueue, setDefaultPlaylist, advance, previous, setPaused, setSettings };

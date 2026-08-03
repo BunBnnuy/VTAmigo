@@ -1,6 +1,27 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "./api.js";
 
+function Toggle({ checked, onChange }) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      onClick={onChange}
+      style={{
+        ...styles.toggle,
+        background: checked ? "var(--purple)" : "var(--border)",
+      }}
+    >
+      <span
+        style={{
+          ...styles.toggleKnob,
+          transform: checked ? "translateX(16px)" : "translateX(0)",
+        }}
+      />
+    </button>
+  );
+}
+
 export default function VideoQueue({ videoState }) {
   const [collapsed, setCollapsed] = useState(false);
   const [overlayUrl, setOverlayUrl] = useState("");
@@ -73,6 +94,14 @@ export default function VideoQueue({ videoState }) {
     }).catch(() => {});
   };
 
+  const updateSetting = (key, value) => {
+    apiFetch("/video/settings", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [key]: value }),
+    }).catch(() => {});
+  };
+
   const saveDefaultPlaylist = async (e) => {
     e.preventDefault();
     const input = playlistInput.trim();
@@ -121,6 +150,23 @@ export default function VideoQueue({ videoState }) {
         <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title="Copiar la URL del overlay de video para OBS">
           {overlayCopied ? "✓ Copiado" : "🔗 Copiar overlay"}
         </button>
+
+        <div style={styles.divider} />
+
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>Peticiones de espectadores (!sr)</span>
+          <Toggle
+            checked={videoState?.viewerRequestsEnabled !== false}
+            onChange={() => updateSetting("viewerRequestsEnabled", !(videoState?.viewerRequestsEnabled !== false))}
+          />
+        </div>
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>Saltar canción por defecto al pedir</span>
+          <Toggle
+            checked={!!videoState?.skipDefaultOnRequest}
+            onChange={() => updateSetting("skipDefaultOnRequest", !videoState?.skipDefaultOnRequest)}
+          />
+        </div>
 
         <div style={styles.divider} />
 
@@ -254,6 +300,32 @@ const styles = {
     height: 1,
     background: "var(--border)",
     margin: "2px 0",
+  },
+  row: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  rowLabel: {
+    fontSize: 12,
+    color: "var(--text)",
+  },
+  toggle: {
+    width: 34,
+    height: 18,
+    borderRadius: 9,
+    padding: 2,
+    display: "flex",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  toggleKnob: {
+    width: 14,
+    height: 14,
+    borderRadius: "50%",
+    background: "#fff",
+    transition: "transform 0.15s",
   },
   sectionLabel: {
     fontSize: 11,

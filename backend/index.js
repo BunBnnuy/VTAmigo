@@ -134,17 +134,28 @@ function broadcastVideoState(twitchId) {
   broadcastToAccount(twitchId, { type: "video_state", ...videoQueue.getState(twitchId) });
 }
 
-// !sr <url|id|title> — open to any viewer, resolves via youtube.resolveInput
-// (free oEmbed for URLs/IDs, YouTube Data API search for free-text titles),
-// enqueues it, auto-starts playback if the queue was idle, and confirms in
-// chat via the account's bot connection (if one is configured).
+// !sr <url|id|title> — open to any viewer (unless disabled via the site's
+// "Enable viewer requests" toggle — the streamer's own site controls are
+// never gated by it), resolves via youtube.resolveInput (free oEmbed for
+// URLs/IDs, YouTube Data API search for free-text titles), enqueues it,
+// auto-starts playback if the queue was idle, and confirms in chat via the
+// account's bot connection (if one is configured).
 async function handleSongRequest(twitchId, username, input) {
   const session = twitchSessions.get(twitchId);
+  const stateBefore = videoQueue.getState(twitchId);
+  if (!stateBefore.viewerRequestsEnabled) {
+    session?.botClient?.say(`@${username} song requests are currently disabled.`);
+    return;
+  }
   try {
     const resolved = await youtube.resolveInput(input);
-    const wasIdle = !videoQueue.getState(twitchId).nowPlaying;
+    const wasIdle = !stateBefore.nowPlaying;
     videoQueue.enqueue(twitchId, { ...resolved, requestedBy: username });
-    if (wasIdle) await videoQueue.advance(twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    if (wasIdle) {
+      await videoQueue.advance(twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    } else if (stateBefore.skipDefaultOnRequest && stateBefore.nowPlaying?.source === "default") {
+      await videoQueue.advance(twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    }
     broadcastVideoState(twitchId);
     session?.botClient?.say(`@${username} added to queue: ${resolved.title}`);
   } catch (err) {
@@ -745,6 +756,16 @@ app.get("/overlay/video", (req, res) => {
 app.get("/video/overlay-url", requireApprovedUser, (req, res) => {
   const token = getOverlayToken(req.user.twitchId);
   res.json({ url: `${req.protocol}://${req.get("host")}/overlay/video?token=${token}` });
+});
+
+// POST /video/settings — { viewerRequestsEnabled?, skipDefaultOnRequest? } —
+// the two site toggles gating !sr chat requests (never the streamer's own
+// site controls, which always work regardless of these).
+app.post("/video/settings", requireApprovedUser, (req, res) => {
+  const { viewerRequestsEnabled, skipDefaultOnRequest } = req.body || {};
+  videoQueue.setSettings(req.user.twitchId, { viewerRequestsEnabled, skipDefaultOnRequest });
+  broadcastVideoState(req.user.twitchId);
+  res.json({ ok: true });
 });
 
 // GET /video/state?token=... — current queue/nowPlaying. Reachable via
