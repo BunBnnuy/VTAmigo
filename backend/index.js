@@ -810,6 +810,24 @@ app.post("/video/skip", requireApprovedUser, async (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /video/previous — go back to the last history entry, putting whatever
+// is currently playing back at the front of the queue
+app.post("/video/previous", requireApprovedUser, (req, res) => {
+  videoQueue.previous(req.user.twitchId);
+  broadcastVideoState(req.user.twitchId);
+  res.json({ ok: true });
+});
+
+// POST /video/control — { action: "play" | "pause" } — the overlay applies
+// this to the current video without reloading it (see backend/overlay/video.html)
+app.post("/video/control", requireApprovedUser, (req, res) => {
+  const { action } = req.body || {};
+  if (action !== "play" && action !== "pause") return res.status(400).json({ error: "action must be 'play' or 'pause'" });
+  videoQueue.setPaused(req.user.twitchId, action === "pause");
+  broadcastVideoState(req.user.twitchId);
+  res.json({ ok: true });
+});
+
 // POST /video/ended?token=... — { videoId } — the overlay reports playback
 // finished. videoId is checked against the current nowPlaying so a stale or
 // duplicate report (e.g. a slow network retry) can't double-advance the queue.

@@ -60,6 +60,19 @@ export default function VideoQueue({ videoState }) {
     apiFetch("/video/skip", { method: "POST" }).catch(() => {});
   };
 
+  const previous = () => {
+    apiFetch("/video/previous", { method: "POST" }).catch(() => {});
+  };
+
+  const togglePlayPause = () => {
+    const action = videoState?.nowPlaying?.paused ? "play" : "pause";
+    apiFetch("/video/control", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action }),
+    }).catch(() => {});
+  };
+
   const saveDefaultPlaylist = async (e) => {
     e.preventDefault();
     const input = playlistInput.trim();
@@ -120,9 +133,17 @@ export default function VideoQueue({ videoState }) {
         ) : (
           <span style={styles.emptyText}>Nada en reproducción</span>
         )}
-        <button style={styles.actionBtn} onClick={skip} disabled={!nowPlaying} title="Saltar al siguiente video">
-          ⏭ Saltar
-        </button>
+        <div style={styles.mediaControls}>
+          <button style={styles.mediaBtn} onClick={previous} title="Video anterior">
+            ⏮
+          </button>
+          <button style={styles.mediaBtn} onClick={togglePlayPause} disabled={!nowPlaying} title={nowPlaying?.paused ? "Reanudar" : "Pausar"}>
+            {nowPlaying?.paused ? "▶" : "⏸"}
+          </button>
+          <button style={styles.mediaBtn} onClick={skip} disabled={!nowPlaying} title="Siguiente video">
+            ⏭
+          </button>
+        </div>
 
         <div style={styles.divider} />
 
@@ -260,6 +281,19 @@ const styles = {
     objectFit: "cover",
     borderRadius: 4,
     flexShrink: 0,
+  },
+  mediaControls: {
+    display: "flex",
+    gap: 6,
+  },
+  mediaBtn: {
+    flex: 1,
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    fontSize: 14,
+    padding: "6px 0",
+    textAlign: "center",
   },
   nowPlayingTitle: {
     fontSize: 12,

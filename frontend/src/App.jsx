@@ -242,6 +242,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     };
   }, []);
 
+  // Video queue — fetch current state on mount, since WS only pushes on the
+  // *next* change; without this, a page refresh always looked empty even
+  // though the backend still had a queue/nowPlaying.
+  useEffect(() => {
+    apiFetch("/video/state")
+      .then((res) => res.json())
+      .then((data) => setVideoState({ queue: data.queue, defaultPlaylistId: data.defaultPlaylistId, nowPlaying: data.nowPlaying }))
+      .catch(() => {});
+  }, []);
+
   // Auto-connect on mount — login always implies a channel now (the user's
   // own), so there's nothing to gate this on.
   useEffect(() => {
@@ -1174,6 +1184,15 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           <span style={{ ...styles.dot, background: statusColor }} />
           <span style={styles.statusText}>{statusLabel}</span>
         </div>
+
+        {/* Now playing (video queue) */}
+        {videoState.nowPlaying && (
+          <div style={styles.statusGroup} title={videoState.nowPlaying.title}>
+            <span style={styles.statusText}>
+              {videoState.nowPlaying.paused ? "⏸" : "🎵"} {videoState.nowPlaying.title}
+            </span>
+          </div>
+        )}
 
         {/* Bot status */}
         {(settings.botUsername || activeBotUsername) && (

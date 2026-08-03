@@ -71,6 +71,7 @@
   let playerReady = false;
   let currentVideoId = null;
   let pendingOffsetSec = 0;
+  let pendingPaused = false;
   let progressTimer = null;
 
   function fmtTime(sec) {
@@ -116,7 +117,7 @@
 
   function onPlayerReady() {
     playerReady = true;
-    if (currentVideoId) loadVideo(currentVideoId, pendingOffsetSec);
+    if (currentVideoId) loadVideo(currentVideoId, pendingOffsetSec, pendingPaused);
   }
 
   window.onYouTubeIframeAPIReady = function () {
@@ -128,14 +129,16 @@
     });
   };
 
-  function loadVideo(videoId, offsetSec) {
+  function loadVideo(videoId, offsetSec, paused) {
     currentVideoId = videoId;
     if (!playerReady) {
       pendingOffsetSec = offsetSec || 0;
+      pendingPaused = !!paused;
       return;
     }
     wrap.classList.add("show");
     player.loadVideoById({ videoId, startSeconds: offsetSec || 0 });
+    if (paused) setTimeout(() => player.pauseVideo(), 400);
   }
 
   function clearVideo() {
@@ -154,18 +157,22 @@
       return;
     }
     if (nowPlaying.videoId !== currentVideoId) {
-      loadVideo(nowPlaying.videoId, 0);
+      loadVideo(nowPlaying.videoId, 0, nowPlaying.paused);
+    } else if (playerReady) {
+      if (nowPlaying.paused) player.pauseVideo();
+      else player.playVideo();
     }
   }
 
-  // Initial state fetch — resumes mid-song if OBS reloads the overlay.
+  // Initial state fetch — resumes mid-song (and respects a paused state) if
+  // OBS reloads the overlay.
   fetch(`/video/state?token=${encodeURIComponent(token)}`)
     .then((r) => r.json())
     .then((state) => {
       const nowPlaying = state.nowPlaying;
       if (nowPlaying) {
         const offset = Math.max(0, Math.floor((Date.now() - nowPlaying.startedAt) / 1000));
-        loadVideo(nowPlaying.videoId, offset);
+        loadVideo(nowPlaying.videoId, offset, nowPlaying.paused);
       }
     })
     .catch(() => {});

@@ -22,18 +22,23 @@ function writeAll(all) {
   fs.writeFileSync(STATE_PATH, JSON.stringify(all, null, 2));
 }
 
+const MAX_HISTORY = 20;
+
 function emptyAccount() {
   return {
     queue: [],
     defaultPlaylistId: null,
     defaultPlaylistCache: null, // { items: [{videoId,title,thumbnail}], fetchedAt, index }
-    nowPlaying: null, // { videoId, title, thumbnail, source, startedAt }
+    nowPlaying: null, // { videoId, title, thumbnail, source, startedAt, paused }
+    history: [], // previously-played nowPlaying entries, oldest first
   };
 }
 
 function getState(twitchId) {
   const all = readAll();
-  return all[twitchId] || emptyAccount();
+  const account = all[twitchId] || emptyAccount();
+  if (!account.history) account.history = []; // back-compat with state saved before history existed
+  return account;
 }
 
 function saveAccount(twitchId, account) {
@@ -77,12 +82,19 @@ function isDefaultPlaylistStale(account) {
 // cached default playlist, or clears nowPlaying if neither is available.
 // refreshDefaultPlaylist(playlistId) is called lazily when the cache is
 // stale/missing but a defaultPlaylistId is configured.
+function pushHistory(account, entry) {
+  if (!entry) return;
+  account.history.push(entry);
+  if (account.history.length > MAX_HISTORY) account.history.shift();
+}
+
 async function advance(twitchId, { refreshDefaultPlaylist } = {}) {
   const account = getState(twitchId);
+  pushHistory(account, account.nowPlaying);
 
   if (account.queue.length > 0) {
     const next = account.queue.shift();
-    account.nowPlaying = { videoId: next.videoId, title: next.title, thumbnail: next.thumbnail, source: "queue", startedAt: Date.now() };
+    account.nowPlaying = { videoId: next.videoId, title: next.title, thumbnail: next.thumbnail, source: "queue", startedAt: Date.now(), paused: false };
     return saveAccount(twitchId, account);
   }
 
@@ -99,7 +111,7 @@ async function advance(twitchId, { refreshDefaultPlaylist } = {}) {
     if (cache && cache.items.length > 0) {
       const item = cache.items[cache.index % cache.items.length];
       cache.index = (cache.index + 1) % cache.items.length;
-      account.nowPlaying = { videoId: item.videoId, title: item.title, thumbnail: item.thumbnail, source: "default", startedAt: Date.now() };
+      account.nowPlaying = { videoId: item.videoId, title: item.title, thumbnail: item.thumbnail, source: "default", startedAt: Date.now(), paused: false };
       return saveAccount(twitchId, account);
     }
   }
@@ -108,4 +120,30 @@ async function advance(twitchId, { refreshDefaultPlaylist } = {}) {
   return saveAccount(twitchId, account);
 }
 
-module.exports = { getState, enqueue, removeFromQueue, setDefaultPlaylist, advance };
+// Goes back to the last history entry. Whatever was currently playing (if
+// anything) is put back at the front of the queue instead of being dropped.
+function previous(twitchId) {
+  const account = getState(twitchId);
+  if (account.history.length === 0) return account;
+  const prevItem = account.history.pop();
+  if (account.nowPlaying) {
+    account.queue.unshift({
+      id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+      videoId: account.nowPlaying.videoId,
+      title: account.nowPlaying.title,
+      thumbnail: account.nowPlaying.thumbnail,
+      requestedBy: null,
+      addedAt: Date.now(),
+    });
+  }
+  account.nowPlaying = { ...prevItem, startedAt: Date.now(), paused: false };
+  return saveAccount(twitchId, account);
+}
+
+function setPaused(twitchId, paused) {
+  const account = getState(twitchId);
+  if (account.nowPlaying) account.nowPlaying.paused = !!paused;
+  return saveAccount(twitchId, account);
+}
+
+module.exports = { getState, enqueue, removeFromQueue, setDefaultPlaylist, advance, previous, setPaused };
