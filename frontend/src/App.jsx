@@ -248,7 +248,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   useEffect(() => {
     apiFetch("/video/state")
       .then((res) => res.json())
-      .then((data) => setVideoState({ queue: data.queue, defaultPlaylistId: data.defaultPlaylistId, nowPlaying: data.nowPlaying }))
+      .then((data) => setVideoState(data))
       .catch(() => {});
   }, []);
 
@@ -829,7 +829,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         } else if (data.type === "status") {
           setConnStatus(data.status.type);
         } else if (data.type === "video_state") {
-          setVideoState({ queue: data.queue, defaultPlaylistId: data.defaultPlaylistId, nowPlaying: data.nowPlaying });
+          const { type, ...state } = data;
+          setVideoState(state);
         } else if (data.type === "bot_status") {
           setBotStatus(data.status.type);
           if (data.botUsername) setActiveBotUsername(data.botUsername);
