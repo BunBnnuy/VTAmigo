@@ -184,22 +184,23 @@ app.get("/memory/export/status", (req, res) => {
   res.json(memoryExport.getStatus(req.user?.twitchId));
 });
 
-// POST /memory/import — load a hand-picked .md file into a provider's live session
+// POST /memory/import — load a hand-picked .md file into the site-wide provider's live session
 app.post("/memory/import", async (req, res) => {
-  const { provider, markdown } = req.body || {};
+  const { markdown } = req.body || {};
+  const provider = siteConfig.getProvider();
   try {
-    const response = await importMemory(markdown, provider || "claude", req.user?.twitchId);
-    sendEvent("memory_upload", { req, twitchLogin: req.user?.login, data: { provider: provider || "claude" } });
+    const response = await importMemory(markdown, provider, req.user?.twitchId);
+    sendEvent("memory_upload", { req, twitchLogin: req.user?.login, data: { provider } });
     res.json({ ok: true, response });
   } catch (err) {
     if (err.message === "MEMORY_EMPTY") {
       return res.status(400).json({ error: "El archivo .md está vacío" });
     }
     if (err.message === "CLI_NOT_FOUND") {
-      return res.status(503).json({ error: `${provider || "claude"} CLI no encontrado` });
+      return res.status(503).json({ error: `${provider} CLI no encontrado` });
     }
     if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: `${provider || "claude"} CLI tardó demasiado (>60s)` });
+      return res.status(504).json({ error: `${provider} CLI tardó demasiado (>60s)` });
     }
     res.status(400).json({ error: err.message });
   }
@@ -215,9 +216,8 @@ app.get("/memory/download/status", (req, res) => {
 // GET /memory/download/status for progress (the CLI call itself can take a
 // couple of minutes, longer than nginx's proxy timeout allows for one request).
 app.post("/memory/download", (req, res) => {
-  const { provider } = req.body || {};
   try {
-    memoryDownload.startDownload(provider || "claude", req.user?.twitchId);
+    memoryDownload.startDownload(siteConfig.getProvider(), req.user?.twitchId);
     res.json({ ok: true });
   } catch (err) {
     if (err.message === "COOLDOWN") {

@@ -158,14 +158,14 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     reader.readAsText(file);
   };
 
-  const importMemoryFile = async (provider) => {
+  const importMemoryFile = async () => {
     if (!importFile) return;
     setImportStatus({ running: true, error: null, ok: false });
     try {
       const res = await apiFetch("/memory/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider, markdown: importFile.content }),
+        body: JSON.stringify({ markdown: importFile.content }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
@@ -213,13 +213,12 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     return () => clearInterval(timer);
   }, [downloadMemoryStatus.running]);
 
-  const downloadMemories = async (provider) => {
+  const downloadMemories = async () => {
     downloadTriggeredRef.current = false;
     try {
       const res = await apiFetch("/memory/download", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ provider }),
       });
       const data = await res.json();
       if (!res.ok) {
@@ -834,7 +833,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </fieldset>
             </div>
             {(() => {
-              const current = "claude";
               const canImport = !!importFile && !importStatus?.running;
               return (
                 <div style={styles.field}>
@@ -843,7 +841,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
                     <button
                       type="button"
-                      onClick={() => importMemoryFile(current)}
+                      onClick={() => importMemoryFile()}
                       disabled={!canImport}
                       style={{
                         background: "var(--surface2)",
@@ -875,7 +873,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   <label>{t("settings.aiProvider.downloadMemoryLabel")}</label>
                   <button
                     type="button"
-                    onClick={() => downloadMemories("claude")}
+                    onClick={() => downloadMemories()}
                     disabled={!canDownload}
                     style={{
                       background: "var(--surface2)",
