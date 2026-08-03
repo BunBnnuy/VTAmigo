@@ -12,7 +12,6 @@ export default function Admin() {
   const [stats, setStats] = useState(null);
   const [usage, setUsage] = useState(null);
   const [busy, setBusy] = useState(false);
-  const [scrolled, setScrolled] = useState(false);
   const [siteConfig, setSiteConfig] = useState(null);
   const [savingProvider, setSavingProvider] = useState(false);
 
@@ -77,13 +76,6 @@ export default function Admin() {
     const id = setInterval(loadStats, 30000);
     return () => clearInterval(id);
   }, [authed, loadStats]);
-
-  useEffect(() => {
-    if (!authed) return;
-    const onScroll = () => setScrolled(window.scrollY > 140);
-    window.addEventListener("scroll", onScroll);
-    return () => window.removeEventListener("scroll", onScroll);
-  }, [authed]);
 
   const revokeDevice = async (deviceCode) => {
     await apiFetch(`/admin/devices/${deviceCode}/revoke`, { method: "POST" });
@@ -175,199 +167,269 @@ export default function Admin() {
     );
   }
 
+  const approvedUsers = users?.filter((u) => u.approved).length ?? 0;
+  const pendingUsers = users ? users.length - approvedUsers : 0;
+  const approvedDevices = devices?.filter((d) => d.status === "approved").length ?? 0;
+  const pendingDevices = devices?.filter((d) => d.status === "pending").length ?? 0;
+
+  const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
   return (
     <div style={styles.root}>
-      {/* ── Top bar ── */}
-      <div style={styles.topBar}>
+      {/* ── Sidebar ── */}
+      <div style={styles.sidebar}>
         <div style={styles.brand}>
           <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
-          <span style={styles.brandName}>VTAmigo Admin</span>
-          {scrolled && stats && (
-            <span style={styles.miniStats}>
-              CPU {stats.cpu.load}% · RAM {stats.mem.usedPercent}%
-            </span>
-          )}
+          <span style={styles.brandName}>VTAmigo</span>
         </div>
-        <div style={styles.topRight}>
-          <button style={styles.settingsBtn} onClick={logout}>Log out</button>
-        </div>
+        <nav style={styles.nav}>
+          <button className="admin-nav-link" onClick={() => scrollTo("sec-system")}><span className="dot" />System</button>
+          <button className="admin-nav-link" onClick={() => scrollTo("sec-agent")}><span className="dot" />AI agent</button>
+          <button className="admin-nav-link" onClick={() => scrollTo("sec-users")}><span className="dot" />Users</button>
+          <button className="admin-nav-link" onClick={() => scrollTo("sec-devices")}><span className="dot" />Devices</button>
+        </nav>
+        <button style={styles.logoutBtn} onClick={logout}>Log out</button>
       </div>
 
-      <div style={styles.page}>
-        <h1 style={styles.title}>System resources</h1>
-        {!stats ? (
-          <p>Loading…</p>
-        ) : (
-          <div style={{ marginBottom: 32, maxWidth: 720 }}>
-            <div style={{ display: "flex", gap: 24, marginBottom: 16 }}>
-              <div style={{ flex: 1 }}>
-                <div style={styles.meterLabel}>
-                  <span>CPU</span><span>{stats.cpu.load}%</span>
-                </div>
-                <div style={styles.meterTrack}>
-                  <div style={{ ...styles.meterFill, width: `${Math.min(100, stats.cpu.load)}%` }} />
-                </div>
-              </div>
-              <div style={{ flex: 1 }}>
-                <div style={styles.meterLabel}>
-                  <span>RAM</span><span>{stats.mem.usedMB} / {stats.mem.totalMB} MB ({stats.mem.usedPercent}%)</span>
-                </div>
-                <div style={styles.meterTrack}>
-                  <div style={{ ...styles.meterFill, width: `${Math.min(100, stats.mem.usedPercent)}%` }} />
-                </div>
-              </div>
+      {/* ── Main ── */}
+      <div style={styles.main}>
+        <div style={styles.topBar}>
+          <span style={styles.topBarTitle}>Dashboard</span>
+          {stats && (
+            <span style={styles.miniStats}>CPU {stats.cpu.load}% · RAM {stats.mem.usedPercent}%</span>
+          )}
+        </div>
+
+        <div style={styles.page}>
+          {/* Stat cards */}
+          <div style={styles.statGrid}>
+            <div style={styles.statCard}>
+              <span style={styles.statLabel}>CPU load</span>
+              <span style={styles.statValue}>{stats ? `${stats.cpu.load}%` : "—"}</span>
             </div>
-            <p style={{ opacity: 0.6, fontSize: 13, margin: "0 0 12px 0" }}>
-              {stats.processCount} processes running · uptime {formatUptime(stats.uptimeSec)}
-            </p>
-            <table style={styles.table}>
-              <thead>
-                <tr>
-                  <th style={styles.th}>PID</th>
-                  <th style={styles.th}>Process</th>
-                  <th style={styles.th}>CPU</th>
-                  <th style={styles.th}>RAM</th>
-                </tr>
-              </thead>
-              <tbody>
-                {stats.topProcesses.map((p) => (
-                  <tr key={p.pid}>
-                    <td style={styles.td}>{p.pid}</td>
-                    <td style={styles.td}>{p.name}</td>
-                    <td style={styles.td}>{p.cpu}%</td>
-                    <td style={styles.td}>{p.memMB} MB</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div style={styles.statCard}>
+              <span style={styles.statLabel}>Memory</span>
+              <span style={styles.statValue}>{stats ? `${stats.mem.usedPercent}%` : "—"}</span>
+            </div>
+            <div style={styles.statCard}>
+              <span style={styles.statLabel}>Users</span>
+              <span style={styles.statValue}>{users ? users.length : "—"}</span>
+              {users && <span style={styles.statSub}>{approvedUsers} approved · {pendingUsers} pending</span>}
+            </div>
+            <div style={styles.statCard}>
+              <span style={styles.statLabel}>Devices</span>
+              <span style={styles.statValue}>{devices ? devices.length : "—"}</span>
+              {devices && <span style={styles.statSub}>{approvedDevices} approved · {pendingDevices} pending</span>}
+            </div>
+            <div style={styles.statCard}>
+              <span style={styles.statLabel}>Uptime</span>
+              <span style={styles.statValue}>{stats ? formatUptime(stats.uptimeSec) : "—"}</span>
+            </div>
           </div>
-        )}
 
-        <h1 style={{ ...styles.title, marginTop: 32 }}>AI agent</h1>
-        <p style={{ opacity: 0.5, fontSize: 12, margin: "-8px 0 12px 0" }}>
-          Controls which AI answers chat/events for everyone on the site. A user's own model
-          preference in Settings is ignored — this is the only switch that matters.
-        </p>
-        {!siteConfig ? (
-          <p>Loading…</p>
-        ) : (
-          <select
-            value={siteConfig.aiProvider}
-            onChange={(e) => setAiProvider(e.target.value)}
-            disabled={savingProvider}
-            style={{ ...styles.tierSelect, marginBottom: 32, fontSize: 14, padding: "8px 12px" }}
-          >
-            <option value="claude">Claude</option>
-            <option value="grok">Grok</option>
-          </select>
-        )}
+          {/* System resources */}
+          <section id="sec-system" style={styles.card}>
+            <h2 style={styles.cardTitle}>System resources</h2>
+            {!stats ? (
+              <p style={styles.muted}>Loading…</p>
+            ) : (
+              <>
+                <div style={{ display: "flex", gap: 24, marginBottom: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.meterLabel}>
+                      <span>CPU</span><span>{stats.cpu.load}%</span>
+                    </div>
+                    <div style={styles.meterTrack}>
+                      <div style={{ ...styles.meterFill, width: `${Math.min(100, stats.cpu.load)}%` }} />
+                    </div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={styles.meterLabel}>
+                      <span>RAM</span><span>{stats.mem.usedMB} / {stats.mem.totalMB} MB ({stats.mem.usedPercent}%)</span>
+                    </div>
+                    <div style={styles.meterTrack}>
+                      <div style={{ ...styles.meterFill, width: `${Math.min(100, stats.mem.usedPercent)}%` }} />
+                    </div>
+                  </div>
+                </div>
+                <p style={styles.muted}>
+                  {stats.processCount} processes running · uptime {formatUptime(stats.uptimeSec)}
+                </p>
+                <div style={styles.tableWrap}>
+                  <table className="admin-table" style={styles.table}>
+                    <thead>
+                      <tr>
+                        <th style={styles.th}>PID</th>
+                        <th style={styles.th}>Process</th>
+                        <th style={styles.th}>CPU</th>
+                        <th style={styles.th}>RAM</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {stats.topProcesses.map((p) => (
+                        <tr key={p.pid}>
+                          <td style={styles.td}>{p.pid}</td>
+                          <td style={styles.td}>{p.name}</td>
+                          <td style={styles.td}>{p.cpu}%</td>
+                          <td style={styles.td}>{p.memMB} MB</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </>
+            )}
+          </section>
 
-        <h1 style={styles.title}>User approvals</h1>
-        <p style={{ opacity: 0.5, fontSize: 12, margin: "-8px 0 12px 0" }}>
-          AI generation counts reset with the calendar (day/week/month). Token counts are estimated (~4 chars/token) —
-          the CLI providers don't report exact usage.
-        </p>
-        {!users ? (
-          <p>Loading…</p>
-        ) : users.length === 0 ? (
-          <p style={{ opacity: 0.7 }}>No users have logged in yet.</p>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>User</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Tier</th>
-                <th style={styles.th}>Since</th>
-                <th style={styles.th}>Today</th>
-                <th style={styles.th}>Week</th>
-                <th style={styles.th}>Month</th>
-                <th style={styles.th}>Tokens (mo.)</th>
-                <th style={styles.th}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {users.map((u) => {
-                const s = usage && usage[u.twitchId];
-                return (
-                  <tr key={u.twitchId}>
-                    <td style={styles.td}>
-                      <img src={u.profileImageUrl} alt="" style={styles.avatar} />
-                      {u.displayName} <span style={{ opacity: 0.5 }}>({u.login})</span>
-                    </td>
-                    <td style={styles.td}>{u.approved ? "✅ Approved" : "⏳ Pending"}</td>
-                    <td style={styles.td}>
-                      <select
-                        value={u.tier || "pro"}
-                        onChange={(e) => setTier(u.twitchId, e.target.value)}
-                        style={styles.tierSelect}
-                      >
-                        <option value="free">Free</option>
-                        <option value="basic">Basic</option>
-                        <option value="advanced">Advanced</option>
-                        <option value="pro">Pro</option>
-                      </select>
-                    </td>
-                    <td style={styles.td}>{new Date(u.createdAt).toLocaleString()}</td>
-                    <td style={styles.td}>{s?.day ?? 0}</td>
-                    <td style={styles.td}>{s?.week ?? 0}</td>
-                    <td style={styles.td}>{s?.month ?? 0}</td>
-                    <td style={styles.td}>{(s?.tokensMonth ?? 0).toLocaleString()}</td>
-                    <td style={styles.td}>
-                      {u.approved ? (
-                        <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={() => setApproved(u.twitchId, false)}>
-                          Revoke
-                        </button>
-                      ) : (
-                        <button style={{ ...styles.smallBtn, background: "var(--purple, #9147ff)" }} onClick={() => setApproved(u.twitchId, true)}>
-                          Approve
-                        </button>
-                      )}
-                    </td>
-                  </tr>
-                );
-              })}
-            </tbody>
-          </table>
-        )}
+          {/* AI agent */}
+          <section id="sec-agent" style={styles.card}>
+            <h2 style={styles.cardTitle}>AI agent</h2>
+            <p style={styles.muted}>
+              Controls which AI answers chat/events for everyone on the site. A user's own model
+              preference in Settings is ignored — this is the only switch that matters.
+            </p>
+            {!siteConfig ? (
+              <p style={styles.muted}>Loading…</p>
+            ) : (
+              <select
+                value={siteConfig.aiProvider}
+                onChange={(e) => setAiProvider(e.target.value)}
+                disabled={savingProvider}
+                style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 220 }}
+              >
+                <option value="claude">Claude</option>
+                <option value="grok">Grok</option>
+              </select>
+            )}
+          </section>
 
-        <h1 style={{ ...styles.title, marginTop: 32 }}>Tunnel devices</h1>
-        {!devices ? (
-          <p>Loading…</p>
-        ) : devices.length === 0 ? (
-          <p style={{ opacity: 0.7 }}>No tunnel-client devices enrolled yet.</p>
-        ) : (
-          <table style={styles.table}>
-            <thead>
-              <tr>
-                <th style={styles.th}>Approved by</th>
-                <th style={styles.th}>Status</th>
-                <th style={styles.th}>Port</th>
-                <th style={styles.th}>Since</th>
-                <th style={styles.th}></th>
-              </tr>
-            </thead>
-            <tbody>
-              {devices.map((d) => (
-                <tr key={d.deviceCode}>
-                  <td style={styles.td}>{d.twitchId ? userLabel(d.twitchId) : <span style={{ opacity: 0.5 }}>unclaimed</span>}</td>
-                  <td style={styles.td}>
-                    {d.status === "approved" ? "✅ Approved" : d.status === "revoked" ? "🚫 Revoked" : "⏳ Pending"}
-                  </td>
-                  <td style={styles.td}>{d.assignedPort || "—"}</td>
-                  <td style={styles.td}>{new Date(d.createdAt).toLocaleString()}</td>
-                  <td style={styles.td}>
-                    {d.status === "approved" && (
-                      <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={() => revokeDevice(d.deviceCode)}>
-                        Revoke
-                      </button>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+          {/* User approvals */}
+          <section id="sec-users" style={styles.card}>
+            <h2 style={styles.cardTitle}>User approvals</h2>
+            <p style={styles.muted}>
+              AI generation counts reset with the calendar (day/week/month). Token counts are estimated (~4 chars/token) —
+              the CLI providers don't report exact usage.
+            </p>
+            {!users ? (
+              <p style={styles.muted}>Loading…</p>
+            ) : users.length === 0 ? (
+              <p style={styles.muted}>No users have logged in yet.</p>
+            ) : (
+              <div style={styles.tableWrap}>
+                <table className="admin-table" style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>User</th>
+                      <th style={styles.th}>Status</th>
+                      <th style={styles.th}>Tier</th>
+                      <th style={styles.th}>Since</th>
+                      <th style={styles.th}>Today</th>
+                      <th style={styles.th}>Week</th>
+                      <th style={styles.th}>Month</th>
+                      <th style={styles.th}>Tokens (mo.)</th>
+                      <th style={styles.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {users.map((u) => {
+                      const s = usage && usage[u.twitchId];
+                      return (
+                        <tr key={u.twitchId}>
+                          <td style={styles.td}>
+                            <span style={{ display: "inline-flex", alignItems: "center" }}>
+                              <img src={u.profileImageUrl} alt="" style={styles.avatar} />
+                              {u.displayName} <span style={{ opacity: 0.5, marginLeft: 4 }}>({u.login})</span>
+                            </span>
+                          </td>
+                          <td style={styles.td}>
+                            {u.approved
+                              ? <span style={styles.badgeGreen}>Approved</span>
+                              : <span style={styles.badgeYellow}>Pending</span>}
+                          </td>
+                          <td style={styles.td}>
+                            <select
+                              value={u.tier || "pro"}
+                              onChange={(e) => setTier(u.twitchId, e.target.value)}
+                              style={styles.tierSelect}
+                            >
+                              <option value="free">Free</option>
+                              <option value="basic">Basic</option>
+                              <option value="advanced">Advanced</option>
+                              <option value="pro">Pro</option>
+                            </select>
+                          </td>
+                          <td style={styles.td}>{new Date(u.createdAt).toLocaleString()}</td>
+                          <td style={styles.td}>{s?.day ?? 0}</td>
+                          <td style={styles.td}>{s?.week ?? 0}</td>
+                          <td style={styles.td}>{s?.month ?? 0}</td>
+                          <td style={styles.td}>{(s?.tokensMonth ?? 0).toLocaleString()}</td>
+                          <td style={styles.td}>
+                            {u.approved ? (
+                              <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={() => setApproved(u.twitchId, false)}>
+                                Revoke
+                              </button>
+                            ) : (
+                              <button style={{ ...styles.smallBtn, background: "var(--purple, #9147ff)" }} onClick={() => setApproved(u.twitchId, true)}>
+                                Approve
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* Tunnel devices */}
+          <section id="sec-devices" style={{ ...styles.card, marginBottom: 0 }}>
+            <h2 style={styles.cardTitle}>Tunnel devices</h2>
+            {!devices ? (
+              <p style={styles.muted}>Loading…</p>
+            ) : devices.length === 0 ? (
+              <p style={styles.muted}>No tunnel-client devices enrolled yet.</p>
+            ) : (
+              <div style={styles.tableWrap}>
+                <table className="admin-table" style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>Approved by</th>
+                      <th style={styles.th}>Status</th>
+                      <th style={styles.th}>Port</th>
+                      <th style={styles.th}>Since</th>
+                      <th style={styles.th}></th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {devices.map((d) => (
+                      <tr key={d.deviceCode}>
+                        <td style={styles.td}>{d.twitchId ? userLabel(d.twitchId) : <span style={{ opacity: 0.5 }}>unclaimed</span>}</td>
+                        <td style={styles.td}>
+                          {d.status === "approved"
+                            ? <span style={styles.badgeGreen}>Approved</span>
+                            : d.status === "revoked"
+                              ? <span style={styles.badgeRed}>Revoked</span>
+                              : <span style={styles.badgeYellow}>Pending</span>}
+                        </td>
+                        <td style={styles.td}>{d.assignedPort || "—"}</td>
+                        <td style={styles.td}>{new Date(d.createdAt).toLocaleString()}</td>
+                        <td style={styles.td}>
+                          {d.status === "approved" && (
+                            <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={() => revokeDevice(d.deviceCode)}>
+                              Revoke
+                            </button>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+        </div>
       </div>
     </div>
   );
@@ -385,7 +447,7 @@ function formatUptime(sec) {
 const styles = {
   root: {
     minHeight: "100vh", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
-    display: "flex", flexDirection: "column",
+    display: "flex",
   },
   wrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
@@ -393,43 +455,86 @@ const styles = {
   },
   card: {
     display: "flex", flexDirection: "column", gap: 12,
-    padding: "40px 48px", borderRadius: 12, background: "var(--panel, #18181b)",
+    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #18181b)",
     border: "1px solid var(--border, #2a2a2e)", minWidth: 280,
   },
-  topBar: {
-    display: "flex", alignItems: "center", justifyContent: "space-between",
-    padding: "10px 16px", background: "var(--surface, #18181b)",
-    borderBottom: "1px solid var(--border, #2a2a2e)", flexShrink: 0,
-    position: "sticky", top: 0, zIndex: 10,
+
+  /* Sidebar */
+  sidebar: {
+    width: 220, flexShrink: 0, minHeight: "100vh",
+    background: "var(--surface, #18181b)", borderRight: "1px solid var(--border, #2a2a2e)",
+    display: "flex", flexDirection: "column", padding: "20px 14px",
+    position: "sticky", top: 0, alignSelf: "flex-start",
   },
-  brand: { display: "flex", alignItems: "center", gap: 8 },
-  brandIcon: { width: 24, height: 24, objectFit: "contain" },
+  brand: { display: "flex", alignItems: "center", gap: 8, padding: "0 6px", marginBottom: 24 },
+  brandIcon: { width: 26, height: 26, objectFit: "contain" },
   brandName: {
     fontWeight: 800, fontSize: 16, color: "var(--purple-light, #bf94ff)", letterSpacing: "-0.01em",
   },
-  miniStats: {
-    fontSize: 12, color: "var(--text-muted, #adadb8)", fontWeight: 400,
-    marginLeft: 4, transition: "opacity 0.2s ease",
+  nav: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
+  logoutBtn: {
+    padding: "9px 14px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13,
+    background: "var(--surface2, #202024)", color: "var(--text, #efeff1)", border: "1px solid var(--border, #2a2a2e)",
   },
-  topRight: { display: "flex", gap: 8, alignItems: "center" },
-  page: { padding: 32 },
-  title: { margin: "0 0 12px 0", fontSize: 22 },
+
+  /* Main */
+  main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" },
+  topBar: {
+    display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
+    padding: "16px 32px", borderBottom: "1px solid var(--border, #2a2a2e)",
+    position: "sticky", top: 0, zIndex: 10, background: "var(--bg, #0e0e10)",
+  },
+  topBarTitle: { fontWeight: 700, fontSize: 18 },
+  miniStats: { fontSize: 12, color: "var(--text-muted, #adadb8)", fontWeight: 500 },
+  page: { padding: "24px 32px 48px" },
+
+  /* Stat cards */
+  statGrid: {
+    display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(150px, 1fr))",
+    gap: 14, marginBottom: 24,
+  },
+  statCard: {
+    display: "flex", flexDirection: "column", gap: 4,
+    padding: "16px 18px", borderRadius: 12, background: "var(--surface, #18181b)",
+    border: "1px solid var(--border, #2a2a2e)",
+  },
+  statLabel: { fontSize: 12, color: "var(--text-muted, #adadb8)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" },
+  statValue: { fontSize: 26, fontWeight: 800 },
+  statSub: { fontSize: 12, color: "var(--text-muted, #adadb8)" },
+
+  /* Section cards */
+  cardTitle: { margin: "0 0 12px 0", fontSize: 17, fontWeight: 700 },
+  muted: { color: "var(--text-muted, #adadb8)", fontSize: 13, marginBottom: 12 },
+
+  title: { margin: "0 0 4px 0", fontSize: 22 },
   input: { padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #2a2a2e)", background: "#0e0e10", color: "#efeff1" },
   error: { color: "var(--red, #e91916)", fontSize: 13 },
   btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--purple, #9147ff)", color: "#fff", fontWeight: 600 },
-  settingsBtn: {
-    padding: "8px 14px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13,
-    background: "var(--surface2, #202024)", color: "var(--text, #efeff1)", border: "1px solid var(--border, #2a2a2e)",
-  },
   smallBtn: { padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer", color: "#fff", fontWeight: 600, fontSize: 13 },
   tierSelect: {
     padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border, #2a2a2e)",
     background: "#0e0e10", color: "#efeff1", fontSize: 13,
   },
-  table: { borderCollapse: "collapse", width: "100%", maxWidth: 820 },
-  th: { textAlign: "left", padding: "8px 12px", borderBottom: "1px solid var(--border, #2a2a2e)", opacity: 0.7, fontSize: 13 },
-  td: { padding: "8px 12px", borderBottom: "1px solid var(--border, #2a2a2e)", fontSize: 14, verticalAlign: "middle" },
+
+  tableWrap: { overflowX: "auto", borderRadius: 10, border: "1px solid var(--border, #2a2a2e)" },
+  table: { borderCollapse: "collapse", width: "100%" },
+  th: { textAlign: "left", padding: "10px 14px", borderBottom: "1px solid var(--border, #2a2a2e)", color: "var(--text-muted, #adadb8)", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" },
+  td: { padding: "10px 14px", borderBottom: "1px solid var(--border, #2a2a2e)", fontSize: 14, verticalAlign: "middle", whiteSpace: "nowrap" },
   avatar: { width: 24, height: 24, borderRadius: "50%", verticalAlign: "middle", marginRight: 8 },
+
+  badgeGreen: {
+    display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+    background: "color-mix(in srgb, var(--green, #00b300) 18%, transparent)", color: "var(--green, #00b300)",
+  },
+  badgeYellow: {
+    display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+    background: "color-mix(in srgb, var(--yellow, #ffb31a) 18%, transparent)", color: "var(--yellow, #ffb31a)",
+  },
+  badgeRed: {
+    display: "inline-block", padding: "3px 10px", borderRadius: 999, fontSize: 12, fontWeight: 600,
+    background: "color-mix(in srgb, var(--red, #e91916) 18%, transparent)", color: "var(--red, #e91916)",
+  },
+
   meterLabel: { display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.8, marginBottom: 4 },
   meterTrack: { height: 8, borderRadius: 4, background: "var(--border, #2a2a2e)", overflow: "hidden" },
   meterFill: { height: "100%", background: "var(--purple, #9147ff)", transition: "width 0.4s ease" },

@@ -83,3 +83,19 @@ input, select {
 input:focus, select:focus { outline: 2px solid var(--purple); }
 
 label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+
+/* ── Admin dashboard ── */
+.admin-nav-link {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
+  color: var(--text-muted); text-decoration: none; cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  border: none; background: transparent; width: 100%; text-align: left;
+}
+.admin-nav-link:hover { background: var(--surface2); color: var(--text); opacity: 1; }
+.admin-nav-link .dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; opacity: 0.5; flex-shrink: 0; }
+
+.admin-table tbody tr { transition: background 0.12s; }
+.admin-table tbody tr:nth-child(even) { background: var(--surface2); }
+.admin-table tbody tr:hover { background: color-mix(in srgb, var(--purple) 8%, transparent); }
+.admin-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
