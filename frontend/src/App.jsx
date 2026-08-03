@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import QuickControls from "./QuickControls.jsx";
+import VideoQueue from "./VideoQueue.jsx";
 import Settings from "./Settings.jsx";
 import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
@@ -204,6 +205,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [micError, setMicError] = useState(null);
   const [micModelStatus, setMicModelStatus] = useState("idle");
   const [micSpeaking, setMicSpeaking] = useState(false);
+  const [videoState, setVideoState] = useState({ queue: [], defaultPlaylistId: null, nowPlaying: null });
   const [botStatus, setBotStatus] = useState("disconnected");
   const [activeBotUsername, setActiveBotUsername] = useState(null);
   const [usingSiteBot, setUsingSiteBot] = useState(false);
@@ -816,6 +818,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           }
         } else if (data.type === "status") {
           setConnStatus(data.status.type);
+        } else if (data.type === "video_state") {
+          setVideoState({ queue: data.queue, defaultPlaylistId: data.defaultPlaylistId, nowPlaying: data.nowPlaying });
         } else if (data.type === "bot_status") {
           setBotStatus(data.status.type);
           if (data.botUsername) setActiveBotUsername(data.botUsername);
@@ -1159,6 +1163,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           settings={settings}
           onUpdateSetting={updateSetting}
         />
+
+        <VideoQueue videoState={videoState} />
       </div>
 
       {/* ── Bottom bar ── */}

@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Video Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+    font-family: sans-serif;
+  }
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+  }
+  #wrap.show { display: flex; }
+  #player-box {
+    flex: 1;
+    position: relative;
+  }
+  #player-box iframe, #player-box > div {
+    width: 100%;
+    height: 100%;
+  }
+  #bar-track {
+    height: 6px;
+    background: rgba(255, 255, 255, 0.25);
+  }
+  #bar-fill {
+    height: 100%;
+    width: 0%;
+    background: #9147ff;
+    transition: width 0.25s linear;
+  }
+  #remaining {
+    position: absolute;
+    right: 6px;
+    bottom: 10px;
+    color: #fff;
+    font-size: 13px;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="player-box">
+      <div id="yt-player"></div>
+      <div id="remaining"></div>
+    </div>
+    <div id="bar-track"><div id="bar-fill"></div></div>
+  </div>
+
+<script src="https://www.youtube.com/iframe_api"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+
+  const wrap = document.getElementById("wrap");
+  const barFill = document.getElementById("bar-fill");
+  const remainingEl = document.getElementById("remaining");
+
+  let player = null;
+  let playerReady = false;
+  let currentVideoId = null;
+  let pendingOffsetSec = 0;
+  let progressTimer = null;
+
+  function fmtTime(sec) {
+    sec = Math.max(0, Math.round(sec));
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    return `${m}:${String(s).padStart(2, "0")}`;
+  }
+
+  function stopProgress() {
+    clearInterval(progressTimer);
+    progressTimer = null;
+  }
+
+  function startProgress() {
+    stopProgress();
+    progressTimer = setInterval(() => {
+      if (!playerReady || !player.getDuration) return;
+      const duration = player.getDuration();
+      const current = player.getCurrentTime();
+      if (!duration) return;
+      barFill.style.width = `${Math.min(100, (current / duration) * 100)}%`;
+      remainingEl.textContent = fmtTime(duration - current);
+    }, 500);
+  }
+
+  function reportEnded(videoId) {
+    fetch(`/video/ended?token=${encodeURIComponent(token)}`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ videoId }),
+    }).catch(() => {});
+  }
+
+  function onPlayerStateChange(e) {
+    if (e.data === YT.PlayerState.ENDED && currentVideoId) {
+      stopProgress();
+      reportEnded(currentVideoId);
+    } else if (e.data === YT.PlayerState.PLAYING) {
+      startProgress();
+    }
+  }
+
+  function onPlayerReady() {
+    playerReady = true;
+    if (currentVideoId) loadVideo(currentVideoId, pendingOffsetSec);
+  }
+
+  window.onYouTubeIframeAPIReady = function () {
+    player = new YT.Player("yt-player", {
+      width: "100%",
+      height: "100%",
+      playerVars: { autoplay: 1, controls: 0, disablekb: 1, modestbranding: 1, rel: 0 },
+      events: { onReady: onPlayerReady, onStateChange: onPlayerStateChange },
+    });
+  };
+
+  function loadVideo(videoId, offsetSec) {
+    currentVideoId = videoId;
+    if (!playerReady) {
+      pendingOffsetSec = offsetSec || 0;
+      return;
+    }
+    wrap.classList.add("show");
+    player.loadVideoById({ videoId, startSeconds: offsetSec || 0 });
+  }
+
+  function clearVideo() {
+    currentVideoId = null;
+    stopProgress();
+    barFill.style.width = "0%";
+    remainingEl.textContent = "";
+    wrap.classList.remove("show");
+    if (playerReady) player.stopVideo();
+  }
+
+  function applyState(state) {
+    const nowPlaying = state.nowPlaying;
+    if (!nowPlaying) {
+      clearVideo();
+      return;
+    }
+    if (nowPlaying.videoId !== currentVideoId) {
+      loadVideo(nowPlaying.videoId, 0);
+    }
+  }
+
+  // Initial state fetch — resumes mid-song if OBS reloads the overlay.
+  fetch(`/video/state?token=${encodeURIComponent(token)}`)
+    .then((r) => r.json())
+    .then((state) => {
+      const nowPlaying = state.nowPlaying;
+      if (nowPlaying) {
+        const offset = Math.max(0, Math.floor((Date.now() - nowPlaying.startedAt) / 1000));
+        loadVideo(nowPlaying.videoId, offset);
+      }
+    })
+    .catch(() => {});
+
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "video_state") applyState(data);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

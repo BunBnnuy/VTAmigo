@@ -23,6 +23,8 @@ const xp = require("./xp");
 const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
 const avatarOverlay = require("./avatarOverlay");
+const videoQueue = require("./videoQueue");
+const youtube = require("./youtube");
 
 const PORT = process.env.PORT || 3001;
 const app = express();
@@ -69,14 +71,15 @@ if (isProd) {
 const PROTECTED_PREFIXES = [
   "/respond", "/memory", "/connect", "/disconnect", "/say",
   "/reddit-story", "/reddit-thoughts", "/event-response", "/youtube-narrate",
-  "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts",
+  "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts", "/video",
 ];
 app.use((req, res, next) => {
-  // /xp/ranking is excluded even though it matches the "/xp" prefix below —
-  // it's the one endpoint the OBS overlay needs, and OBS's Browser Source has
-  // no access to the streamer's session cookie. It does its own auth inline
-  // (cookie session OR ?token= overlay token) instead of the blanket check.
-  if (req.path === "/xp/ranking") return next();
+  // /xp/ranking and /video/state, /video/ended are excluded even though they
+  // match protected prefixes below — they're the endpoints the OBS overlay
+  // needs, and OBS's Browser Source has no access to the streamer's session
+  // cookie. They do their own auth inline (cookie session OR ?token= overlay
+  // token) instead of the blanket check.
+  if (req.path === "/xp/ranking" || req.path === "/video/state" || req.path === "/video/ended") return next();
   // Match hyphenated variants too (e.g. "/connect-bot", "/connect-tiktok"),
   // not just "/connect" itself or "/connect/..." — a plain "/" boundary
   // check let those slip through unauthenticated, which crashed /connect-bot
@@ -122,6 +125,35 @@ function handleChat(twitchId, msg) {
   if (msg.username && msg.text) {
     const ev = xp.addMessage(twitchId, msg.username, msg.text, msg.color);
     if (ev && ev.gained > 0) broadcastToAccount(twitchId, { type: "xp", ...ev });
+  }
+  const srMatch = msg.text && msg.text.match(/^!sr\s+(.+)/i);
+  if (srMatch) handleSongRequest(twitchId, msg.username, srMatch[1].trim());
+}
+
+function broadcastVideoState(twitchId) {
+  broadcastToAccount(twitchId, { type: "video_state", ...videoQueue.getState(twitchId) });
+}
+
+// !sr <url|id|title> — open to any viewer, resolves via youtube.resolveInput
+// (free oEmbed for URLs/IDs, YouTube Data API search for free-text titles),
+// enqueues it, auto-starts playback if the queue was idle, and confirms in
+// chat via the account's bot connection (if one is configured).
+async function handleSongRequest(twitchId, username, input) {
+  const session = twitchSessions.get(twitchId);
+  try {
+    const resolved = await youtube.resolveInput(input);
+    const wasIdle = !videoQueue.getState(twitchId).nowPlaying;
+    videoQueue.enqueue(twitchId, { ...resolved, requestedBy: username });
+    if (wasIdle) await videoQueue.advance(twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    broadcastVideoState(twitchId);
+    session?.botClient?.say(`@${username} added to queue: ${resolved.title}`);
+  } catch (err) {
+    console.error("[song-request]", err.message);
+    if (err.message === "YOUTUBE_API_KEY_MISSING") {
+      session?.botClient?.say(`@${username} song search isn't configured — try pasting a YouTube link instead.`);
+    } else {
+      session?.botClient?.say(`@${username} couldn't find that song — try a different link or title.`);
+    }
   }
 }
 
@@ -694,6 +726,103 @@ app.post("/overlay/avatar/upload", requireApprovedUser, (req, res) => {
     console.error("[overlay/avatar/upload]", err.message);
     res.status(500).json({ error: err.message });
   }
+});
+
+// ── YouTube song-request queue + overlay ─────────────────────────────────────
+// Site-side queue management (add/remove/skip/default playlist) plus the OBS
+// overlay (backend/overlay/video.html) that actually plays the video, synced
+// over the same /chat WS both other overlays use ({ type: "video_state" }).
+
+// GET /overlay/video?token=... — transparent overlay page (OBS browser
+// source), public like /overlay/xp and /overlay/avatar since OBS can't send
+// the session cookie.
+app.get("/overlay/video", (req, res) => {
+  res.sendFile(path.join(__dirname, "overlay", "video.html"));
+});
+
+// GET /video/overlay-url — the logged-in user's own video overlay URL, for
+// the site's VideoQueue panel to display with a copy button.
+app.get("/video/overlay-url", requireApprovedUser, (req, res) => {
+  const token = getOverlayToken(req.user.twitchId);
+  res.json({ url: `${req.protocol}://${req.get("host")}/overlay/video?token=${token}` });
+});
+
+// GET /video/state?token=... — current queue/nowPlaying. Reachable via
+// overlay token (OBS) or session cookie (site), same pattern as /xp/ranking.
+app.get("/video/state", (req, res) => {
+  const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  res.json(videoQueue.getState(user.twitchId));
+});
+
+// POST /video/queue — { input: url | video id | free-text title } — resolves
+// via youtube.resolveInput and enqueues; auto-starts playback if idle.
+app.post("/video/queue", requireApprovedUser, async (req, res) => {
+  const { input } = req.body || {};
+  if (!input) return res.status(400).json({ error: "input is required" });
+  try {
+    const resolved = await youtube.resolveInput(input);
+    const wasIdle = !videoQueue.getState(req.user.twitchId).nowPlaying;
+    videoQueue.enqueue(req.user.twitchId, { ...resolved, requestedBy: req.user.login });
+    if (wasIdle) await videoQueue.advance(req.user.twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    broadcastVideoState(req.user.twitchId);
+    res.json({ ok: true, item: resolved });
+  } catch (err) {
+    if (err.message === "YOUTUBE_API_KEY_MISSING") {
+      return res.status(503).json({ error: "Song search requires YOUTUBE_API_KEY in the backend environment — paste a link instead" });
+    }
+    console.error("[video/queue]", err.message);
+    res.status(400).json({ error: "Couldn't resolve that song" });
+  }
+});
+
+// DELETE /video/queue/:id — remove one queued item
+app.delete("/video/queue/:id", requireApprovedUser, (req, res) => {
+  videoQueue.removeFromQueue(req.user.twitchId, req.params.id);
+  broadcastVideoState(req.user.twitchId);
+  res.json({ ok: true });
+});
+
+// POST /video/default-playlist — { input: playlist url | id } — resolves and
+// caches the playlist that plays on loop whenever the request queue is empty.
+app.post("/video/default-playlist", requireApprovedUser, async (req, res) => {
+  const { input } = req.body || {};
+  const playlistId = youtube.extractPlaylistId(input || "");
+  if (!playlistId) return res.status(400).json({ error: "Couldn't find a playlist ID in that input" });
+  try {
+    const items = await youtube.fetchPlaylistItems(playlistId);
+    videoQueue.setDefaultPlaylist(req.user.twitchId, playlistId, items);
+    broadcastVideoState(req.user.twitchId);
+    res.json({ ok: true, count: items.length });
+  } catch (err) {
+    if (err.message === "YOUTUBE_API_KEY_MISSING") {
+      return res.status(503).json({ error: "Default playlist requires YOUTUBE_API_KEY in the backend environment" });
+    }
+    console.error("[video/default-playlist]", err.message);
+    res.status(400).json({ error: "Couldn't load that playlist" });
+  }
+});
+
+// POST /video/skip — force-advance to the next queued/default-playlist item
+app.post("/video/skip", requireApprovedUser, async (req, res) => {
+  await videoQueue.advance(req.user.twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+  broadcastVideoState(req.user.twitchId);
+  res.json({ ok: true });
+});
+
+// POST /video/ended?token=... — { videoId } — the overlay reports playback
+// finished. videoId is checked against the current nowPlaying so a stale or
+// duplicate report (e.g. a slow network retry) can't double-advance the queue.
+app.post("/video/ended", async (req, res) => {
+  const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const { videoId } = req.body || {};
+  const current = videoQueue.getState(user.twitchId).nowPlaying;
+  if (current && current.videoId === videoId) {
+    await videoQueue.advance(user.twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    broadcastVideoState(user.twitchId);
+  }
+  res.json({ ok: true });
 });
 
 // POST /xp/config — { ignoredUsers: "name1, name2" | [] } — users that earn no XP
