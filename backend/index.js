@@ -4,7 +4,7 @@ const cookieParser = require("cookie-parser");
 const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
-const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, getOverlayToken, findUserByOverlayToken, getValidBotTwitchToken } = require("./auth");
+const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, getOverlayToken, findUserByOverlayToken, getValidBotTwitchToken, forceRefreshBotToken } = require("./auth");
 const { sendEvent } = require("./analytics");
 const errorLog = require("./errorLog");
 const { router: adminRouter } = require("./adminAuth");
@@ -332,6 +332,51 @@ app.post("/say", (req, res) => {
   res.json({ ok: true });
 });
 
+// Guards against overlapping refresh attempts when the bot IRC client fires
+// several auth_error events back-to-back (it reconnects and re-fails every
+// ~10s until we intervene) — see handleBotAuthError below.
+const botAuthErrorInFlight = new Set();
+
+// Twitch's real token lifetime can be shorter than the expires_in we cached
+// (or the token can be revoked outright), so a linked bot's IRC client can
+// end up retrying forever with a token Twitch will never accept again.
+// Reacts to that by force-refreshing and swapping in a new IRC client —
+// self-healing without waiting for the 30-min periodic sweep below. Only
+// wired up for linked-via-OAuth bots (see connectTwitchForUser); manual
+// pasted tokens and the site-wide bot have no refresh token to fall back to.
+async function handleBotAuthError(twitchId) {
+  if (botAuthErrorInFlight.has(twitchId)) return;
+  botAuthErrorInFlight.add(twitchId);
+  try {
+    const session = twitchSessions.get(twitchId);
+    if (!session || !session.botClient) return;
+    session.botClient.disconnect(); // stop its own retry loop — we're taking over
+    let fresh;
+    try {
+      fresh = await forceRefreshBotToken(twitchId);
+    } catch (err) {
+      console.error(`[bot] refresh after auth_error failed for ${twitchId} — unlinking:`, err.message);
+      return;
+    }
+    if (!fresh) return; // not a linked bot (or already unlinked) — nothing to recover
+    session.botClient = new TwitchIRCClient({
+      channel: session.login,
+      token: fresh.token,
+      username: fresh.username,
+      onMessage: () => {},
+      onStatus: (status) => {
+        console.log("[bot]", status.type, status.message || "");
+        broadcastToAccount(twitchId, { type: "bot_status", status, botUsername: fresh.username, usingSiteBot: false });
+        if (status.type === "auth_error") handleBotAuthError(twitchId);
+      },
+    });
+    session.botClient.connect();
+    console.log(`[bot] refreshed token after auth_error, reconnecting as ${fresh.username}`);
+  } finally {
+    botAuthErrorInFlight.delete(twitchId);
+  }
+}
+
 // Connects Twitch chat + EventSub as the given (approved, logged-in) user,
 // using their own Twitch OAuth login — no manually-entered channel/token/
 // client-ID. Only tears down that same user's previous session, leaving any
@@ -378,6 +423,7 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
       onStatus: (status) => {
         console.log("[bot]", status.type, status.message || "");
         broadcastToAccount(twitchId, { type: "bot_status", status, botUsername: effectiveBotUsername, usingSiteBot });
+        if (status.type === "auth_error" && linkedBot) handleBotAuthError(twitchId);
       },
     });
     session.botClient.connect();

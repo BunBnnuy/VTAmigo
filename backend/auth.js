@@ -200,18 +200,12 @@ function clearBotTwitchTokens(streamerTwitchId) {
   writeUsers(users);
 }
 
-// Returns { token, username } for the streamer's linked bot account,
-// refreshing first if near expiry, or null if they haven't linked one.
-// Throws BOT_TOKEN_REFRESH_FAILED if Twitch has revoked it — callers should
-// treat that the same as "not linked" and fall back accordingly.
-async function getValidBotTwitchToken(streamerTwitchId) {
-  const user = findUser(streamerTwitchId);
-  if (!user || !user.botAccessTokenEnc) return null;
-
-  if (Date.now() < user.botTokenExpiresAt - 5 * 60 * 1000) {
-    return { token: decryptToken(user.botAccessTokenEnc), username: user.botLogin };
-  }
-
+// Does the actual refresh-token grant and persists the result. Shared by
+// getValidBotTwitchToken (proactive, expiry-based) and forceRefreshBotToken
+// (reactive, called when Twitch has already rejected the current token —
+// its real-world lifetime can be shorter than the expires_in we cached, so
+// the IRC client's auth_error is the more reliable signal in practice).
+async function refreshBotToken(streamerTwitchId, user) {
   const refreshToken = decryptToken(user.botRefreshTokenEnc);
   if (!refreshToken) return null;
 
@@ -238,6 +232,33 @@ async function getValidBotTwitchToken(streamerTwitchId) {
     expiresIn: data.expires_in,
   });
   return { token: data.access_token, username: user.botLogin };
+}
+
+// Returns { token, username } for the streamer's linked bot account,
+// refreshing first if near expiry, or null if they haven't linked one.
+// Throws BOT_TOKEN_REFRESH_FAILED if Twitch has revoked it — callers should
+// treat that the same as "not linked" and fall back accordingly.
+async function getValidBotTwitchToken(streamerTwitchId) {
+  const user = findUser(streamerTwitchId);
+  if (!user || !user.botAccessTokenEnc) return null;
+
+  if (Date.now() < user.botTokenExpiresAt - 5 * 60 * 1000) {
+    return { token: decryptToken(user.botAccessTokenEnc), username: user.botLogin };
+  }
+
+  return refreshBotToken(streamerTwitchId, user);
+}
+
+// Unconditionally refreshes the bot token, skipping the cached-expiry check
+// — for when Twitch has already rejected the current token (IRC auth_error)
+// despite our locally-cached expiresAt saying it should still be valid.
+// Returns null if there's nothing to refresh (not linked / no refresh token
+// stored), throws BOT_TOKEN_REFRESH_FAILED if Twitch rejects the refresh too
+// (revoked bot account) — callers should treat that as "unlinked".
+async function forceRefreshBotToken(streamerTwitchId) {
+  const user = findUser(streamerTwitchId);
+  if (!user || !user.botAccessTokenEnc) return null;
+  return refreshBotToken(streamerTwitchId, user);
 }
 
 function signSession(user) {
@@ -580,5 +601,6 @@ module.exports = {
   getOverlayToken,
   findUserByOverlayToken,
   getValidBotTwitchToken,
+  forceRefreshBotToken,
   clearBotTwitchTokens,
 };
