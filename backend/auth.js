@@ -22,6 +22,25 @@ const TWITCH_LOGIN_SCOPES = [
   "bits:read",
 ].join(" ");
 
+// Scope needed for a separate bot account to post chat messages on the
+// streamer's behalf — see connectTwitchForUser() in index.js.
+const TWITCH_BOT_SCOPES = "chat:edit";
+const BOT_LINK_STATE_COOKIE = "twitch_bot_link_state";
+const BOT_LINK_TTL_MS = 10 * 60 * 1000;
+
+// Pending single-use bot-account link requests, keyed by linkToken. Kept
+// in-memory (not written to disk like users.json) — short-lived by design,
+// and losing pending-but-unfinished links on a restart is harmless; the
+// streamer just clicks "Connect my own bot account" again.
+const pendingBotLinks = new Map();
+
+function pruneExpiredBotLinks() {
+  const now = Date.now();
+  for (const [token, entry] of pendingBotLinks) {
+    if (now - entry.createdAt > BOT_LINK_TTL_MS) pendingBotLinks.delete(token);
+  }
+}
+
 // ── Token encryption at rest (AES-256-GCM, key derived from SESSION_SECRET) ──
 // These are live Twitch account tokens, not just session identifiers, so they
 // don't belong in users.json as plaintext.
@@ -151,6 +170,74 @@ async function getValidTwitchToken(twitchId) {
     expiresIn: data.expires_in,
   });
   return data.access_token;
+}
+
+// Persist the linked bot account's tokens on the *streamer's* user record
+// (a streamer's bot is 1:1 with their own account, not a separate login).
+function setBotTwitchTokens(streamerTwitchId, { botTwitchId, botLogin, accessToken, refreshToken, expiresIn }) {
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === streamerTwitchId);
+  if (!user) return;
+  user.botTwitchId = botTwitchId;
+  user.botLogin = botLogin;
+  user.botAccessTokenEnc = encryptToken(accessToken);
+  user.botRefreshTokenEnc = encryptToken(refreshToken);
+  user.botTokenExpiresAt = Date.now() + expiresIn * 1000;
+  user.botLinkedAt = new Date().toISOString();
+  writeUsers(users);
+}
+
+function clearBotTwitchTokens(streamerTwitchId) {
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === streamerTwitchId);
+  if (!user) return;
+  delete user.botTwitchId;
+  delete user.botLogin;
+  delete user.botAccessTokenEnc;
+  delete user.botRefreshTokenEnc;
+  delete user.botTokenExpiresAt;
+  delete user.botLinkedAt;
+  writeUsers(users);
+}
+
+// Returns { token, username } for the streamer's linked bot account,
+// refreshing first if near expiry, or null if they haven't linked one.
+// Throws BOT_TOKEN_REFRESH_FAILED if Twitch has revoked it — callers should
+// treat that the same as "not linked" and fall back accordingly.
+async function getValidBotTwitchToken(streamerTwitchId) {
+  const user = findUser(streamerTwitchId);
+  if (!user || !user.botAccessTokenEnc) return null;
+
+  if (Date.now() < user.botTokenExpiresAt - 5 * 60 * 1000) {
+    return { token: decryptToken(user.botAccessTokenEnc), username: user.botLogin };
+  }
+
+  const refreshToken = decryptToken(user.botRefreshTokenEnc);
+  if (!refreshToken) return null;
+
+  const res = await fetch("https://id.twitch.tv/oauth2/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: process.env.TWITCH_CLIENT_ID,
+      client_secret: process.env.TWITCH_CLIENT_SECRET,
+      grant_type: "refresh_token",
+      refresh_token: refreshToken,
+    }),
+  });
+  if (!res.ok) {
+    clearBotTwitchTokens(streamerTwitchId);
+    throw new Error("BOT_TOKEN_REFRESH_FAILED");
+  }
+  const data = await res.json();
+  setBotTwitchTokens(streamerTwitchId, {
+    botTwitchId: user.botTwitchId,
+    botLogin: user.botLogin,
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token || refreshToken,
+    expiresIn: data.expires_in,
+  });
+  return { token: data.access_token, username: user.botLogin };
 }
 
 function signSession(user) {
@@ -324,12 +411,162 @@ router.get("/auth/me", (req, res) => {
     // Users created before tiers existed have no `tier` field — default them
     // to "pro" so approval status quo (full access) doesn't change under them.
     tier: user.tier || "pro",
+    botLogin: user.botLogin || null,
   });
 });
 
 router.post("/auth/logout", (req, res) => {
   res.clearCookie(SESSION_COOKIE);
   res.json({ ok: true });
+});
+
+// ── Bot-account linking ──────────────────────────────────────────────────
+// Lets a streamer authorize their *own* bot account (instead of the
+// site-wide fallback bot) without ever pasting a token. Two-browser flow:
+// the streamer, logged in here, generates a single-use link; they open that
+// link in a separate browser/profile logged into the bot's Twitch account,
+// which does a normal OAuth consent for chat:edit; the resulting token gets
+// attached to the streamer's own user record, and the link is burned.
+
+// POST /bot-link/init — streamer's browser. Creates a single-use link.
+router.post("/bot-link/init", requireApprovedUser, (req, res) => {
+  pruneExpiredBotLinks();
+  const linkToken = crypto.randomBytes(24).toString("hex");
+  pendingBotLinks.set(linkToken, {
+    streamerTwitchId: req.user.twitchId,
+    status: "pending",
+    createdAt: Date.now(),
+  });
+  res.json({
+    linkToken,
+    url: `${req.protocol}://${req.get("host")}/auth/twitch/bot-link/${linkToken}`,
+    expiresInSec: BOT_LINK_TTL_MS / 1000,
+  });
+});
+
+// GET /bot-link/poll?linkToken=... — streamer's browser polls this while
+// waiting for the bot-account browser to finish the OAuth consent.
+router.get("/bot-link/poll", requireApprovedUser, (req, res) => {
+  pruneExpiredBotLinks();
+  const entry = pendingBotLinks.get(req.query.linkToken);
+  if (!entry || entry.streamerTwitchId !== req.user.twitchId) {
+    return res.json({ status: "expired" });
+  }
+  res.json({ status: entry.status, botLogin: entry.botLogin || null });
+});
+
+// POST /bot-link/cancel — streamer's browser, closing the "waiting" modal early.
+router.post("/bot-link/cancel", requireApprovedUser, (req, res) => {
+  const entry = pendingBotLinks.get(req.body && req.body.linkToken);
+  if (entry && entry.streamerTwitchId === req.user.twitchId) {
+    pendingBotLinks.delete(req.body.linkToken);
+  }
+  res.json({ ok: true });
+});
+
+router.post("/bot-link/unlink", requireApprovedUser, (req, res) => {
+  clearBotTwitchTokens(req.user.twitchId);
+  res.json({ ok: true });
+});
+
+// GET /auth/twitch/bot-link/:linkToken — opened in a *separate* browser,
+// logged into the bot account. No session/approval check here — this route
+// isn't gated by who's logged in, only by knowing the single-use link token.
+router.get("/auth/twitch/bot-link/:linkToken", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  pruneExpiredBotLinks();
+  const { linkToken } = req.params;
+  const entry = pendingBotLinks.get(linkToken);
+  if (!entry || entry.status !== "pending") {
+    return res.status(400).send("This bot-account link has expired or was already used. Go back to VTAmigo Settings and generate a new one.");
+  }
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const redirectUri = process.env.TWITCH_BOT_REDIRECT_URI;
+  if (!clientId || !redirectUri) {
+    return res.status(503).send("Bot-account linking is not configured on this server.");
+  }
+  res.cookie(BOT_LINK_STATE_COOKIE, linkToken, { httpOnly: true, sameSite: "lax", maxAge: 10 * 60 * 1000 });
+  const url = new URL("https://id.twitch.tv/oauth2/authorize");
+  url.searchParams.set("client_id", clientId);
+  url.searchParams.set("redirect_uri", redirectUri);
+  url.searchParams.set("response_type", "code");
+  url.searchParams.set("scope", TWITCH_BOT_SCOPES);
+  url.searchParams.set("state", linkToken);
+  res.redirect(url.toString());
+});
+
+// GET /auth/twitch/bot-callback — Twitch redirects the bot-account browser
+// here after consent. Also unauthenticated by session; validated purely via
+// the single-use linkToken (state param + cookie, like the main login flow).
+router.get("/auth/twitch/bot-callback", async (req, res) => {
+  res.set("Cache-Control", "no-store");
+  const { code, state } = req.query;
+  const expectedState = req.cookies && req.cookies[BOT_LINK_STATE_COOKIE];
+  res.clearCookie(BOT_LINK_STATE_COOKIE);
+  if (!code || !state || !expectedState || state !== expectedState) {
+    return res.status(400).send("Invalid or expired bot-account link — please generate a new one from VTAmigo Settings.");
+  }
+
+  pruneExpiredBotLinks();
+  const entry = pendingBotLinks.get(state);
+  if (!entry || entry.status !== "pending") {
+    return res.status(400).send("This bot-account link has expired or was already used. Go back to VTAmigo Settings and generate a new one.");
+  }
+  // Burn the link immediately so a replayed callback can't reuse it.
+  entry.status = "linking";
+
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  const redirectUri = process.env.TWITCH_BOT_REDIRECT_URI;
+
+  try {
+    const tokenRes = await fetch("https://id.twitch.tv/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({
+        client_id: clientId,
+        client_secret: clientSecret,
+        code,
+        grant_type: "authorization_code",
+        redirect_uri: redirectUri,
+      }),
+    });
+    if (!tokenRes.ok) throw new Error(`token exchange failed (${tokenRes.status})`);
+    const tokenData = await tokenRes.json();
+
+    const userRes = await fetch("https://api.twitch.tv/helix/users", {
+      headers: {
+        Authorization: `Bearer ${tokenData.access_token}`,
+        "Client-Id": clientId,
+      },
+    });
+    if (!userRes.ok) throw new Error(`user lookup failed (${userRes.status})`);
+    const userData = await userRes.json();
+    const botUser = userData.data && userData.data[0];
+    if (!botUser) throw new Error("no user returned by Twitch");
+
+    setBotTwitchTokens(entry.streamerTwitchId, {
+      botTwitchId: botUser.id,
+      botLogin: botUser.login,
+      accessToken: tokenData.access_token,
+      refreshToken: tokenData.refresh_token,
+      expiresIn: tokenData.expires_in,
+    });
+
+    entry.status = "linked";
+    entry.botLogin = botUser.login;
+    sendEvent("bot_link_success", { req, twitchLogin: botUser.login });
+    res.send(
+      `<!doctype html><meta charset="utf-8"><title>VTAmigo</title>` +
+        `<body style="font-family:sans-serif;text-align:center;padding:4rem 1rem">` +
+        `<h2>✅ Bot account linked: ${botUser.display_name || botUser.login}</h2>` +
+        `<p>You can close this tab and go back to VTAmigo.</p></body>`
+    );
+  } catch (err) {
+    console.error("[auth/twitch/bot-callback]", err.message);
+    entry.status = "pending"; // let them retry with the same link rather than stranding it
+    res.status(502).send("Bot-account linking failed — please try again from VTAmigo Settings.");
+  }
 });
 
 module.exports = {
@@ -342,4 +579,6 @@ module.exports = {
   clearTwitchTokens,
   getOverlayToken,
   findUserByOverlayToken,
+  getValidBotTwitchToken,
+  clearBotTwitchTokens,
 };

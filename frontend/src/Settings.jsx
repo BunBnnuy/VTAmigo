@@ -42,6 +42,19 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [avatarPreviews, setAvatarPreviews] = useState({ speaking: null, silent: null }); // slot -> local data URL, once (re)uploaded this session
   const [avatarUploading, setAvatarUploading] = useState({ speaking: false, silent: false });
   const [avatarError, setAvatarError] = useState({ speaking: "", silent: "" });
+  const [botLogin, setBotLogin] = useState(null); // currently-linked bot account's login, or null
+  const [botLinkStatus, setBotLinkStatus] = useState("idle"); // idle | starting | waiting | linked | expired | error
+  const [botLinkUrl, setBotLinkUrl] = useState("");
+  const [botLinkCopied, setBotLinkCopied] = useState(false);
+  const botLinkPollRef = useRef(null);
+  const botLinkTokenRef = useRef(null);
+
+  const refreshBotLogin = () => {
+    apiFetch("/auth/me")
+      .then((res) => res.json())
+      .then((data) => setBotLogin(data.botLogin || null))
+      .catch(() => {});
+  };
 
   useEffect(() => {
     apiFetch("/xp/overlay-url")
@@ -56,7 +69,83 @@ export default function Settings({ settings, tier, onSave, onClose }) {
         setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
       })
       .catch(() => {});
+    refreshBotLogin();
+    return () => {
+      if (botLinkPollRef.current) clearInterval(botLinkPollRef.current);
+    };
   }, []);
+
+  const stopBotLinkPoll = () => {
+    if (botLinkPollRef.current) {
+      clearInterval(botLinkPollRef.current);
+      botLinkPollRef.current = null;
+    }
+  };
+
+  const startBotLink = async () => {
+    setBotLinkStatus("starting");
+    try {
+      const res = await apiFetch("/bot-link/init", { method: "POST" });
+      if (!res.ok) throw new Error();
+      const data = await res.json();
+      botLinkTokenRef.current = data.linkToken;
+      setBotLinkUrl(data.url);
+      setBotLinkStatus("waiting");
+      stopBotLinkPoll();
+      botLinkPollRef.current = setInterval(async () => {
+        try {
+          const pollRes = await apiFetch(`/bot-link/poll?linkToken=${encodeURIComponent(botLinkTokenRef.current)}`);
+          const pollData = await pollRes.json();
+          if (pollData.status === "linked") {
+            stopBotLinkPoll();
+            setBotLinkStatus("linked");
+            setBotLogin(pollData.botLogin);
+          } else if (pollData.status === "expired") {
+            stopBotLinkPoll();
+            setBotLinkStatus("expired");
+          }
+        } catch {
+          // transient network hiccup — keep polling until it either succeeds or the interval is stopped
+        }
+      }, 2500);
+    } catch {
+      setBotLinkStatus("error");
+    }
+  };
+
+  const cancelBotLink = () => {
+    stopBotLinkPoll();
+    if (botLinkTokenRef.current) {
+      apiFetch("/bot-link/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ linkToken: botLinkTokenRef.current }),
+      }).catch(() => {});
+    }
+    setBotLinkStatus("idle");
+    setBotLinkUrl("");
+  };
+
+  const unlinkBot = async () => {
+    stopBotLinkPoll();
+    try {
+      await apiFetch("/bot-link/unlink", { method: "POST" });
+    } catch {
+      // best-effort — refreshBotLogin() below will reflect the real state either way
+    }
+    setBotLinkStatus("idle");
+    refreshBotLogin();
+  };
+
+  const copyBotLinkUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(botLinkUrl);
+      setBotLinkCopied(true);
+      setTimeout(() => setBotLinkCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable — user can still select the text manually.
+    }
+  };
 
   const copyOverlayUrl = async () => {
     try {
@@ -370,34 +459,40 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </div>
           </section>
 
-          <section style={{ ...styles.section, ...styles.grayedOutSection }} data-tour="bot-account">
+          <section style={styles.section} data-tour="bot-account">
             <h3 style={styles.sectionTitle}>{t("settings.bot.title")}</h3>
-            <div style={styles.field}>
-              <label>{t("settings.bot.username")}</label>
-              <input
-                value={form.botUsername || ""}
-                onChange={(e) => set("botUsername", e.target.value)}
-                placeholder="mybotname"
-                disabled
-              />
-            </div>
-            <div style={styles.field}>
-              <label>{t("settings.bot.token")}</label>
-              <input
-                type="password"
-                value={form.botToken || ""}
-                onChange={(e) => set("botToken", e.target.value)}
-                placeholder="oauth:xxxxxxxxxxxxxxx"
-                disabled
-              />
-              <span style={styles.hint}>
-                {t("settings.bot.tokenHintPrefix")} <code>{t("settings.bot.tokenHintScope")}</code> {t("settings.bot.tokenHintMiddle")}{" "}
-                <a href="https://twitchapps.com/tmi/" target="_blank" rel="noreferrer" style={styles.link}>
-                  twitchapps.com/tmi
-                </a>
-                {" "}{t("settings.bot.tokenHintSuffix")}
-              </span>
-            </div>
+
+            {botLogin ? (
+              <div style={styles.field}>
+                <span style={styles.hint}>{t("settings.bot.linkedAs")} <strong>{botLogin}</strong></span>
+                <button type="button" onClick={unlinkBot} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
+                  {t("settings.bot.unlink")}
+                </button>
+              </div>
+            ) : botLinkStatus === "waiting" ? (
+              <div style={styles.field}>
+                <span style={styles.hint}>{t("settings.bot.waitingHint")}</span>
+                <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                  <input readOnly value={botLinkUrl} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+                  <button type="button" onClick={copyBotLinkUrl} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
+                    {botLinkCopied ? t("settings.overlay.copied") : t("settings.overlay.copy")}
+                  </button>
+                </div>
+                <button type="button" onClick={cancelBotLink} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
+                  {t("settings.bot.cancel")}
+                </button>
+              </div>
+            ) : (
+              <div style={styles.field}>
+                <button type="button" onClick={startBotLink} disabled={botLinkStatus === "starting"} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
+                  {botLinkStatus === "starting" ? "…" : t("settings.bot.connect")}
+                </button>
+                {botLinkStatus === "expired" && <span style={styles.hint}>{t("settings.bot.expired")}</span>}
+                {botLinkStatus === "error" && <span style={styles.hint}>{t("settings.bot.error")}</span>}
+                <span style={styles.hint}>{t("settings.bot.connectHint")}</span>
+              </div>
+            )}
+
             <span style={styles.hint}>{t("settings.bot.autoSendHint")}</span>
           </section>
 

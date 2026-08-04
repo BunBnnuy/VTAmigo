@@ -4,7 +4,7 @@ const cookieParser = require("cookie-parser");
 const http = require("http");
 const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
-const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, getOverlayToken, findUserByOverlayToken } = require("./auth");
+const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, getOverlayToken, findUserByOverlayToken, getValidBotTwitchToken } = require("./auth");
 const { sendEvent } = require("./analytics");
 const errorLog = require("./errorLog");
 const { router: adminRouter } = require("./adminAuth");
@@ -350,10 +350,19 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     if (prev.eventSubClient) prev.eventSubClient.disconnect();
   }
 
-  // Fall back to the site-wide bot account when the user hasn't configured their own
-  const usingSiteBot = !(botUsername && botToken) && !!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN);
-  const effectiveBotUsername = botUsername || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
-  const effectiveBotToken = botToken || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
+  // Priority: manually-pasted creds (legacy) > the user's own linked bot
+  // account (OAuth, see /bot-link/* in auth.js) > the site-wide fallback bot.
+  let linkedBot = null;
+  if (!(botUsername && botToken)) {
+    try {
+      linkedBot = await getValidBotTwitchToken(twitchId);
+    } catch (err) {
+      console.error("[connect] linked bot token unavailable, falling back:", err.message);
+    }
+  }
+  const usingSiteBot = !(botUsername && botToken) && !linkedBot && !!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN);
+  const effectiveBotUsername = botUsername || (linkedBot ? linkedBot.username : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
+  const effectiveBotToken = botToken || (linkedBot ? linkedBot.token : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
 
   const session = { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token, botCreds: { botUsername: botUsername || null, botToken: botToken || null }, usingSiteBot };
 
