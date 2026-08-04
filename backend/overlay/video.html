@@ -30,22 +30,45 @@
     height: 100%;
   }
   #bar-track {
-    height: 6px;
-    background: rgba(255, 255, 255, 0.25);
+    position: relative;
+    height: 64px;
+    flex-shrink: 0;
+    background: rgba(0, 0, 0, 0.6);
+    overflow: hidden;
   }
   #bar-fill {
-    height: 100%;
+    position: absolute;
+    inset: 0;
     width: 0%;
-    background: #9147ff;
+    background: rgba(145, 71, 255, 0.55);
     transition: width 0.25s linear;
   }
-  #remaining {
-    position: absolute;
-    right: 6px;
-    bottom: 10px;
+  #bar-content {
+    position: relative;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    padding: 0 18px;
+    box-sizing: border-box;
+  }
+  #bar-title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     color: #fff;
-    font-size: 13px;
-    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+    font-size: 26px;
+    font-weight: 700;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  }
+  #bar-time {
+    flex-shrink: 0;
+    color: #fff;
+    font-size: 20px;
+    font-weight: 600;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
   }
 </style>
 </head>
@@ -53,9 +76,14 @@
   <div id="wrap">
     <div id="player-box">
       <div id="yt-player"></div>
-      <div id="remaining"></div>
     </div>
-    <div id="bar-track"><div id="bar-fill"></div></div>
+    <div id="bar-track">
+      <div id="bar-fill"></div>
+      <div id="bar-content">
+        <span id="bar-title"></span>
+        <span id="bar-time"></span>
+      </div>
+    </div>
   </div>
 
 <script src="https://www.youtube.com/iframe_api"></script>
@@ -65,13 +93,15 @@
 
   const wrap = document.getElementById("wrap");
   const barFill = document.getElementById("bar-fill");
-  const remainingEl = document.getElementById("remaining");
+  const barTitle = document.getElementById("bar-title");
+  const barTime = document.getElementById("bar-time");
 
   let player = null;
   let playerReady = false;
   let currentVideoId = null;
   let pendingOffsetSec = 0;
   let pendingPaused = false;
+  let pendingTitle = "";
   let progressTimer = null;
 
   function fmtTime(sec) {
@@ -94,7 +124,7 @@
       const current = player.getCurrentTime();
       if (!duration) return;
       barFill.style.width = `${Math.min(100, (current / duration) * 100)}%`;
-      remainingEl.textContent = fmtTime(duration - current);
+      barTime.textContent = fmtTime(duration - current);
     }, 500);
   }
 
@@ -117,7 +147,7 @@
 
   function onPlayerReady() {
     playerReady = true;
-    if (currentVideoId) loadVideo(currentVideoId, pendingOffsetSec, pendingPaused);
+    if (currentVideoId) loadVideo(currentVideoId, pendingOffsetSec, pendingPaused, pendingTitle);
   }
 
   window.onYouTubeIframeAPIReady = function () {
@@ -129,11 +159,13 @@
     });
   };
 
-  function loadVideo(videoId, offsetSec, paused) {
+  function loadVideo(videoId, offsetSec, paused, title) {
     currentVideoId = videoId;
+    barTitle.textContent = title || "";
     if (!playerReady) {
       pendingOffsetSec = offsetSec || 0;
       pendingPaused = !!paused;
+      pendingTitle = title || "";
       return;
     }
     wrap.classList.add("show");
@@ -145,7 +177,8 @@
     currentVideoId = null;
     stopProgress();
     barFill.style.width = "0%";
-    remainingEl.textContent = "";
+    barTitle.textContent = "";
+    barTime.textContent = "";
     wrap.classList.remove("show");
     if (playerReady) player.stopVideo();
   }
@@ -157,7 +190,7 @@
       return;
     }
     if (nowPlaying.videoId !== currentVideoId) {
-      loadVideo(nowPlaying.videoId, 0, nowPlaying.paused);
+      loadVideo(nowPlaying.videoId, 0, nowPlaying.paused, nowPlaying.title);
     } else if (playerReady) {
       if (nowPlaying.paused) player.pauseVideo();
       else player.playVideo();
@@ -172,7 +205,7 @@
       const nowPlaying = state.nowPlaying;
       if (nowPlaying) {
         const offset = Math.max(0, Math.floor((Date.now() - nowPlaying.startedAt) / 1000));
-        loadVideo(nowPlaying.videoId, offset, nowPlaying.paused);
+        loadVideo(nowPlaying.videoId, offset, nowPlaying.paused, nowPlaying.title);
       }
     })
     .catch(() => {});
