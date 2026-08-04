@@ -770,10 +770,18 @@ app.post("/video/settings", requireApprovedUser, (req, res) => {
 
 // GET /video/state?token=... — current queue/nowPlaying. Reachable via
 // overlay token (OBS) or session cookie (site), same pattern as /xp/ranking.
-app.get("/video/state", (req, res) => {
+// If everything is idle (no queue, nothing playing) but a default playlist is
+// configured, this kicks off playback immediately — so loading the overlay
+// or the site never just sits blank when a default playlist is set.
+app.get("/video/state", async (req, res) => {
   const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
   if (!user) return res.status(401).json({ error: "Not authorized" });
-  res.json(videoQueue.getState(user.twitchId));
+  let state = videoQueue.getState(user.twitchId);
+  if (!state.nowPlaying && state.queue.length === 0 && state.defaultPlaylistId) {
+    state = await videoQueue.advance(user.twitchId, { refreshDefaultPlaylist: youtube.fetchPlaylistItems });
+    broadcastVideoState(user.twitchId);
+  }
+  res.json(state);
 });
 
 // POST /video/queue — { input: url | video id | free-text title } — resolves
