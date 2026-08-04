@@ -28,6 +28,7 @@ function emptyAccount() {
   return {
     queue: [],
     defaultPlaylistId: null,
+    defaultPlaylistTitle: null,
     defaultPlaylistCache: null, // { items: [{videoId,title,thumbnail}], fetchedAt, index }
     nowPlaying: null, // { videoId, title, thumbnail, source, startedAt, paused }
     history: [], // previously-played nowPlaying entries, oldest first
@@ -43,6 +44,7 @@ function getState(twitchId) {
   if (!account.history) account.history = [];
   if (account.viewerRequestsEnabled === undefined) account.viewerRequestsEnabled = true;
   if (account.skipDefaultOnRequest === undefined) account.skipDefaultOnRequest = false;
+  if (account.defaultPlaylistTitle === undefined) account.defaultPlaylistTitle = null;
   return account;
 }
 
@@ -79,9 +81,10 @@ function removeFromQueue(twitchId, itemId) {
   return saveAccount(twitchId, account);
 }
 
-function setDefaultPlaylist(twitchId, playlistId, items) {
+function setDefaultPlaylist(twitchId, playlistId, items, title) {
   const account = getState(twitchId);
   account.defaultPlaylistId = playlistId;
+  account.defaultPlaylistTitle = title || null;
   account.defaultPlaylistCache = { items, fetchedAt: Date.now(), index: 0 };
   return saveAccount(twitchId, account);
 }

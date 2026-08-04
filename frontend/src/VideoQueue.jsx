@@ -127,6 +127,12 @@ export default function VideoQueue({ videoState }) {
 
   const nowPlaying = videoState?.nowPlaying || null;
   const queue = videoState?.queue || [];
+  const defaultPlaylistId = videoState?.defaultPlaylistId || null;
+  const defaultPlaylistCache = videoState?.defaultPlaylistCache || null;
+  const nextDefaultItem =
+    defaultPlaylistCache && defaultPlaylistCache.items.length > 0
+      ? defaultPlaylistCache.items[defaultPlaylistCache.index % defaultPlaylistCache.items.length]
+      : null;
 
   if (collapsed) {
     return (
@@ -228,6 +234,28 @@ export default function VideoQueue({ videoState }) {
         <span style={styles.hint2}>
           Se reproduce en bucle cuando la cola está vacía{playlistCount != null ? ` (${playlistCount} videos)` : ""}
         </span>
+
+        {defaultPlaylistId && (
+          <div style={styles.defaultPlaylistInfo}>
+            <span style={styles.defaultPlaylistTitle} title={videoState?.defaultPlaylistTitle || defaultPlaylistId}>
+              {videoState?.defaultPlaylistTitle || defaultPlaylistId}
+            </span>
+            <a
+              href={`https://www.youtube.com/playlist?list=${defaultPlaylistId}`}
+              target="_blank"
+              rel="noreferrer"
+              style={{ ...styles.actionBtn, display: "block", textDecoration: "none", boxSizing: "border-box" }}
+            >
+              ▶ Ver en YouTube
+            </a>
+            {nextDefaultItem && (
+              <span style={styles.hint2} title={nextDefaultItem.title}>
+                Siguiente de la playlist: {nextDefaultItem.title}
+              </span>
+            )}
+          </div>
+        )}
+
         <form onSubmit={saveDefaultPlaylist} style={styles.field}>
           <input
             type="text"
@@ -430,6 +458,19 @@ const styles = {
   hint2: {
     fontSize: 11,
     color: "var(--text-muted)",
+  },
+  defaultPlaylistInfo: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 6,
+  },
+  defaultPlaylistTitle: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   hint: {
     fontSize: 11,

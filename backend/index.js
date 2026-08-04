@@ -811,8 +811,11 @@ app.post("/video/default-playlist", requireApprovedUser, async (req, res) => {
   const playlistId = youtube.extractPlaylistId(input || "");
   if (!playlistId) return res.status(400).json({ error: "Couldn't find a playlist ID in that input" });
   try {
-    const items = await youtube.fetchPlaylistItems(playlistId);
-    videoQueue.setDefaultPlaylist(req.user.twitchId, playlistId, items);
+    const [items, title] = await Promise.all([
+      youtube.fetchPlaylistItems(playlistId),
+      youtube.fetchPlaylistTitle(playlistId).catch(() => null), // cosmetic only — don't fail the save over it
+    ]);
+    videoQueue.setDefaultPlaylist(req.user.twitchId, playlistId, items, title);
     broadcastVideoState(req.user.twitchId);
     res.json({ ok: true, count: items.length });
   } catch (err) {

@@ -76,6 +76,19 @@ async function resolveInput(input) {
   return searchVideo(input);
 }
 
+async function fetchPlaylistTitle(playlistId) {
+  if (!process.env.YOUTUBE_API_KEY) throw new Error("YOUTUBE_API_KEY_MISSING");
+  const url = `https://www.googleapis.com/youtube/v3/playlists?part=snippet&id=${encodeURIComponent(
+    playlistId
+  )}&key=${process.env.YOUTUBE_API_KEY}`;
+  const response = await fetch(url);
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(body?.error?.message || `YouTube playlist lookup failed (${response.status})`);
+  const item = body.items?.[0];
+  if (!item) throw new Error("PLAYLIST_EMPTY_OR_NOT_FOUND");
+  return item.snippet.title;
+}
+
 async function fetchPlaylistItems(playlistId, maxItems = 200) {
   if (!process.env.YOUTUBE_API_KEY) throw new Error("YOUTUBE_API_KEY_MISSING");
   const items = [];
@@ -102,4 +115,4 @@ async function fetchPlaylistItems(playlistId, maxItems = 200) {
   return items.slice(0, maxItems);
 }
 
-module.exports = { extractVideoId, extractPlaylistId, oembedLookup, searchVideo, resolveInput, fetchPlaylistItems };
+module.exports = { extractVideoId, extractPlaylistId, oembedLookup, searchVideo, resolveInput, fetchPlaylistItems, fetchPlaylistTitle };
