@@ -11,6 +11,7 @@ backend/xp-data.json
 backend/users.json
 backend/devices.json
 backend/usage.json
+backend/error-log.json
 backend/piper/
 backend/data/avatars/
 frontend/public/downloads/*.exe

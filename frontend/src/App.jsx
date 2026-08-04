@@ -11,6 +11,7 @@ import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
+import { logError } from "./errorLogger.js";
 import { detectLanguage } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
 import logo from "./img/logo.png";
@@ -498,9 +499,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           if (!thoughtsData.error) tts.enqueue(thoughtsText);
         } catch (err) {
           console.error("[reddit-thoughts]", err.message);
+          logError("reddit-thoughts", err);
         }
       });
     } catch (err) {
+      logError("reddit-story", err);
       setResponses((prev) => [...prev.slice(-49), {
         id: uid(), timestamp: Date.now(), text: `Error: ${err.message}`, error: true,
       }]);
@@ -528,6 +531,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       if (!data.error) tts.enqueue(text);
     } catch (err) {
       console.error("[youtube-peek]", err.message);
+      logError("youtube-peek", err);
     }
   }, []);
 

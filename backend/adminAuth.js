@@ -5,6 +5,7 @@ const { readUsers, writeUsers, clearTwitchTokens } = require("./auth");
 const sysmonitor = require("./sysmonitor");
 const usage = require("./usage");
 const siteConfig = require("./siteConfig");
+const errorLog = require("./errorLog");
 
 const ADMIN_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
 const ADMIN_COOKIE = "admin_session";
@@ -119,6 +120,17 @@ router.get("/admin/stats", requireAdmin, async (req, res) => {
     console.error("[admin/stats]", err.message);
     res.status(500).json({ error: "Failed to read system stats" });
   }
+});
+
+// GET /admin/error-log — recent frontend app errors reported via POST /api/log-error
+router.get("/admin/error-log", requireAdmin, (req, res) => {
+  res.json({ entries: errorLog.getEntries() });
+});
+
+// DELETE /admin/error-log — clear the log
+router.delete("/admin/error-log", requireAdmin, (req, res) => {
+  errorLog.clear();
+  res.json({ ok: true });
 });
 
 module.exports = { router, requireAdmin };

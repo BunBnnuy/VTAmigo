@@ -6,6 +6,7 @@ const path = require("path");
 const { WebSocketServer, WebSocket } = require("ws");
 const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, getOverlayToken, findUserByOverlayToken } = require("./auth");
 const { sendEvent } = require("./analytics");
+const errorLog = require("./errorLog");
 const { router: adminRouter } = require("./adminAuth");
 const { router: devicesRouter } = require("./devices");
 const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
@@ -41,6 +42,26 @@ app.post("/api/collect", (req, res) => {
   if (event) {
     const user = getApprovedUserFromCookieHeader(req.headers.cookie);
     sendEvent(event, { req, twitchLogin: user?.login, data });
+  }
+  res.status(204).end();
+});
+
+// POST /api/log-error — relay for frontend app errors (uncaught exceptions,
+// unhandled promise rejections, React render errors, and explicit logError()
+// calls). Public/unauthenticated on purpose — errors can happen before login
+// (e.g. on the login screen) and we still want to see those.
+app.post("/api/log-error", (req, res) => {
+  const { message, stack, source } = req.body || {};
+  if (message) {
+    const user = getApprovedUserFromCookieHeader(req.headers.cookie);
+    errorLog.addEntry({
+      message,
+      stack,
+      source,
+      url: req.body?.url,
+      userAgent: req.headers["user-agent"],
+      twitchLogin: user?.login,
+    });
   }
   res.status(204).end();
 });

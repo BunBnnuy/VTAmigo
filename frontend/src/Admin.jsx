@@ -14,6 +14,7 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [siteConfig, setSiteConfig] = useState(null);
   const [savingProvider, setSavingProvider] = useState(false);
+  const [errorLog, setErrorLog] = useState(null);
 
   // On mount, check for an existing (still-valid) admin session so a page
   // refresh doesn't force a re-login while the 4h-inactivity cookie is live.
@@ -66,9 +67,17 @@ export default function Admin() {
     setSiteConfig(data);
   }, []);
 
+  const loadErrorLog = useCallback(async () => {
+    const res = await apiFetch("/admin/error-log");
+    if (res.status === 401) { setAuthed(false); return; }
+    if (!res.ok) return;
+    const data = await res.json();
+    setErrorLog(data.entries);
+  }, []);
+
   useEffect(() => {
-    if (authed) { loadUsers(); loadDevices(); loadUsage(); loadSiteConfig(); }
-  }, [authed, loadUsers, loadDevices, loadUsage, loadSiteConfig]);
+    if (authed) { loadUsers(); loadDevices(); loadUsage(); loadSiteConfig(); loadErrorLog(); }
+  }, [authed, loadUsers, loadDevices, loadUsage, loadSiteConfig, loadErrorLog]);
 
   useEffect(() => {
     if (!authed) return;
@@ -80,6 +89,11 @@ export default function Admin() {
   const revokeDevice = async (deviceCode) => {
     await apiFetch(`/admin/devices/${deviceCode}/revoke`, { method: "POST" });
     loadDevices();
+  };
+
+  const clearErrorLog = async () => {
+    await apiFetch("/admin/error-log", { method: "DELETE" });
+    loadErrorLog();
   };
 
   const userLabel = (twitchId) => users?.find((u) => u.twitchId === twitchId)?.displayName || twitchId || "—";
@@ -187,6 +201,7 @@ export default function Admin() {
           <button className="admin-nav-link" onClick={() => scrollTo("sec-agent")}><span className="dot" />AI agent</button>
           <button className="admin-nav-link" onClick={() => scrollTo("sec-users")}><span className="dot" />Users</button>
           <button className="admin-nav-link" onClick={() => scrollTo("sec-devices")}><span className="dot" />Devices</button>
+          <button className="admin-nav-link" onClick={() => scrollTo("sec-errors")}><span className="dot" />Errors</button>
         </nav>
         <button style={styles.logoutBtn} onClick={logout}>Log out</button>
       </div>
@@ -384,7 +399,7 @@ export default function Admin() {
           </section>
 
           {/* Tunnel devices */}
-          <section id="sec-devices" style={{ ...styles.card, marginBottom: 0 }}>
+          <section id="sec-devices" style={styles.card}>
             <h2 style={styles.cardTitle}>Tunnel devices</h2>
             {!devices ? (
               <p style={styles.muted}>Loading…</p>
@@ -422,6 +437,52 @@ export default function Admin() {
                             </button>
                           )}
                         </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </section>
+
+          {/* Frontend error log */}
+          <section id="sec-errors" style={{ ...styles.card, marginBottom: 0 }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <h2 style={styles.cardTitle}>Errors</h2>
+              {errorLog && errorLog.length > 0 && (
+                <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={clearErrorLog}>
+                  Clear
+                </button>
+              )}
+            </div>
+            <p style={styles.muted}>
+              Errors reported from users' browsers — uncaught exceptions, unhandled promise rejections, and React
+              render crashes across the main site.
+            </p>
+            {!errorLog ? (
+              <p style={styles.muted}>Loading…</p>
+            ) : errorLog.length === 0 ? (
+              <p style={styles.muted}>No errors reported.</p>
+            ) : (
+              <div style={styles.tableWrap}>
+                <table className="admin-table" style={styles.table}>
+                  <thead>
+                    <tr>
+                      <th style={styles.th}>When</th>
+                      <th style={styles.th}>User</th>
+                      <th style={styles.th}>Source</th>
+                      <th style={styles.th}>Message</th>
+                      <th style={styles.th}>URL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {[...errorLog].reverse().map((e) => (
+                      <tr key={e.id}>
+                        <td style={styles.td}>{new Date(e.timestamp).toLocaleString()}</td>
+                        <td style={styles.td}>{e.twitchLogin || <span style={{ opacity: 0.5 }}>—</span>}</td>
+                        <td style={styles.td}>{e.source || <span style={{ opacity: 0.5 }}>—</span>}</td>
+                        <td style={{ ...styles.td, whiteSpace: "normal", maxWidth: 420 }} title={e.stack || ""}>{e.message}</td>
+                        <td style={{ ...styles.td, maxWidth: 260, overflow: "hidden", textOverflow: "ellipsis" }}>{e.url || "—"}</td>
                       </tr>
                     ))}
                   </tbody>
