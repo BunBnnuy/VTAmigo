@@ -11,7 +11,7 @@
     overflow: hidden;
     width: 100vw;
     height: 100vh;
-    font-family: "Segoe UI", system-ui, sans-serif;
+    font-family: var(--fontfamily, "Segoe UI", system-ui, sans-serif);
     user-select: none;
   }
 
@@ -24,6 +24,14 @@
     display: flex;
     flex-direction: column-reverse; /* newest at bottom by default (direction=up) */
     gap: 6px;
+    padding: 8px;
+    box-sizing: border-box;
+  }
+  #bg-canvas {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
   }
   #feed.dir-down {
     flex-direction: column;
@@ -133,7 +141,7 @@
 </style>
 </head>
 <body>
-  <div id="feed"></div>
+  <div id="feed"><canvas id="bg-canvas"></canvas></div>
   <div id="banner">
     <div class="b-title" id="b-title"></div>
     <div class="b-body" id="b-body"></div>
@@ -153,23 +161,30 @@
     max: 25, fade: 0, showEvents: true, showBanner: true, bannerDuration: 6000,
     showRedeems: true, direction: "up", align: "left", timestamps: false,
     userColor: true, animate: true, lang: "en", width: 420, fontsize: 16,
-    bg: 0.35, textcolor: "ffffff",
+    bg: 0.35, textcolor: "ffffff", fontFamily: "",
+    bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
+    mirrorH: false, mirrorV: false, hasBgImage: false,
   };
   let cfg = { ...DEFAULTS };
 
   const feedEl = document.getElementById("feed");
   const bannerEl = document.getElementById("banner");
+  const bgCanvas = document.getElementById("bg-canvas");
 
   function applyConfig(newCfg) {
+    const prevHasBgImage = cfg.hasBgImage;
     cfg = { ...DEFAULTS, ...newCfg };
     const root = document.documentElement.style;
     root.setProperty("--width", cfg.width + "px");
     root.setProperty("--fontsize", cfg.fontsize + "px");
     root.setProperty("--bg", String(cfg.bg));
     root.setProperty("--textcolor", "#" + String(cfg.textcolor || "ffffff").replace(/^#/, ""));
+    root.setProperty("--fontfamily", cfg.fontFamily ? `"${cfg.fontFamily.replace(/"/g, "")}"` : "");
     feedEl.classList.toggle("dir-down", cfg.direction === "down");
     feedEl.classList.toggle("align-right", cfg.align === "right");
     trimFeed();
+    if (cfg.hasBgImage !== prevHasBgImage) loadBgImage();
+    else redrawBg();
   }
 
   async function loadConfig() {
@@ -182,6 +197,76 @@
     }
   }
   loadConfig();
+
+  // ── Nine-slice background texture ─────────────────────────────────────────
+  let bgImg = null;
+
+  function drawPiece(ctx, img, sx, sy, sw, sh, dx, dy, dw, dh, flipX, flipY) {
+    if (sw <= 0 || sh <= 0 || dw <= 0 || dh <= 0) return;
+    ctx.save();
+    ctx.translate(dx + (flipX ? dw : 0), dy + (flipY ? dh : 0));
+    ctx.scale(flipX ? -1 : 1, flipY ? -1 : 1);
+    ctx.drawImage(img, sx, sy, sw, sh, 0, 0, dw, dh);
+    ctx.restore();
+  }
+
+  function redrawBg() {
+    if (!bgCanvas) return;
+    const rect = feedEl.getBoundingClientRect();
+    const w = Math.max(1, Math.round(rect.width));
+    const h = Math.max(1, Math.round(rect.height));
+    if (bgCanvas.width !== w) bgCanvas.width = w;
+    if (bgCanvas.height !== h) bgCanvas.height = h;
+    const ctx = bgCanvas.getContext("2d");
+    ctx.clearRect(0, 0, w, h);
+    if (!bgImg) return;
+
+    const iw = bgImg.naturalWidth, ih = bgImg.naturalHeight;
+    if (!iw || !ih) return;
+    let L = Math.min(cfg.sliceLeft, iw / 2);
+    let T = Math.min(cfg.sliceTop, ih / 2);
+    let R = cfg.mirrorH ? L : Math.min(cfg.sliceRight, iw - L);
+    let B = cfg.mirrorV ? T : Math.min(cfg.sliceBottom, ih - T);
+
+    const sx = [0, L, iw - R, iw];
+    const sy = [0, T, ih - B, ih];
+    const dx = [0, Math.min(L, w / 2), Math.max(w - R, w / 2), w];
+    const dy = [0, Math.min(T, h / 2), Math.max(h - B, h / 2), h];
+
+    ctx.globalAlpha = cfg.bgImageOpacity;
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        const flipX = cfg.mirrorH && col === 2;
+        const flipY = cfg.mirrorV && row === 2;
+        const srcCol = flipX ? 0 : col; // mirrored right column reuses the left column's source
+        const srcRow = flipY ? 0 : row; // mirrored bottom row reuses the top row's source
+        const sX = sx[srcCol], sY = sy[srcRow];
+        const sW = sx[srcCol + 1] - sx[srcCol];
+        const sH = sy[srcRow + 1] - sy[srcRow];
+        const dX = dx[col], dY = dy[row];
+        const dW = dx[col + 1] - dx[col];
+        const dH = dy[row + 1] - dy[row];
+        drawPiece(ctx, bgImg, sX, sY, sW, sH, dX, dY, dW, dH, flipX, flipY);
+      }
+    }
+    ctx.globalAlpha = 1;
+  }
+
+  function loadBgImage() {
+    if (!cfg.hasBgImage) {
+      bgImg = null;
+      redrawBg();
+      return;
+    }
+    const img = new Image();
+    img.onload = () => { bgImg = img; redrawBg(); };
+    img.onerror = () => { bgImg = null; redrawBg(); };
+    img.src = "/chat-overlay/bg-image?token=" + encodeURIComponent(token) + "&t=" + Date.now();
+  }
+
+  if (typeof ResizeObserver !== "undefined") {
+    new ResizeObserver(() => redrawBg()).observe(feedEl);
+  }
 
   const bTitleEl = document.getElementById("b-title");
   const bBodyEl = document.getElementById("b-body");
@@ -268,10 +353,13 @@
   }
 
   function trimFeed() {
-    while (feedEl.children.length > cfg.max) {
-      // column-reverse (direction=up) keeps DOM order oldest->newest, so the
-      // oldest row is the first child regardless of visual direction.
-      feedEl.removeChild(feedEl.firstChild);
+    // column-reverse (direction=up) keeps DOM order oldest->newest, so the
+    // oldest row is the first ".row" child regardless of visual direction.
+    // #bg-canvas also lives in #feed but isn't a row, so it's skipped here.
+    while (feedEl.querySelectorAll(".row").length > cfg.max) {
+      const oldest = feedEl.querySelector(".row");
+      if (!oldest) break;
+      oldest.remove();
     }
   }
 
@@ -340,6 +428,9 @@
         handleTwitchEvent(data.event);
       } else if (data.type === "chat_overlay_config") {
         applyConfig(data.config || {});
+      } else if (data.type === "chat_overlay_bg_updated") {
+        cfg.hasBgImage = !!data.hasBgImage;
+        loadBgImage();
       }
     };
     ws.onclose = () => setTimeout(connect, 2000);

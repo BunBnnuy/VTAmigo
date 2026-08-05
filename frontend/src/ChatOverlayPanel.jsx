@@ -1,13 +1,23 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { apiFetch } from "./api.js";
+import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
 const DEFAULTS = {
   max: 25, fade: 0, showEvents: true, showBanner: true, bannerDuration: 6000,
   showRedeems: true, direction: "up", align: "left", timestamps: false,
   userColor: true, animate: true, lang: "en", width: 420, fontsize: 16,
-  bg: 0.35, textcolor: "ffffff",
+  bg: 0.35, textcolor: "ffffff", fontFamily: "",
+  bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
+  mirrorH: false, mirrorV: false, hasBgImage: false,
 };
+
+const COMMON_FONTS = [
+  "Segoe UI", "Arial", "Verdana", "Tahoma", "Trebuchet MS", "Georgia",
+  "Times New Roman", "Courier New", "Comic Sans MS", "Impact", "Calibri",
+];
+
+const MAX_BG_BYTES = 5 * 1024 * 1024;
+const ALLOWED_BG_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 function Toggle({ checked, onChange }) {
   return (
@@ -45,14 +55,34 @@ export default function ChatOverlayPanel({ lang }) {
 
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
+  const [overlayToken, setOverlayToken] = useState("");
   const [cfg, setCfg] = useState(DEFAULTS);
   const [loaded, setLoaded] = useState(false);
   const saveTimerRef = useRef(null);
 
+  // Local Font Access API (Chromium 103+, requires a user gesture + one-time
+  // permission grant) — best-effort listing of fonts actually installed on
+  // the streamer's machine. Falls back to a typeable field + common presets
+  // when unsupported (Firefox/Safari, or permission denied).
+  const [localFonts, setLocalFonts] = useState([]);
+  const [fontLoadStatus, setFontLoadStatus] = useState(""); // "", "loading", "unsupported", "denied"
+
+  // Background image upload/preview
+  const [bgPreview, setBgPreview] = useState(null); // local data URL, once (re)uploaded this session
+  const [bgUploading, setBgUploading] = useState(false);
+  const [bgError, setBgError] = useState("");
+
   useEffect(() => {
     apiFetch("/chat-overlay/overlay-url")
       .then((res) => res.json())
-      .then((data) => setOverlayUrl(data.url || ""))
+      .then((data) => {
+        setOverlayUrl(data.url || "");
+        try {
+          setOverlayToken(data.url ? new URL(data.url).searchParams.get("token") || "" : "");
+        } catch {
+          setOverlayToken("");
+        }
+      })
       .catch(() => {});
     apiFetch("/chat-overlay/config")
       .then((res) => res.json())
@@ -61,6 +91,74 @@ export default function ChatOverlayPanel({ lang }) {
       .finally(() => setLoaded(true));
     return () => clearTimeout(saveTimerRef.current);
   }, []);
+
+  const loadLocalFonts = async () => {
+    if (!window.queryLocalFonts) {
+      setFontLoadStatus("unsupported");
+      return;
+    }
+    setFontLoadStatus("loading");
+    try {
+      const fonts = await window.queryLocalFonts();
+      const families = [...new Set(fonts.map((f) => f.family))].sort((a, b) => a.localeCompare(b));
+      setLocalFonts(families);
+      setFontLoadStatus("");
+    } catch {
+      setFontLoadStatus("denied");
+    }
+  };
+
+  const uploadBgImage = (file) => {
+    if (!file) return;
+    setBgError("");
+    if (!ALLOWED_BG_TYPES.includes(file.type)) {
+      setBgError(t("chatOverlayPanel.bgBadFormat"));
+      return;
+    }
+    if (file.size > MAX_BG_BYTES) {
+      setBgError(t("chatOverlayPanel.bgTooLarge"));
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const dataUrl = reader.result;
+      setBgPreview(dataUrl);
+      setBgUploading(true);
+      try {
+        const res = await apiFetch("/chat-overlay/bg-image", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ dataUrl }),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        setCfg((prev) => ({ ...prev, hasBgImage: true }));
+      } catch (err) {
+        setBgError(t("chatOverlayPanel.bgUploadError", { error: err.message }));
+      } finally {
+        setBgUploading(false);
+      }
+    };
+    reader.onerror = () => setBgError(t("chatOverlayPanel.bgReadError", { file: file.name }));
+    reader.readAsDataURL(file);
+  };
+
+  const removeBgImage = async () => {
+    setBgUploading(true);
+    try {
+      await apiFetch("/chat-overlay/bg-image", { method: "DELETE" });
+      setBgPreview(null);
+      setCfg((prev) => ({ ...prev, hasBgImage: false }));
+    } catch {
+      // Best-effort — the panel already reflects nothing changed.
+    } finally {
+      setBgUploading(false);
+    }
+  };
+
+  const bgImageSrc = bgPreview || (cfg.hasBgImage && overlayToken
+    ? apiUrl(`/chat-overlay/bg-image?token=${overlayToken}`)
+    : null);
 
   const copyOverlayUrl = async () => {
     try {
@@ -198,6 +296,105 @@ export default function ChatOverlayPanel({ lang }) {
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.textColor")}</label>
           <input type="color" value={"#" + cfg.textcolor} onChange={(e) => set("textcolor", e.target.value.replace(/^#/, ""))} disabled={!loaded} style={styles.colorInput} />
         </div>
+
+        <div style={styles.field}>
+          <label style={styles.fieldLabel}>{t("chatOverlayPanel.fontFamily")}</label>
+          <input
+            list="chatOverlayFontList"
+            value={cfg.fontFamily}
+            placeholder={t("chatOverlayPanel.fontFamilyPlaceholder")}
+            onChange={(e) => set("fontFamily", e.target.value)}
+            disabled={!loaded}
+          />
+          <datalist id="chatOverlayFontList">
+            {(localFonts.length ? localFonts : COMMON_FONTS).map((f) => (
+              <option key={f} value={f} />
+            ))}
+          </datalist>
+          <button
+            type="button"
+            style={{ ...styles.actionBtn, marginTop: 4 }}
+            onClick={loadLocalFonts}
+            disabled={fontLoadStatus === "loading"}
+          >
+            {fontLoadStatus === "loading" ? t("chatOverlayPanel.fontLoading") : t("chatOverlayPanel.fontLoadButton")}
+          </button>
+          {fontLoadStatus === "unsupported" && (
+            <span style={styles.avatarErrorText}>{t("chatOverlayPanel.fontUnsupported")}</span>
+          )}
+          {fontLoadStatus === "denied" && (
+            <span style={styles.avatarErrorText}>{t("chatOverlayPanel.fontDenied")}</span>
+          )}
+        </div>
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionLabel}>{t("chatOverlayPanel.bgImageSection")}</div>
+
+        {bgImageSrc && (
+          <div style={styles.bgPreviewWrap}>
+            <img src={bgImageSrc} alt="" style={styles.bgPreviewImg} />
+          </div>
+        )}
+
+        <div style={{ display: "flex", gap: 8 }}>
+          <label style={{ ...styles.uploadLabel, flex: 1, cursor: bgUploading ? "default" : "pointer", opacity: bgUploading ? 0.6 : 1 }}>
+            {bgUploading ? t("chatOverlayPanel.bgUploading") : t("chatOverlayPanel.bgUpload")}
+            <input
+              type="file"
+              accept="image/jpeg,image/png,image/gif,image/webp"
+              disabled={bgUploading}
+              onChange={(e) => {
+                uploadBgImage(e.target.files[0]);
+                e.target.value = "";
+              }}
+              style={{ display: "none" }}
+            />
+          </label>
+          {cfg.hasBgImage && (
+            <button type="button" style={styles.actionBtn} onClick={removeBgImage} disabled={bgUploading}>
+              {t("chatOverlayPanel.bgRemove")}
+            </button>
+          )}
+        </div>
+        {bgError && <span style={styles.avatarErrorText}>{bgError}</span>}
+
+        {cfg.hasBgImage && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.fieldLabel}>{t("chatOverlayPanel.bgImageOpacity", { pct: Math.round(cfg.bgImageOpacity * 100) })}</label>
+              <input type="range" min={0} max={1} step={0.05} value={cfg.bgImageOpacity} onChange={(e) => set("bgImageOpacity", Number(e.target.value))} disabled={!loaded} />
+            </div>
+
+            <div style={styles.fieldLabel}>{t("chatOverlayPanel.sliceHint")}</div>
+            <div style={styles.row2}>
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceLeft")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceLeft} onChange={(e) => set("sliceLeft", Number(e.target.value))} disabled={!loaded} />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceRight")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceRight} onChange={(e) => set("sliceRight", Number(e.target.value))} disabled={!loaded || cfg.mirrorH} />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceTop")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceTop} onChange={(e) => set("sliceTop", Number(e.target.value))} disabled={!loaded} />
+              </div>
+              <div style={styles.field}>
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceBottom")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceBottom} onChange={(e) => set("sliceBottom", Number(e.target.value))} disabled={!loaded || cfg.mirrorV} />
+              </div>
+            </div>
+            <div style={styles.row}>
+              <span style={styles.rowLabel}>{t("chatOverlayPanel.mirrorH")}</span>
+              <Toggle checked={cfg.mirrorH} onChange={() => set("mirrorH", !cfg.mirrorH)} />
+            </div>
+            <div style={styles.row}>
+              <span style={styles.rowLabel}>{t("chatOverlayPanel.mirrorV")}</span>
+              <Toggle checked={cfg.mirrorV} onChange={() => set("mirrorV", !cfg.mirrorV)} />
+            </div>
+          </>
+        )}
       </div>
       <div style={styles.hint}>{t("chatOverlayPanel.hint")}</div>
     </div>
@@ -320,6 +517,39 @@ const styles = {
     width: "100%",
     height: 28,
     padding: 2,
+  },
+  row2: {
+    display: "grid",
+    gridTemplateColumns: "1fr 1fr",
+    gap: 8,
+  },
+  bgPreviewWrap: {
+    display: "flex",
+    justifyContent: "center",
+  },
+  bgPreviewImg: {
+    maxWidth: "100%",
+    maxHeight: 100,
+    borderRadius: 6,
+    border: "1px solid var(--border)",
+    background: "var(--surface2)",
+  },
+  uploadLabel: {
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    color: "var(--text)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    borderRadius: 6,
+    padding: "6px 4px",
+    fontSize: 11,
+    fontWeight: 600,
+    textAlign: "center",
+  },
+  avatarErrorText: {
+    fontSize: 10,
+    color: "var(--red)",
   },
   hint: {
     fontSize: 11,

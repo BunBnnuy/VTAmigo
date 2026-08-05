@@ -23,9 +23,21 @@ const DEFAULTS = {
   lang: "en",
   width: 420,
   fontsize: 16,
-  bg: 0.35, // row background opacity, 0-1
+  bg: 0.35, // per-message row background opacity, 0-1
   textcolor: "ffffff", // hex, no leading #
+  fontFamily: "", // CSS font-family string; "" = built-in default stack
+
+  // ── Background image (nine-slice) ─────────────────────────────────────
+  bgImageOpacity: 1, // opacity of the uploaded panel texture, 0-1
+  sliceLeft: 24, // px inset from each edge that stays unscaled (corners) —
+  sliceRight: 24, // the region between insets stretches to fill the panel.
+  sliceTop: 24,
+  sliceBottom: 24,
+  mirrorH: false, // right column = horizontally-flipped copy of the left column
+  mirrorV: false, // bottom row = vertically-flipped copy of the top row
 };
+
+const FONT_FAMILY_RE = /^[\w\s,'"\-]{0,120}$/;
 
 function readAll() {
   try {
@@ -60,6 +72,9 @@ function sanitize(partial) {
     } else if (key === "textcolor") {
       const hex = String(val).replace(/^#/, "");
       if (/^[0-9a-fA-F]{3,6}$/.test(hex)) out[key] = hex;
+    } else if (key === "fontFamily") {
+      const str = String(val).slice(0, 120);
+      if (FONT_FAMILY_RE.test(str)) out[key] = str;
     }
   }
   // Clamp numeric ranges so a bad payload can't wedge the overlay.
@@ -69,6 +84,11 @@ function sanitize(partial) {
   if ("width" in out) out.width = Math.min(1200, Math.max(200, Math.round(out.width)));
   if ("fontsize" in out) out.fontsize = Math.min(64, Math.max(8, Math.round(out.fontsize)));
   if ("bg" in out) out.bg = Math.min(1, Math.max(0, out.bg));
+  if ("bgImageOpacity" in out) out.bgImageOpacity = Math.min(1, Math.max(0, out.bgImageOpacity));
+  if ("sliceLeft" in out) out.sliceLeft = Math.min(500, Math.max(0, Math.round(out.sliceLeft)));
+  if ("sliceRight" in out) out.sliceRight = Math.min(500, Math.max(0, Math.round(out.sliceRight)));
+  if ("sliceTop" in out) out.sliceTop = Math.min(500, Math.max(0, Math.round(out.sliceTop)));
+  if ("sliceBottom" in out) out.sliceBottom = Math.min(500, Math.max(0, Math.round(out.sliceBottom)));
   return out;
 }
 

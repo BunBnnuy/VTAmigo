@@ -15,4 +15,5 @@ backend/error-log.json
 backend/chatOverlayConfig.json
 backend/piper/
 backend/data/avatars/
+backend/data/chatOverlayBg/
 frontend/public/downloads/*.exe

@@ -38,10 +38,15 @@ function parseTwitchMessage(raw) {
   const color = tags["color"] || "#9147ff";
   const rewardId = tags["custom-reward-id"] || null;
   const rewardTitle = rewardId ? (tags["msg-param-reward-title"] || "Canje de puntos de canal") : null;
+  // The IRC prefix's username is always lowercase (it's the login name);
+  // "display-name" carries the user's actual capitalization (and, for CJK
+  // etc. logins, their native-script display name), so prefer it for anything
+  // shown on screen.
+  const displayName = tags["display-name"] || username;
 
   return {
     id: tags["id"] || `${Date.now()}-${Math.random()}`,
-    username,
+    username: displayName,
     channel,
     text: text.trim(),
     color,

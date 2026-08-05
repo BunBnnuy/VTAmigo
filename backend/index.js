@@ -26,6 +26,7 @@ const piper = require("./piper");
 const avatarOverlay = require("./avatarOverlay");
 const videoQueue = require("./videoQueue");
 const chatOverlayConfig = require("./chatOverlayConfig");
+const chatOverlayBg = require("./chatOverlayBg");
 const youtube = require("./youtube");
 
 const PORT = process.env.PORT || 3001;
@@ -866,7 +867,8 @@ app.get("/chat-overlay/overlay-url", requireApprovedUser, (req, res) => {
 app.get("/chat-overlay/config", (req, res) => {
   const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
   if (!user) return res.status(401).json({ error: "Not authorized" });
-  res.json({ config: chatOverlayConfig.getConfig(user.twitchId) });
+  const config = chatOverlayConfig.getConfig(user.twitchId);
+  res.json({ config: { ...config, hasBgImage: chatOverlayBg.hasImage(user.twitchId) } });
 });
 
 // POST /chat-overlay/config — logged-in only (the streamer editing their own
@@ -875,8 +877,46 @@ app.get("/chat-overlay/config", (req, res) => {
 // reload.
 app.post("/chat-overlay/config", requireApprovedUser, (req, res) => {
   const config = chatOverlayConfig.setConfig(req.user.twitchId, req.body || {});
-  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_config", config });
-  res.json({ config });
+  const fullConfig = { ...config, hasBgImage: chatOverlayBg.hasImage(req.user.twitchId) };
+  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_config", config: fullConfig });
+  res.json({ config: fullConfig });
+});
+
+// GET /chat-overlay/bg-image?token=... — serves the uploaded nine-slice
+// background texture. Same dual-auth pattern as /overlay/avatar/image.
+app.get("/chat-overlay/bg-image", (req, res) => {
+  const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const image = chatOverlayBg.getImage(user.twitchId);
+  if (!image) return res.status(404).end();
+  res.set("Content-Type", image.mime);
+  res.set("Cache-Control", "no-store"); // always reflect the latest upload
+  res.sendFile(image.filePath);
+});
+
+// POST /chat-overlay/bg-image — { dataUrl } — uploads/replaces the
+// background texture, then tells any open overlay to reload it live.
+app.post("/chat-overlay/bg-image", requireApprovedUser, (req, res) => {
+  const { dataUrl } = req.body || {};
+  try {
+    chatOverlayBg.saveImage(req.user.twitchId, dataUrl);
+    broadcastToAccount(req.user.twitchId, { type: "chat_overlay_bg_updated", hasBgImage: true });
+    res.json({ ok: true, hasBgImage: true });
+  } catch (err) {
+    if (err.message === "BAD_DATA_URL") return res.status(400).json({ error: "dataUrl is required" });
+    if (err.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Image must be JPEG, PNG, GIF, or WebP" });
+    if (err.message === "TOO_LARGE") return res.status(413).json({ error: `Image must be under ${chatOverlayBg.MAX_BYTES / (1024 * 1024)}MB` });
+    console.error("[chat-overlay/bg-image]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// DELETE /chat-overlay/bg-image — removes the background texture, falling
+// back to the plain per-row background.
+app.delete("/chat-overlay/bg-image", requireApprovedUser, (req, res) => {
+  chatOverlayBg.deleteImage(req.user.twitchId);
+  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_bg_updated", hasBgImage: false });
+  res.json({ ok: true, hasBgImage: false });
 });
 
 // ── YouTube song-request queue + overlay ─────────────────────────────────────
