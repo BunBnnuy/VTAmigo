@@ -25,6 +25,7 @@ const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
 const avatarOverlay = require("./avatarOverlay");
 const videoQueue = require("./videoQueue");
+const chatOverlayConfig = require("./chatOverlayConfig");
 const youtube = require("./youtube");
 
 const PORT = process.env.PORT || 3001;
@@ -856,6 +857,26 @@ app.get("/overlay/chat", (req, res) => {
 app.get("/chat-overlay/overlay-url", requireApprovedUser, (req, res) => {
   const token = getOverlayToken(req.user.twitchId);
   res.json({ url: `${req.protocol}://${req.get("host")}/overlay/chat?token=${token}` });
+});
+
+// GET /chat-overlay/config?token=... — current appearance/behavior config.
+// Reachable either as a logged-in browser (session cookie, used by the
+// ChatOverlayPanel side panel) or as the OBS overlay itself (?token=...),
+// same dual-auth pattern as /xp/ranking.
+app.get("/chat-overlay/config", (req, res) => {
+  const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  res.json({ config: chatOverlayConfig.getConfig(user.twitchId) });
+});
+
+// POST /chat-overlay/config — logged-in only (the streamer editing their own
+// panel). Persists the change and immediately pushes it to any connected
+// overlay over the /chat WS, so OBS updates live without a browser-source
+// reload.
+app.post("/chat-overlay/config", requireApprovedUser, (req, res) => {
+  const config = chatOverlayConfig.setConfig(req.user.twitchId, req.body || {});
+  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_config", config });
+  res.json({ config });
 });
 
 // ── YouTube song-request queue + overlay ─────────────────────────────────────

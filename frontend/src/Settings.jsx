@@ -560,7 +560,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 </button>
               </div>
               <span style={styles.hint}>{t("settings.chatOverlay.hint")}</span>
-              <span style={styles.hint}><strong>{t("settings.chatOverlay.paramsTitle")}:</strong> {t("settings.chatOverlay.params")}</span>
             </div>
           </section>
 

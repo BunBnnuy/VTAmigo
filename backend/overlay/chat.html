@@ -144,34 +144,45 @@
   const params = new URLSearchParams(location.search);
   const token = params.get("token") || "";
 
-  const cfg = {
-    max: Math.max(1, Number(params.get("max")) || 25),
-    fade: Math.max(0, Number(params.get("fade")) || 0), // seconds; 0 = never auto-remove
-    showEvents: params.get("events") !== "0",
-    showBanner: params.get("banner") !== "0",
-    bannerDuration: Math.max(1000, Number(params.get("bannerDuration")) || 6000),
-    showRedeems: params.get("redeems") !== "0",
-    direction: params.get("direction") === "down" ? "down" : "up",
-    align: params.get("align") === "right" ? "right" : "left",
-    timestamps: params.get("timestamps") === "1",
-    userColor: params.get("usercolor") !== "0",
-    animate: params.get("animate") !== "0",
-    lang: params.get("lang") === "es" ? "es" : "en",
+  // Behavior/appearance is server-driven (see backend/chatOverlayConfig.js),
+  // edited live from the ChatOverlayPanel side panel in the app. Loaded once
+  // on open, then kept in sync over the same /chat WS via
+  // { type: "chat_overlay_config" } pushes — no reload needed in OBS when
+  // the streamer changes a setting.
+  const DEFAULTS = {
+    max: 25, fade: 0, showEvents: true, showBanner: true, bannerDuration: 6000,
+    showRedeems: true, direction: "up", align: "left", timestamps: false,
+    userColor: true, animate: true, lang: "en", width: 420, fontsize: 16,
+    bg: 0.35, textcolor: "ffffff",
   };
-
-  const root = document.documentElement.style;
-  root.setProperty("--width", (Math.max(200, Number(params.get("width")) || 420) + "px"));
-  root.setProperty("--fontsize", (Math.max(8, Number(params.get("fontsize")) || 16) + "px"));
-  root.setProperty("--bg", String(Math.min(1, Math.max(0, parseFloat(params.get("bg")) || 0.35))));
-  if (params.get("textcolor")) root.setProperty("--textcolor", "#" + params.get("textcolor").replace(/^#/, ""));
-  const fontFamily = params.get("font");
-  if (fontFamily) document.body.style.fontFamily = decodeURIComponent(fontFamily);
+  let cfg = { ...DEFAULTS };
 
   const feedEl = document.getElementById("feed");
-  feedEl.classList.toggle("dir-down", cfg.direction === "down");
-  feedEl.classList.toggle("align-right", cfg.align === "right");
-
   const bannerEl = document.getElementById("banner");
+
+  function applyConfig(newCfg) {
+    cfg = { ...DEFAULTS, ...newCfg };
+    const root = document.documentElement.style;
+    root.setProperty("--width", cfg.width + "px");
+    root.setProperty("--fontsize", cfg.fontsize + "px");
+    root.setProperty("--bg", String(cfg.bg));
+    root.setProperty("--textcolor", "#" + String(cfg.textcolor || "ffffff").replace(/^#/, ""));
+    feedEl.classList.toggle("dir-down", cfg.direction === "down");
+    feedEl.classList.toggle("align-right", cfg.align === "right");
+    trimFeed();
+  }
+
+  async function loadConfig() {
+    try {
+      const res = await fetch("/chat-overlay/config?token=" + encodeURIComponent(token));
+      const data = await res.json();
+      applyConfig(data.config || {});
+    } catch {
+      applyConfig(DEFAULTS);
+    }
+  }
+  loadConfig();
+
   const bTitleEl = document.getElementById("b-title");
   const bBodyEl = document.getElementById("b-body");
   const bSubEl = document.getElementById("b-sub");
@@ -327,6 +338,8 @@
         handleChatMessage(data.msg);
       } else if (data.type === "twitch_event") {
         handleTwitchEvent(data.event);
+      } else if (data.type === "chat_overlay_config") {
+        applyConfig(data.config || {});
       }
     };
     ws.onclose = () => setTimeout(connect, 2000);

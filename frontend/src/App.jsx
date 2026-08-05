@@ -3,6 +3,7 @@ import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import QuickControls from "./QuickControls.jsx";
 import VideoQueue from "./VideoQueue.jsx";
+import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
 import Settings from "./Settings.jsx";
 import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
@@ -1254,6 +1255,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         />
 
         <VideoQueue videoState={videoState} lang={settings.language} />
+
+        <ChatOverlayPanel lang={settings.language} />
       </div>
 
       {/* ── Bottom bar ── */}

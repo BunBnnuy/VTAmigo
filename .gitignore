@@ -12,6 +12,7 @@ backend/users.json
 backend/devices.json
 backend/usage.json
 backend/error-log.json
+backend/chatOverlayConfig.json
 backend/piper/
 backend/data/avatars/
 frontend/public/downloads/*.exe
