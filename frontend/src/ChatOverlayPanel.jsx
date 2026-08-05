@@ -7,7 +7,7 @@ const DEFAULTS = {
   showRedeems: true, showBotMessages: true, direction: "up", align: "left",
   timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
   maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
-  bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
+  bgImageOpacity: 1, sliceLeft: 15, sliceRight: 15, sliceTop: 15, sliceBottom: 15,
   mirrorH: false, mirrorV: false, hasBgImage: false,
 };
 
@@ -341,7 +341,13 @@ export default function ChatOverlayPanel({ lang }) {
 
         {bgImageSrc && (
           <div style={styles.bgPreviewWrap}>
-            <img src={bgImageSrc} alt="" style={styles.bgPreviewImg} />
+            <div style={styles.bgPreviewFrame}>
+              <img src={bgImageSrc} alt="" style={styles.bgPreviewImg} />
+              <div style={{ ...styles.sliceLineV, left: `${cfg.sliceLeft}%` }} />
+              <div style={{ ...styles.sliceLineV, right: `${cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight}%` }} />
+              <div style={{ ...styles.sliceLineH, top: `${cfg.sliceTop}%` }} />
+              <div style={{ ...styles.sliceLineH, bottom: `${cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom}%` }} />
+            </div>
           </div>
         )}
 
@@ -377,20 +383,20 @@ export default function ChatOverlayPanel({ lang }) {
             <div style={styles.fieldLabel}>{t("chatOverlayPanel.sliceHint")}</div>
             <div style={styles.row2}>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceLeft")}</label>
-                <input type="number" min={0} max={500} value={cfg.sliceLeft} onChange={(e) => set("sliceLeft", Number(e.target.value))} disabled={!loaded} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceLeft", { pct: cfg.sliceLeft })}</label>
+                <input type="range" min={0} max={50} value={cfg.sliceLeft} onChange={(e) => set("sliceLeft", Number(e.target.value))} disabled={!loaded} />
               </div>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceRight")}</label>
-                <input type="number" min={0} max={500} value={cfg.sliceRight} onChange={(e) => set("sliceRight", Number(e.target.value))} disabled={!loaded || cfg.mirrorH} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceRight", { pct: cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight })}</label>
+                <input type="range" min={0} max={50} value={cfg.sliceRight} onChange={(e) => set("sliceRight", Number(e.target.value))} disabled={!loaded || cfg.mirrorH} />
               </div>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceTop")}</label>
-                <input type="number" min={0} max={500} value={cfg.sliceTop} onChange={(e) => set("sliceTop", Number(e.target.value))} disabled={!loaded} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceTop", { pct: cfg.sliceTop })}</label>
+                <input type="range" min={0} max={50} value={cfg.sliceTop} onChange={(e) => set("sliceTop", Number(e.target.value))} disabled={!loaded} />
               </div>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceBottom")}</label>
-                <input type="number" min={0} max={500} value={cfg.sliceBottom} onChange={(e) => set("sliceBottom", Number(e.target.value))} disabled={!loaded || cfg.mirrorV} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceBottom", { pct: cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom })}</label>
+                <input type="range" min={0} max={50} value={cfg.sliceBottom} onChange={(e) => set("sliceBottom", Number(e.target.value))} disabled={!loaded || cfg.mirrorV} />
               </div>
             </div>
             <div style={styles.row}>
@@ -535,12 +541,36 @@ const styles = {
     display: "flex",
     justifyContent: "center",
   },
+  bgPreviewFrame: {
+    position: "relative",
+    display: "inline-block",
+    lineHeight: 0,
+  },
   bgPreviewImg: {
     maxWidth: "100%",
-    maxHeight: 100,
+    maxHeight: 140,
+    display: "block",
     borderRadius: 6,
     border: "1px solid var(--border)",
     background: "var(--surface2)",
+  },
+  sliceLineV: {
+    position: "absolute",
+    top: 0,
+    bottom: 0,
+    width: 0,
+    borderLeft: "1px dashed #00e5ff",
+    boxShadow: "0 0 0 1px rgba(0,0,0,0.5)",
+    pointerEvents: "none",
+  },
+  sliceLineH: {
+    position: "absolute",
+    left: 0,
+    right: 0,
+    height: 0,
+    borderTop: "1px dashed #00e5ff",
+    boxShadow: "0 0 0 1px rgba(0,0,0,0.5)",
+    pointerEvents: "none",
   },
   uploadLabel: {
     background: "var(--surface2)",

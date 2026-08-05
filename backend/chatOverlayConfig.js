@@ -31,10 +31,13 @@ const DEFAULTS = {
 
   // ── Background image (nine-slice, applied per message row) ─────────────
   bgImageOpacity: 1, // opacity of the uploaded texture, 0-1
-  sliceLeft: 24, // px inset from each edge of a row that stays unscaled
-  sliceRight: 24, // (corners) — the region between insets stretches to fill
-  sliceTop: 24, // that row.
-  sliceBottom: 24,
+  // Insets as a percentage of the source image's own width/height (0-50),
+  // not px — so the slice geometry stays correct regardless of the image's
+  // resolution or how much the row stretches it.
+  sliceLeft: 15,
+  sliceRight: 15,
+  sliceTop: 15,
+  sliceBottom: 15,
   mirrorH: false, // right column = horizontally-flipped copy of the left column
   mirrorV: false, // bottom row = vertically-flipped copy of the top row
 };
@@ -88,10 +91,10 @@ function sanitize(partial) {
   if ("fontsize" in out) out.fontsize = Math.min(64, Math.max(8, Math.round(out.fontsize)));
   if ("bg" in out) out.bg = Math.min(1, Math.max(0, out.bg));
   if ("bgImageOpacity" in out) out.bgImageOpacity = Math.min(1, Math.max(0, out.bgImageOpacity));
-  if ("sliceLeft" in out) out.sliceLeft = Math.min(500, Math.max(0, Math.round(out.sliceLeft)));
-  if ("sliceRight" in out) out.sliceRight = Math.min(500, Math.max(0, Math.round(out.sliceRight)));
-  if ("sliceTop" in out) out.sliceTop = Math.min(500, Math.max(0, Math.round(out.sliceTop)));
-  if ("sliceBottom" in out) out.sliceBottom = Math.min(500, Math.max(0, Math.round(out.sliceBottom)));
+  if ("sliceLeft" in out) out.sliceLeft = Math.min(50, Math.max(0, out.sliceLeft));
+  if ("sliceRight" in out) out.sliceRight = Math.min(50, Math.max(0, out.sliceRight));
+  if ("sliceTop" in out) out.sliceTop = Math.min(50, Math.max(0, out.sliceTop));
+  if ("sliceBottom" in out) out.sliceBottom = Math.min(50, Math.max(0, out.sliceBottom));
   return out;
 }
 

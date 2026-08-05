@@ -163,7 +163,7 @@
     showRedeems: true, showBotMessages: true, direction: "up", align: "left",
     timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
     maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
-    bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
+    bgImageOpacity: 1, sliceLeft: 15, sliceRight: 15, sliceTop: 15, sliceBottom: 15,
     mirrorH: false, mirrorV: false, hasBgImage: false,
   };
   let cfg = { ...DEFAULTS };
@@ -227,10 +227,12 @@
 
     const iw = bgImg.naturalWidth, ih = bgImg.naturalHeight;
     if (!iw || !ih) return;
-    let L = Math.min(cfg.sliceLeft, iw / 2);
-    let T = Math.min(cfg.sliceTop, ih / 2);
-    let R = cfg.mirrorH ? L : Math.min(cfg.sliceRight, iw - L);
-    let B = cfg.mirrorV ? T : Math.min(cfg.sliceBottom, ih - T);
+    // Slice insets are stored as a % of the source image's own dimensions,
+    // not px, so they stay correct regardless of the image's resolution.
+    let L = Math.min((cfg.sliceLeft / 100) * iw, iw / 2);
+    let T = Math.min((cfg.sliceTop / 100) * ih, ih / 2);
+    let R = cfg.mirrorH ? L : Math.min((cfg.sliceRight / 100) * iw, iw - L);
+    let B = cfg.mirrorV ? T : Math.min((cfg.sliceBottom / 100) * ih, ih - T);
 
     const sx = [0, L, iw - R, iw];
     const sy = [0, T, ih - B, ih];
