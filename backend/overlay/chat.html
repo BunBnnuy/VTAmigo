@@ -20,18 +20,10 @@
     left: 1.2vw;
     bottom: 1.2vh;
     width: var(--width, 420px);
-    max-height: 96vh;
+    max-height: min(var(--maxheight, 600px), 96vh);
     display: flex;
     flex-direction: column-reverse; /* newest at bottom by default (direction=up) */
     gap: 6px;
-    padding: 8px;
-    box-sizing: border-box;
-  }
-  #bg-canvas {
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
   }
   #feed.dir-down {
     flex-direction: column;
@@ -44,6 +36,9 @@
   }
 
   .row {
+    position: relative;
+    z-index: 0; /* stacking context so .row-bg (z-index:-1) stays behind this row only */
+    overflow: hidden; /* clips .row-bg to the row's rounded corners */
     display: flex;
     flex-direction: column;
     gap: 2px;
@@ -58,6 +53,12 @@
     word-break: break-word;
     opacity: 1;
     transition: opacity 0.5s ease, transform 0.3s ease;
+  }
+  .row-bg {
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
   }
   .row.animate-in {
     animation: slideIn 0.25s ease-out;
@@ -141,7 +142,7 @@
 </style>
 </head>
 <body>
-  <div id="feed"><canvas id="bg-canvas"></canvas></div>
+  <div id="feed"></div>
   <div id="banner">
     <div class="b-title" id="b-title"></div>
     <div class="b-body" id="b-body"></div>
@@ -159,9 +160,9 @@
   // the streamer changes a setting.
   const DEFAULTS = {
     max: 25, fade: 0, showEvents: true, showBanner: true, bannerDuration: 6000,
-    showRedeems: true, direction: "up", align: "left", timestamps: false,
-    userColor: true, animate: true, lang: "en", width: 420, fontsize: 16,
-    bg: 0.35, textcolor: "ffffff", fontFamily: "",
+    showRedeems: true, showBotMessages: true, direction: "up", align: "left",
+    timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
+    maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
     bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
     mirrorH: false, mirrorV: false, hasBgImage: false,
   };
@@ -169,13 +170,13 @@
 
   const feedEl = document.getElementById("feed");
   const bannerEl = document.getElementById("banner");
-  const bgCanvas = document.getElementById("bg-canvas");
 
   function applyConfig(newCfg) {
     const prevHasBgImage = cfg.hasBgImage;
     cfg = { ...DEFAULTS, ...newCfg };
     const root = document.documentElement.style;
     root.setProperty("--width", cfg.width + "px");
+    root.setProperty("--maxheight", cfg.maxHeight + "px");
     root.setProperty("--fontsize", cfg.fontsize + "px");
     root.setProperty("--bg", String(cfg.bg));
     root.setProperty("--textcolor", "#" + String(cfg.textcolor || "ffffff").replace(/^#/, ""));
@@ -184,7 +185,7 @@
     feedEl.classList.toggle("align-right", cfg.align === "right");
     trimFeed();
     if (cfg.hasBgImage !== prevHasBgImage) loadBgImage();
-    else redrawBg();
+    else redrawAllRowBgs();
   }
 
   async function loadConfig() {
@@ -198,7 +199,10 @@
   }
   loadConfig();
 
-  // ── Nine-slice background texture ─────────────────────────────────────────
+  // ── Nine-slice background texture, applied per message row ─────────────────
+  // One shared source image; each row gets its own canvas sized to that
+  // row's own (dynamic, content-dependent) box, redrawn whenever the row
+  // resizes — e.g. font size changes, width changes, or text wraps.
   let bgImg = null;
 
   function drawPiece(ctx, img, sx, sy, sw, sh, dx, dy, dw, dh, flipX, flipY) {
@@ -210,14 +214,14 @@
     ctx.restore();
   }
 
-  function redrawBg() {
-    if (!bgCanvas) return;
-    const rect = feedEl.getBoundingClientRect();
-    const w = Math.max(1, Math.round(rect.width));
-    const h = Math.max(1, Math.round(rect.height));
-    if (bgCanvas.width !== w) bgCanvas.width = w;
-    if (bgCanvas.height !== h) bgCanvas.height = h;
-    const ctx = bgCanvas.getContext("2d");
+  function redrawRowBg(rowEl) {
+    const canvas = rowEl && rowEl.querySelector(".row-bg");
+    if (!canvas) return;
+    const w = Math.max(1, Math.round(rowEl.clientWidth));
+    const h = Math.max(1, Math.round(rowEl.clientHeight));
+    if (canvas.width !== w) canvas.width = w;
+    if (canvas.height !== h) canvas.height = h;
+    const ctx = canvas.getContext("2d");
     ctx.clearRect(0, 0, w, h);
     if (!bgImg) return;
 
@@ -252,21 +256,25 @@
     ctx.globalAlpha = 1;
   }
 
+  function redrawAllRowBgs() {
+    feedEl.querySelectorAll(".row").forEach(redrawRowBg);
+  }
+
   function loadBgImage() {
     if (!cfg.hasBgImage) {
       bgImg = null;
-      redrawBg();
+      redrawAllRowBgs();
       return;
     }
     const img = new Image();
-    img.onload = () => { bgImg = img; redrawBg(); };
-    img.onerror = () => { bgImg = null; redrawBg(); };
+    img.onload = () => { bgImg = img; redrawAllRowBgs(); };
+    img.onerror = () => { bgImg = null; redrawAllRowBgs(); };
     img.src = "/chat-overlay/bg-image?token=" + encodeURIComponent(token) + "&t=" + Date.now();
   }
 
-  if (typeof ResizeObserver !== "undefined") {
-    new ResizeObserver(() => redrawBg()).observe(feedEl);
-  }
+  const rowResizeObserver = typeof ResizeObserver !== "undefined"
+    ? new ResizeObserver((entries) => { for (const entry of entries) redrawRowBg(entry.target); })
+    : null;
 
   const bTitleEl = document.getElementById("b-title");
   const bBodyEl = document.getElementById("b-body");
@@ -313,6 +321,10 @@
     const row = document.createElement("div");
     row.className = "row" + (isEvent ? " event" : "") + (cfg.animate ? " animate-in" : "");
 
+    const bgCanvas = document.createElement("canvas");
+    bgCanvas.className = "row-bg";
+    row.appendChild(bgCanvas);
+
     const head = document.createElement("div");
     head.className = "row-head";
     if (iconLabel) {
@@ -342,24 +354,30 @@
     }
 
     feedEl.appendChild(row);
+    redrawRowBg(row);
+    if (rowResizeObserver) rowResizeObserver.observe(row);
     trimFeed();
 
     if (cfg.fade > 0) {
       setTimeout(() => {
         row.classList.add("fade-out");
-        setTimeout(() => row.remove(), 550);
+        setTimeout(() => removeRow(row), 550);
       }, cfg.fade * 1000);
     }
+  }
+
+  function removeRow(rowEl) {
+    if (rowResizeObserver) rowResizeObserver.unobserve(rowEl);
+    rowEl.remove();
   }
 
   function trimFeed() {
     // column-reverse (direction=up) keeps DOM order oldest->newest, so the
     // oldest row is the first ".row" child regardless of visual direction.
-    // #bg-canvas also lives in #feed but isn't a row, so it's skipped here.
     while (feedEl.querySelectorAll(".row").length > cfg.max) {
       const oldest = feedEl.querySelector(".row");
       if (!oldest) break;
-      oldest.remove();
+      removeRow(oldest);
     }
   }
 
@@ -391,6 +409,7 @@
   }
 
   function handleChatMessage(msg) {
+    if (msg.isBot && !cfg.showBotMessages) return;
     if (msg.isRedeem) {
       if (!cfg.showRedeems) return;
       if (cfg.showEvents) {

@@ -150,7 +150,9 @@ function broadcastToAccount(twitchId, data) {
 
 // Broadcast a chat message (to that account's own sessions) and award XP for it
 function handleChat(twitchId, msg) {
-  broadcastToAccount(twitchId, { type: "chat", msg });
+  const session = twitchSessions.get(twitchId);
+  const isBot = !!(session?.botUsername && msg.login && msg.login === session.botUsername);
+  broadcastToAccount(twitchId, { type: "chat", msg: { ...msg, isBot } });
   if (msg.username && msg.text) {
     const ev = xp.addMessage(twitchId, msg.username, msg.text, msg.color);
     if (ev && ev.gained > 0) broadcastToAccount(twitchId, { type: "xp", ...ev });
@@ -313,6 +315,7 @@ app.post("/connect-bot", (req, res) => {
   const session = twitchSessions.get(twitchId) || { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: null, botCreds: {} };
   if (session.botClient) { session.botClient.disconnect(); session.botClient = null; }
   session.botCreds = { botUsername, botToken };
+  session.botUsername = botUsername.toLowerCase();
   session.botClient = new TwitchIRCClient({
     channel,
     token: botToken,
@@ -434,7 +437,14 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
   const effectiveBotUsername = botUsername || (linkedBot ? linkedBot.username : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
   const effectiveBotToken = botToken || (linkedBot ? linkedBot.token : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
 
-  const session = { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token, botCreds: { botUsername: botUsername || null, botToken: botToken || null }, usingSiteBot };
+  const session = {
+    login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token,
+    botCreds: { botUsername: botUsername || null, botToken: botToken || null }, usingSiteBot,
+    // Lowercase login of whichever account is currently posting as "the bot"
+    // in this channel — used to flag msg.isBot for the chat overlay's
+    // "show bot messages" toggle. Kept in sync on reconnect below.
+    botUsername: effectiveBotUsername ? effectiveBotUsername.toLowerCase() : null,
+  };
 
   // Bot client — separate user that can send messages. Uses the user's own
   // bot creds if configured in Settings, otherwise falls back to the

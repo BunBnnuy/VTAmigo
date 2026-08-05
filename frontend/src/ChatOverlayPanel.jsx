@@ -4,9 +4,9 @@ import { useTranslation } from "./i18n/index.js";
 
 const DEFAULTS = {
   max: 25, fade: 0, showEvents: true, showBanner: true, bannerDuration: 6000,
-  showRedeems: true, direction: "up", align: "left", timestamps: false,
-  userColor: true, animate: true, lang: "en", width: 420, fontsize: 16,
-  bg: 0.35, textcolor: "ffffff", fontFamily: "",
+  showRedeems: true, showBotMessages: true, direction: "up", align: "left",
+  timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
+  maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
   bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
   mirrorH: false, mirrorV: false, hasBgImage: false,
 };
@@ -233,6 +233,10 @@ export default function ChatOverlayPanel({ lang }) {
           <Toggle checked={cfg.showRedeems} onChange={() => set("showRedeems", !cfg.showRedeems)} />
         </div>
         <div style={styles.row}>
+          <span style={styles.rowLabel}>{t("chatOverlayPanel.showBotMessages")}</span>
+          <Toggle checked={cfg.showBotMessages} onChange={() => set("showBotMessages", !cfg.showBotMessages)} />
+        </div>
+        <div style={styles.row}>
           <span style={styles.rowLabel}>{t("chatOverlayPanel.showBanner")}</span>
           <Toggle checked={cfg.showBanner} onChange={() => set("showBanner", !cfg.showBanner)} />
         </div>
@@ -283,6 +287,10 @@ export default function ChatOverlayPanel({ lang }) {
         <div style={styles.field}>
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.width")}</label>
           <input type="number" min={200} max={1200} value={cfg.width} onChange={(e) => set("width", Number(e.target.value))} disabled={!loaded} />
+        </div>
+        <div style={styles.field}>
+          <label style={styles.fieldLabel}>{t("chatOverlayPanel.maxHeight")}</label>
+          <input type="number" min={100} max={3000} value={cfg.maxHeight} onChange={(e) => set("maxHeight", Number(e.target.value))} disabled={!loaded} />
         </div>
         <div style={styles.field}>
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.fontSize")}</label>

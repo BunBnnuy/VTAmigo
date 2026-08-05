@@ -47,6 +47,7 @@ function parseTwitchMessage(raw) {
   return {
     id: tags["id"] || `${Date.now()}-${Math.random()}`,
     username: displayName,
+    login: username.toLowerCase(), // stable lowercase identity, e.g. for bot-account matching
     channel,
     text: text.trim(),
     color,
