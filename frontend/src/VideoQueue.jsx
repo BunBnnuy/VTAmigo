@@ -23,7 +23,24 @@ function Toggle({ checked, onChange }) {
 }
 
 export default function VideoQueue({ videoState }) {
-  const [collapsed, setCollapsed] = useState(false);
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("videoQueueCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleCollapsed = () => {
+    setCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("videoQueueCollapsed", next ? "1" : "0");
+      } catch {
+        // localStorage unavailable — collapse choice won't persist.
+      }
+      return next;
+    });
+  };
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
   const [addInput, setAddInput] = useState("");
@@ -137,7 +154,7 @@ export default function VideoQueue({ videoState }) {
   if (collapsed) {
     return (
       <div style={styles.collapsedPanel}>
-        <button style={styles.collapseBtn} onClick={() => setCollapsed(false)} title="Expandir cola de videos">
+        <button style={styles.collapseBtn} onClick={toggleCollapsed} title="Expandir cola de videos">
           ⟨
         </button>
       </div>
@@ -148,7 +165,7 @@ export default function VideoQueue({ videoState }) {
     <div style={styles.panel}>
       <div style={styles.header}>
         <span style={styles.title}>Cola de Videos</span>
-        <button style={styles.collapseBtn} onClick={() => setCollapsed(true)} title="Colapsar cola de videos">
+        <button style={styles.collapseBtn} onClick={toggleCollapsed} title="Colapsar cola de videos">
           ⟩
         </button>
       </div>

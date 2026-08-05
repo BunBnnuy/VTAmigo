@@ -157,6 +157,42 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       return next;
     });
   };
+  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("leftPanelCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleLeftPanel = () => {
+    setLeftPanelCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("leftPanelCollapsed", next ? "1" : "0");
+      } catch {
+        // localStorage unavailable — collapse choice won't persist.
+      }
+      return next;
+    });
+  };
+  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(() => {
+    try {
+      return localStorage.getItem("rightPanelCollapsed") === "1";
+    } catch {
+      return false;
+    }
+  });
+  const toggleRightPanel = () => {
+    setRightPanelCollapsed((c) => {
+      const next = !c;
+      try {
+        localStorage.setItem("rightPanelCollapsed", next ? "1" : "0");
+      } catch {
+        // localStorage unavailable — collapse choice won't persist.
+      }
+      return next;
+    });
+  };
   const [showSettings, setShowSettings] = useState(false);
   const [tourActive, setTourActive] = useState(() => {
     try {
@@ -1114,50 +1150,74 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       {/* ── Main content ── */}
       <div style={styles.main}>
         {/* Left: chat feed */}
-        <div style={styles.leftPanel} data-tour="live-chat">
-          <div style={styles.panelHeader}>
-            <span style={styles.panelTitle}>Live Chat</span>
-            <span style={styles.msgCount}>{messages.length} messages</span>
-          </div>
-          <ChatFeed
-            messages={messages}
-            onSend={handleSendTyped}
-            micSupported={voice.supported}
-            micChromeAllowed={voice.supported && isChromeBrowser()}
-            micActive={micActive}
-            micError={micError}
-            micModelStatus={micModelStatus}
-            micSpeaking={micSpeaking}
-            micLastText={micLastText}
-            onToggleMic={() => {
-              const next = !settings.micEnabled;
-              const ns = { ...settings, micEnabled: next };
-              setSettings(ns);
-              localStorage.setItem("settings", JSON.stringify(ns));
-            }}
-          />
+        <div style={leftPanelCollapsed ? styles.leftPanelCollapsed : styles.leftPanel} data-tour="live-chat">
+          {leftPanelCollapsed ? (
+            <button style={styles.collapseBtn} onClick={toggleLeftPanel} title="Expand Live Chat">
+              ⟩
+            </button>
+          ) : (
+            <>
+              <div style={styles.panelHeader}>
+                <span style={styles.panelTitle}>Live Chat</span>
+                <span style={styles.msgCount}>{messages.length} messages</span>
+                <button style={styles.collapseBtn} onClick={toggleLeftPanel} title="Collapse Live Chat">
+                  ⟨
+                </button>
+              </div>
+              <ChatFeed
+                messages={messages}
+                onSend={handleSendTyped}
+                micSupported={voice.supported}
+                micChromeAllowed={voice.supported && isChromeBrowser()}
+                micActive={micActive}
+                micError={micError}
+                micModelStatus={micModelStatus}
+                micSpeaking={micSpeaking}
+                micLastText={micLastText}
+                onToggleMic={() => {
+                  const next = !settings.micEnabled;
+                  const ns = { ...settings, micEnabled: next };
+                  setSettings(ns);
+                  localStorage.setItem("settings", JSON.stringify(ns));
+                }}
+              />
+            </>
+          )}
         </div>
 
         {/* Divider */}
         <div style={styles.divider} />
 
         {/* Right: response history */}
-        <div style={styles.rightPanel} data-tour="ai-response">
-          <ResponsePanel
-            responses={responses}
-            loading={loading}
-            botConnected={botStatus === "connected"}
-            onSendToChat={(text) => apiFetch("/say", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text }),
-            }).then(async (r) => {
-              if (!r.ok) {
-                const d = await r.json().catch(() => ({}));
-                alert(`Bot error: ${d.error || r.status}`);
-              }
-            }).catch((e) => alert(`Bot error: ${e.message}`))}
-          />
+        <div style={rightPanelCollapsed ? styles.rightPanelCollapsed : styles.rightPanel} data-tour="ai-response">
+          {rightPanelCollapsed ? (
+            <button style={styles.collapseBtn} onClick={toggleRightPanel} title="Expand AI Responses">
+              ⟨
+            </button>
+          ) : (
+            <>
+              <div style={styles.rightPanelCollapseRow}>
+                <button style={styles.collapseBtn} onClick={toggleRightPanel} title="Collapse AI Responses">
+                  ⟩
+                </button>
+              </div>
+              <ResponsePanel
+                responses={responses}
+                loading={loading}
+                botConnected={botStatus === "connected"}
+                onSendToChat={(text) => apiFetch("/say", {
+                  method: "POST",
+                  headers: { "Content-Type": "application/json" },
+                  body: JSON.stringify({ text }),
+                }).then(async (r) => {
+                  if (!r.ok) {
+                    const d = await r.json().catch(() => ({}));
+                    alert(`Bot error: ${d.error || r.status}`);
+                  }
+                }).catch((e) => alert(`Bot error: ${e.message}`))}
+              />
+            </>
+          )}
         </div>
 
         <QuickControls
@@ -1361,6 +1421,17 @@ const styles = {
     background: "var(--surface)",
     overflow: "hidden",
   },
+  leftPanelCollapsed: {
+    width: 28,
+    minWidth: 28,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    borderRight: "1px solid var(--border)",
+    background: "var(--surface)",
+    flexShrink: 0,
+    paddingTop: 10,
+  },
   divider: {
     width: 0,
   },
@@ -1370,6 +1441,29 @@ const styles = {
     flexDirection: "column",
     background: "var(--surface)",
     overflow: "hidden",
+  },
+  rightPanelCollapsed: {
+    width: 28,
+    minWidth: 28,
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    background: "var(--surface)",
+    flexShrink: 0,
+    paddingTop: 10,
+  },
+  rightPanelCollapseRow: {
+    display: "flex",
+    justifyContent: "flex-end",
+    padding: "10px 12px 0",
+    flexShrink: 0,
+  },
+  collapseBtn: {
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    color: "var(--text-muted)",
+    fontSize: 12,
+    padding: "3px 7px",
   },
   panelHeader: {
     display: "flex",
