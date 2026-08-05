@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
+import { useTranslation } from "./i18n/index.js";
 
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
@@ -16,9 +17,11 @@ const EVENT_ICONS = {
 export default function ChatFeed({
   messages, onSend,
   micSupported, micChromeAllowed, micActive, micError, micModelStatus, micSpeaking, micLastText, onToggleMic,
+  lang,
 }) {
   const bottomRef = useRef(null);
   const [draft, setDraft] = useState("");
+  const { t } = useTranslation(lang);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -36,7 +39,7 @@ export default function ChatFeed({
     <div style={styles.wrap}>
       <div style={styles.feed}>
         {messages.length === 0 && (
-          <div style={styles.empty}>Sin mensajes aún — conéctate a un canal para empezar.</div>
+          <div style={styles.empty}>{t("chatFeed.empty")}</div>
         )}
         {messages.map((m) => {
           if (m.isEvent) {
@@ -70,7 +73,7 @@ export default function ChatFeed({
                 <span style={styles.channelBadge}>#{m.extraChannel}</span>
               )}
               {m.isRedeem && (
-                <span style={styles.redeemBadge} title={m.rewardTitle || "Canje de puntos"}>🎁</span>
+                <span style={styles.redeemBadge} title={m.rewardTitle || t("chatFeed.pointsRedeem")}>🎁</span>
               )}
               <span style={{ ...styles.user, color: m.color }}>{m.username}</span>
               <span style={styles.colon}>: </span>
@@ -98,11 +101,11 @@ export default function ChatFeed({
               onClick={onToggleMic}
               title={
                 !micChromeAllowed
-                  ? "Voice transcription only works in Google Chrome"
-                  : micError || (micActive ? "Mic activo — click para desactivar" : "Activar micrófono")
+                  ? t("chatFeed.micChromeOnly")
+                  : micError || (micActive ? t("chatFeed.micActiveTitle") : t("chatFeed.micEnableTitle"))
               }
             >
-              {micError ? "🎙 Error" : micModelStatus === "loading" ? "🎙 Loading…" : micActive ? "🎙 Live" : "🎙 Mic"}
+              {micError ? t("chatFeed.micError") : micModelStatus === "loading" ? t("chatFeed.micLoading") : micActive ? t("chatFeed.micLive") : t("chatFeed.micIdle")}
             </button>
           )}
           {onSend && (
@@ -114,12 +117,12 @@ export default function ChatFeed({
                 onChange={(e) => setDraft(e.target.value)}
                 placeholder={
                   micActive && !micError
-                    ? (micSpeaking ? "● listening…" : micLastText || "waiting for speech…")
-                    : "Escribe un mensaje…"
+                    ? (micSpeaking ? t("chatFeed.listening") : micLastText || t("chatFeed.waitingForSpeech"))
+                    : t("chatFeed.inputPlaceholder")
                 }
               />
               <button style={styles.sendBtn} type="submit" disabled={!draft.trim()}>
-                Enviar
+                {t("chatFeed.send")}
               </button>
             </form>
           )}

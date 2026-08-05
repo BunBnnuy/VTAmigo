@@ -2,6 +2,8 @@
 // Direct URL/ID lookups use the free oEmbed endpoint (no quota); free-text
 // title search and playlist expansion need the YouTube Data API v3, which
 // requires YOUTUBE_API_KEY in the backend environment.
+const cheerio = require("cheerio");
+
 const VIDEO_ID_RE = /^[a-zA-Z0-9_-]{11}$/;
 const PLAYLIST_ID_RE = /^[a-zA-Z0-9_-]{10,}$/;
 
@@ -38,6 +40,13 @@ function extractPlaylistId(input) {
   return PLAYLIST_ID_RE.test(text) ? text : null;
 }
 
+// oEmbed titles come back with HTML entities escaped (e.g. "&#39;", "&amp;");
+// decode them so the queue/overlay show the real title, not raw entity codes.
+function decodeHtmlEntities(text) {
+  if (!text) return text;
+  return cheerio.load(`<div>${text}</div>`)("div").text();
+}
+
 async function oembedLookup(videoId) {
   const url = `https://www.youtube.com/oembed?url=${encodeURIComponent(
     `https://www.youtube.com/watch?v=${videoId}`
@@ -47,7 +56,7 @@ async function oembedLookup(videoId) {
   const body = await response.json();
   return {
     videoId,
-    title: body.title || videoId,
+    title: decodeHtmlEntities(body.title) || videoId,
     thumbnail: body.thumbnail_url || `https://i.ytimg.com/vi/${videoId}/hqdefault.jpg`,
   };
 }

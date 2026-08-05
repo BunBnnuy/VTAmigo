@@ -12,7 +12,7 @@ import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
 import { logError } from "./errorLogger.js";
-import { detectLanguage } from "./i18n/index.js";
+import { detectLanguage, useTranslation } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
 import logo from "./img/logo.png";
 
@@ -66,15 +66,19 @@ function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
 }
 
-function formatEventText(event) {
+function formatEventText(event, t) {
+  const messageSuffix = event.message ? t("app.events.messageSuffix", { message: event.message }) : "";
   switch (event.kind) {
-    case "follow":   return "¡Nuevo follow!";
-    case "sub":      return `¡Nueva suscripción${event.isGift ? " (regalo)" : ""}!`;
-    case "resub":    return `¡Resub × ${event.months} ${event.months === 1 ? "mes" : "meses"}!${event.message ? ` "${event.message}"` : ""}`;
-    case "giftsub":  return `¡${event.isAnonymous ? "Anónimo" : event.username} regaló ${event.count} ${event.count === 1 ? "sub" : "subs"}!`;
-    case "raid":     return `¡Raid con ${event.viewers} ${event.viewers === 1 ? "espectador" : "espectadores"}!`;
-    case "cheer":    return `¡${event.bits} bits!${event.message ? ` "${event.message}"` : ""}`;
-    default:         return "Evento de Twitch";
+    case "follow":   return t("app.events.follow");
+    case "sub":      return event.isGift ? t("app.events.subGift") : t("app.events.sub");
+    case "resub":    return t(event.months === 1 ? "app.events.resubOne" : "app.events.resubMany", { months: event.months, messageSuffix });
+    case "giftsub": {
+      const who = event.isAnonymous ? t("app.events.anonymous") : event.username;
+      return t(event.count === 1 ? "app.events.giftSubOne" : "app.events.giftSubMany", { who, count: event.count });
+    }
+    case "raid":     return t(event.viewers === 1 ? "app.events.raidOne" : "app.events.raidMany", { viewers: event.viewers });
+    case "cheer":    return t("app.events.cheer", { bits: event.bits, messageSuffix });
+    default:         return t("app.events.default");
   }
 }
 
@@ -117,6 +121,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       return DEFAULT_SETTINGS;
     }
   });
+  const { t } = useTranslation(settings.language);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("theme") || "system";
@@ -137,7 +142,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     }
   }, [theme]);
   const cycleTheme = () => {
-    setTheme((t) => (t === "system" ? "light" : t === "light" ? "dark" : "system"));
+    setTheme((cur) => (cur === "system" ? "light" : cur === "light" ? "dark" : "system"));
   };
   const [quickControlsCollapsed, setQuickControlsCollapsed] = useState(() => {
     try {
@@ -438,7 +443,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       });
       const data = await res.json();
       if (data.tier) onRefreshAuthRef.current?.();
-      const text = data.response || data.error || "No response";
+      const text = data.response || data.error || t("app.noResponse");
       const entry = {
         id: uid(),
         timestamp: Date.now(),
@@ -524,7 +529,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             }),
           });
           const thoughtsData = await thoughtsRes.json();
-          const thoughtsText = thoughtsData.response || thoughtsData.error || "Sin respuesta";
+          const thoughtsText = thoughtsData.response || thoughtsData.error || t("app.noResponse");
           setResponses((prev) => [...prev.slice(-49), {
             id: uid(),
             timestamp: Date.now(),
@@ -556,7 +561,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         body: JSON.stringify({ basePrompt: settingsRef.current.basePrompt }),
       });
       const data = await res.json();
-      const text = data.response || data.error || "Sin respuesta";
+      const text = data.response || data.error || t("app.noResponse");
       setResponses((prev) => [...prev.slice(-49), {
         id: uid(),
         timestamp: Date.now(),
@@ -628,7 +633,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         }),
       });
       data = await res.json();
-      const text = data.response || data.error || "Sin respuesta";
+      const text = data.response || data.error || t("app.noResponse");
       setResponses((prev) => [...prev.slice(-49), {
         id: uid(),
         timestamp: Date.now(),
@@ -650,7 +655,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
 
     } catch (err) {
       setResponses((prev) => [...prev.slice(-49), {
-        id: uid(), timestamp: Date.now(), text: `Error de red: ${err.message}`, error: true,
+        id: uid(), timestamp: Date.now(), text: t("app.networkError", { error: err.message }), error: true,
       }]);
     } finally {
       // Auto-click the chosen option (AI's pick or chat's top vote), then
@@ -780,21 +785,21 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         body: JSON.stringify({ event, basePrompt: settingsRef.current.basePrompt, provider: settingsRef.current.provider || "claude" }),
       });
       const data = await res.json();
-      const text = data.response || data.error || "Sin respuesta";
+      const text = data.response || data.error || t("app.noResponse");
       const entry = {
         id: uid(),
         timestamp: Date.now(),
         text,
         error: !!data.error,
         eventKind: event.kind,
-        eventLabel: formatEventText(event),
+        eventLabel: formatEventText(event, t),
       };
       setResponses((prev) => [...prev.slice(-49), entry]);
       if (!data.error) tts.enqueue(text);
     } catch (err) {
       setResponses((prev) => [
         ...prev.slice(-49),
-        { id: uid(), timestamp: Date.now(), text: `Error de red: ${err.message}`, error: true },
+        { id: uid(), timestamp: Date.now(), text: t("app.networkError", { error: err.message }), error: true },
       ]);
     } finally {
       setLoading(false);
@@ -876,9 +881,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           if (data.botUsername) setActiveBotUsername(data.botUsername);
           setUsingSiteBot(!!data.usingSiteBot);
         } else if (data.type === "tiktok_status") {
-          const t = data.status.type;
-          setTiktokStatus(t);
-          setTiktokConnected(t === "connected");
+          const tiktokStatusType = data.status.type;
+          setTiktokStatus(tiktokStatusType);
+          setTiktokConnected(tiktokStatusType === "connected");
         } else if (data.type === "screen_question") {
           handleScreenQuestion(data.question, data.options || []);
         } else if (data.type === "screenwatch_status") {
@@ -898,7 +903,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             id: event.id,
             timestamp: event.timestamp,
             username: event.username || "Twitch",
-            text: formatEventText(event),
+            text: formatEventText(event, t),
             color: "#9147ff",
             isEvent: true,
             eventKind: event.kind,
@@ -1059,10 +1064,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const nowRemainingSec = nowOnCooldown ? Math.ceil((nowCooldownUntil - Date.now()) / 1000) : 0;
   const nowDisabled = loading || nowOnCooldown || nowSessionExhausted;
   const nowTitle = nowSessionExhausted
-    ? "Ya usaste el botón Now este sesión (límite de tu plan)"
+    ? t("app.nowSessionExhausted")
     : nowOnCooldown
-      ? `Disponible en ${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")}`
-      : "Forzar respuesta ahora";
+      ? t("app.nowAvailableIn", { time: `${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")}` })
+      : t("app.nowForceResponse");
 
   const handleNowClick = () => {
     if (nowDisabled) return;
@@ -1086,15 +1091,15 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   }[connStatus] || "var(--text-muted)";
 
   const statusLabel = {
-    connected: `Conectado a #${twitchLogin}`,
-    eventsub_connected: `EventSub activo en #${twitchLogin}`,
-    connecting: "Conectando…",
-    eventsub_connecting: "Conectando EventSub…",
-    disconnected: "Desconectado",
-    eventsub_disconnected: "EventSub desconectado",
-    error: "Error de conexión",
-    eventsub_error: "Error en EventSub",
-    auth_error: "Error de auth — revisa el token OAuth",
+    connected: t("app.status.connected", { channel: twitchLogin }),
+    eventsub_connected: t("app.status.eventsubConnected", { channel: twitchLogin }),
+    connecting: t("app.status.connecting"),
+    eventsub_connecting: t("app.status.eventsubConnecting"),
+    disconnected: t("app.status.disconnected"),
+    eventsub_disconnected: t("app.status.eventsubDisconnected"),
+    error: t("app.status.error"),
+    eventsub_error: t("app.status.eventsubError"),
+    auth_error: t("app.status.authError"),
   }[connStatus] || connStatus;
 
   return (
@@ -1105,14 +1110,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
           <span style={styles.brandName}>VTAmigo</span>
           {twitchLogin && (
-            <span style={styles.brandUser}>— logged in as {twitchLogin} — {TIER_LABELS[tier] || tier}</span>
+            <span style={styles.brandUser}>{t("app.loggedInAs", { login: twitchLogin, tier: TIER_LABELS[tier] || tier })}</span>
           )}
         </div>
         <div style={styles.topRight}>
           <button
             style={styles.settingsBtn}
             onClick={cycleTheme}
-            title={`Theme: ${theme} (click to change)`}
+            title={t("app.themeTitle", { theme: t(`app.theme${theme[0].toUpperCase()}${theme.slice(1)}`) })}
           >
             {theme === "light" ? "☀️" : theme === "dark" ? "🌙" : "🖥️"}
           </button>
@@ -1124,25 +1129,25 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               if (tourActive && tourStep === 3) setTourStep(4);
             }}
           >
-            ⚙ Settings
+            {t("app.settingsBtn")}
           </button>
           {connected ? (
             <button style={{ ...styles.btn, background: "var(--red)" }} onClick={() => handleDisconnect(true)}>
-              Disconnect
+              {t("app.disconnect")}
             </button>
           ) : (
             <button
               style={{ ...styles.btn, background: "var(--purple)" }}
               onClick={() => handleConnect(true)}
             >
-              Connect
+              {t("app.connect")}
             </button>
           )}
           <button
             style={styles.settingsBtn}
             onClick={() => apiFetch("/auth/logout", { method: "POST" }).finally(() => window.location.reload())}
           >
-            Log out
+            {t("app.logout")}
           </button>
         </div>
       </div>
@@ -1152,15 +1157,15 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         {/* Left: chat feed */}
         <div style={leftPanelCollapsed ? styles.leftPanelCollapsed : styles.leftPanel} data-tour="live-chat">
           {leftPanelCollapsed ? (
-            <button style={styles.collapseBtn} onClick={toggleLeftPanel} title="Expand Live Chat">
+            <button style={styles.collapseBtn} onClick={toggleLeftPanel} title={t("app.expandLiveChat")}>
               ⟩
             </button>
           ) : (
             <>
               <div style={styles.panelHeader}>
-                <span style={styles.panelTitle}>Live Chat</span>
-                <span style={styles.msgCount}>{messages.length} messages</span>
-                <button style={styles.collapseBtn} onClick={toggleLeftPanel} title="Collapse Live Chat">
+                <span style={styles.panelTitle}>{t("app.liveChat")}</span>
+                <span style={styles.msgCount}>{t("app.msgCount", { count: messages.length })}</span>
+                <button style={styles.collapseBtn} onClick={toggleLeftPanel} title={t("app.collapseLiveChat")}>
                   ⟨
                 </button>
               </div>
@@ -1174,6 +1179,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
                 micModelStatus={micModelStatus}
                 micSpeaking={micSpeaking}
                 micLastText={micLastText}
+                lang={settings.language}
                 onToggleMic={() => {
                   const next = !settings.micEnabled;
                   const ns = { ...settings, micEnabled: next };
@@ -1191,13 +1197,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         {/* Right: response history */}
         <div style={rightPanelCollapsed ? styles.rightPanelCollapsed : styles.rightPanel} data-tour="ai-response">
           {rightPanelCollapsed ? (
-            <button style={styles.collapseBtn} onClick={toggleRightPanel} title="Expand AI Responses">
+            <button style={styles.collapseBtn} onClick={toggleRightPanel} title={t("app.expandAiResponses")}>
               ⟨
             </button>
           ) : (
             <>
               <div style={styles.rightPanelCollapseRow}>
-                <button style={styles.collapseBtn} onClick={toggleRightPanel} title="Collapse AI Responses">
+                <button style={styles.collapseBtn} onClick={toggleRightPanel} title={t("app.collapseAiResponses")}>
                   ⟩
                 </button>
               </div>
@@ -1205,6 +1211,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
                 responses={responses}
                 loading={loading}
                 botConnected={botStatus === "connected"}
+                lang={settings.language}
                 onSendToChat={(text) => apiFetch("/say", {
                   method: "POST",
                   headers: { "Content-Type": "application/json" },
@@ -1212,9 +1219,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
                 }).then(async (r) => {
                   if (!r.ok) {
                     const d = await r.json().catch(() => ({}));
-                    alert(`Bot error: ${d.error || r.status}`);
+                    alert(t("app.botError", { error: d.error || r.status }));
                   }
-                }).catch((e) => alert(`Bot error: ${e.message}`))}
+                }).catch((e) => alert(t("app.botError", { error: e.message })))}
               />
             </>
           )}
@@ -1237,9 +1244,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           onNowClick={handleNowClick}
           settings={settings}
           onUpdateSetting={updateSetting}
+          lang={settings.language}
         />
 
-        <VideoQueue videoState={videoState} />
+        <VideoQueue videoState={videoState} lang={settings.language} />
       </div>
 
       {/* ── Bottom bar ── */}
@@ -1267,9 +1275,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               background: botStatus === "connected" ? "var(--green)" : botStatus === "connecting" ? "var(--yellow)" : "var(--red)",
             }} />
             <span style={styles.statusText}>
-              Bot: {botStatus === "connected"
-                ? `${activeBotUsername || settings.botUsername}${usingSiteBot ? " (sitio)" : ""}`
-                : botStatus === "connecting" ? "conectando…" : "desconectado"}
+              {t("app.botLine", {
+                status: botStatus === "connected"
+                  ? `${activeBotUsername || settings.botUsername}${usingSiteBot ? t("app.botSiteSuffix") : ""}`
+                  : botStatus === "connecting" ? t("app.botConnecting") : t("app.botDisconnected"),
+              })}
             </span>
           </div>
         )}
@@ -1287,12 +1297,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             }} />
             <span style={styles.statusText}>
               {screenWatch.state === "collecting"
-                ? `🖥️ Pregunta — leyendo chat ${screenWatch.remaining}s`
+                ? t("app.screenWatch.collecting", { seconds: screenWatch.remaining })
                 : screenWatch.state === "answering"
-                ? "🖥️ Respondiendo pregunta…"
+                ? t("app.screenWatch.answering")
                 : screenWatch.state === "error"
-                ? `🖥️ ${screenWatch.message || "Error de captura"}`
-                : "🖥️ Vigilando pantalla"}
+                ? t("app.screenWatch.error", { message: screenWatch.message || t("app.screenWatch.errorDefault") })
+                : t("app.screenWatch.watching")}
             </span>
           </div>
         )}
@@ -1308,13 +1318,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
                 }}
               />
             </div>
-            <span style={styles.countdownLabel}>next in {countdown}s</span>
+            <span style={styles.countdownLabel}>{t("app.countdown", { seconds: countdown })}</span>
           </div>
         )}
 
         {/* Buffer size */}
         {bufferRef.current.length > 0 && (
-          <span style={styles.bufLabel}>{bufferRef.current.length} buffered</span>
+          <span style={styles.bufLabel}>{t("app.buffered", { count: bufferRef.current.length })}</span>
         )}
 
       </div>

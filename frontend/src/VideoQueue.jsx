@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "./api.js";
+import { useTranslation } from "./i18n/index.js";
 
 function Toggle({ checked, onChange }) {
   return (
@@ -22,7 +23,8 @@ function Toggle({ checked, onChange }) {
   );
 }
 
-export default function VideoQueue({ videoState }) {
+export default function VideoQueue({ videoState, lang }) {
+  const { t } = useTranslation(lang);
   const [collapsed, setCollapsed] = useState(() => {
     try {
       return localStorage.getItem("videoQueueCollapsed") === "1";
@@ -168,7 +170,7 @@ export default function VideoQueue({ videoState }) {
   if (collapsed) {
     return (
       <div style={styles.collapsedPanel}>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title="Expandir cola de videos">
+        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("videoQueue.expand")}>
           ⟨
         </button>
       </div>
@@ -178,27 +180,27 @@ export default function VideoQueue({ videoState }) {
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
-        <span style={styles.title}>Cola de Videos</span>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title="Colapsar cola de videos">
+        <span style={styles.title}>{t("videoQueue.title")}</span>
+        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("videoQueue.collapse")}>
           ⟩
         </button>
       </div>
       <div style={styles.body}>
-        <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title="Copiar la URL del overlay de video para OBS">
-          {overlayCopied ? "✓ Copiado" : "🔗 Copiar overlay"}
+        <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title={t("videoQueue.copyOverlayTitle")}>
+          {overlayCopied ? t("videoQueue.copied") : t("videoQueue.copyOverlay")}
         </button>
 
         <div style={styles.divider} />
 
         <div style={styles.row}>
-          <span style={styles.rowLabel}>Peticiones de espectadores (!sr)</span>
+          <span style={styles.rowLabel}>{t("videoQueue.viewerRequests")}</span>
           <Toggle
             checked={videoState?.viewerRequestsEnabled !== false}
             onChange={() => updateSetting("viewerRequestsEnabled", !(videoState?.viewerRequestsEnabled !== false))}
           />
         </div>
         <div style={styles.row}>
-          <span style={styles.rowLabel}>Saltar canción por defecto al pedir</span>
+          <span style={styles.rowLabel}>{t("videoQueue.skipDefaultOnRequest")}</span>
           <Toggle
             checked={!!videoState?.skipDefaultOnRequest}
             onChange={() => updateSetting("skipDefaultOnRequest", !videoState?.skipDefaultOnRequest)}
@@ -207,7 +209,7 @@ export default function VideoQueue({ videoState }) {
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>Reproduciendo ahora</div>
+        <div style={styles.sectionLabel}>{t("videoQueue.nowPlayingSection")}</div>
         {nowPlaying ? (
           <div style={styles.nowPlaying}>
             {nowPlaying.thumbnail && <img src={nowPlaying.thumbnail} alt="" style={styles.thumb} />}
@@ -215,39 +217,39 @@ export default function VideoQueue({ videoState }) {
             <button
               style={styles.copyIconBtn}
               onClick={() => copyVideoUrl(nowPlaying.videoId)}
-              title="Copiar URL del video"
+              title={t("videoQueue.copyVideoTitle")}
             >
               {copiedVideoId === nowPlaying.videoId ? "✓" : "🔗"}
             </button>
           </div>
         ) : (
-          <span style={styles.emptyText}>Nada en reproducción</span>
+          <span style={styles.emptyText}>{t("videoQueue.nothingPlaying")}</span>
         )}
         <div style={styles.mediaControls}>
-          <button style={styles.mediaBtn} onClick={previous} title="Video anterior">
+          <button style={styles.mediaBtn} onClick={previous} title={t("videoQueue.previousTitle")}>
             ⏮
           </button>
-          <button style={styles.mediaBtn} onClick={togglePlayPause} disabled={!nowPlaying} title={nowPlaying?.paused ? "Reanudar" : "Pausar"}>
+          <button style={styles.mediaBtn} onClick={togglePlayPause} disabled={!nowPlaying} title={nowPlaying?.paused ? t("videoQueue.resumeTitle") : t("videoQueue.pauseTitle")}>
             {nowPlaying?.paused ? "▶" : "⏸"}
           </button>
-          <button style={styles.mediaBtn} onClick={skip} disabled={!nowPlaying} title="Siguiente video">
+          <button style={styles.mediaBtn} onClick={skip} disabled={!nowPlaying} title={t("videoQueue.nextTitle")}>
             ⏭
           </button>
         </div>
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>Agregar a la cola</div>
+        <div style={styles.sectionLabel}>{t("videoQueue.addSection")}</div>
         <form onSubmit={addToQueue} style={styles.field}>
           <input
             type="text"
             value={addInput}
             onChange={(e) => setAddInput(e.target.value)}
-            placeholder="URL, ID o título de YouTube"
+            placeholder={t("videoQueue.addPlaceholder")}
             style={styles.input}
           />
           <button type="submit" style={styles.actionBtn} disabled={adding || !addInput.trim()}>
-            {adding ? "Buscando…" : "➕ Agregar"}
+            {adding ? t("videoQueue.searching") : t("videoQueue.addButton")}
           </button>
           {addError && <span style={styles.errorText}>⚠ {addError}</span>}
         </form>
@@ -261,11 +263,11 @@ export default function VideoQueue({ videoState }) {
                 <button
                   style={styles.copyIconBtnSmall}
                   onClick={() => copyVideoUrl(item.videoId)}
-                  title="Copiar URL del video"
+                  title={t("videoQueue.copyVideoTitle")}
                 >
                   {copiedVideoId === item.videoId ? "✓" : "🔗"}
                 </button>
-                <button style={styles.smallBtn} onClick={() => removeItem(item.id)} title="Quitar de la cola">
+                <button style={styles.smallBtn} onClick={() => removeItem(item.id)} title={t("videoQueue.removeTitle")}>
                   ✕
                 </button>
               </div>
@@ -275,9 +277,11 @@ export default function VideoQueue({ videoState }) {
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>Playlist por defecto</div>
+        <div style={styles.sectionLabel}>{t("videoQueue.defaultPlaylistSection")}</div>
         <span style={styles.hint2}>
-          Se reproduce en bucle cuando la cola está vacía{playlistCount != null ? ` (${playlistCount} videos)` : ""}
+          {t("videoQueue.defaultPlaylistHint", {
+            countSuffix: playlistCount != null ? t("videoQueue.videosCountSuffix", { count: playlistCount }) : "",
+          })}
         </span>
 
         {defaultPlaylistId && (
@@ -291,11 +295,11 @@ export default function VideoQueue({ videoState }) {
               rel="noreferrer"
               style={{ ...styles.actionBtn, display: "block", textDecoration: "none", boxSizing: "border-box" }}
             >
-              ▶ Ver en YouTube
+              {t("videoQueue.viewOnYoutube")}
             </a>
             {nextDefaultItem && (
               <span style={styles.hint2} title={nextDefaultItem.title}>
-                Siguiente de la playlist: {nextDefaultItem.title}
+                {t("videoQueue.nextInPlaylist", { title: nextDefaultItem.title })}
               </span>
             )}
           </div>
@@ -306,18 +310,18 @@ export default function VideoQueue({ videoState }) {
             type="text"
             value={playlistInput}
             onChange={(e) => setPlaylistInput(e.target.value)}
-            placeholder="URL o ID de playlist de YouTube"
+            placeholder={t("videoQueue.playlistPlaceholder")}
             style={styles.input}
           />
           <button type="submit" style={styles.actionBtn} disabled={playlistSaving || !playlistInput.trim()}>
-            {playlistSaving ? "Guardando…" : "💾 Guardar"}
+            {playlistSaving ? t("videoQueue.saving") : t("videoQueue.saveButton")}
           </button>
           {playlistError && <span style={styles.errorText}>⚠ {playlistError}</span>}
         </form>
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>Historial (últimas 20)</div>
+        <div style={styles.sectionLabel}>{t("videoQueue.historySection")}</div>
         {history.length > 0 ? (
           <div style={styles.queueList}>
             {[...history].reverse().map((item, i) => (
@@ -326,7 +330,7 @@ export default function VideoQueue({ videoState }) {
                 <button
                   style={styles.copyIconBtnSmall}
                   onClick={() => copyVideoUrl(item.videoId)}
-                  title="Copiar URL del video"
+                  title={t("videoQueue.copyVideoTitle")}
                 >
                   {copiedVideoId === item.videoId ? "✓" : "🔗"}
                 </button>
@@ -334,10 +338,10 @@ export default function VideoQueue({ videoState }) {
             ))}
           </div>
         ) : (
-          <span style={styles.emptyText}>Sin historial todavía</span>
+          <span style={styles.emptyText}>{t("videoQueue.noHistory")}</span>
         )}
       </div>
-      <div style={styles.hint}>Los espectadores también pueden pedir canciones con !sr</div>
+      <div style={styles.hint}>{t("videoQueue.footerHint")}</div>
     </div>
   );
 }

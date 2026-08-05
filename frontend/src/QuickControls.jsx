@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch, apiUrl } from "./api.js";
 import { tts } from "./TTSController.js";
+import { useTranslation } from "./i18n/index.js";
 
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
@@ -32,8 +33,9 @@ export default function QuickControls({
   muted, onToggleMute,
   ttsPlaying, ttsSpeaking, onSkipTts,
   nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
-  settings, onUpdateSetting,
+  settings, onUpdateSetting, lang,
 }) {
+  const { t } = useTranslation(lang);
   // ── Avatar overlay: URL, uploads, live preview ──────────────────────────
   const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
   const [avatarOverlayToken, setAvatarOverlayToken] = useState("");
@@ -75,11 +77,11 @@ export default function QuickControls({
     if (!file) return;
     setAvatarError((prev) => ({ ...prev, [slot]: "" }));
     if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
-      setAvatarError((prev) => ({ ...prev, [slot]: "Formato no admitido" }));
+      setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.badFormat") }));
       return;
     }
     if (file.size > MAX_AVATAR_BYTES) {
-      setAvatarError((prev) => ({ ...prev, [slot]: "Imagen demasiado grande (máx. 5MB)" }));
+      setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.tooLarge") }));
       return;
     }
     const reader = new FileReader();
@@ -97,12 +99,12 @@ export default function QuickControls({
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
         setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
       } catch (err) {
-        setAvatarError((prev) => ({ ...prev, [slot]: `Error al subir: ${err.message}` }));
+        setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.uploadError", { error: err.message }) }));
       } finally {
         setAvatarUploading((prev) => ({ ...prev, [slot]: false }));
       }
     };
-    reader.onerror = () => setAvatarError((prev) => ({ ...prev, [slot]: `Error al leer ${file.name}` }));
+    reader.onerror = () => setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.readError", { file: file.name }) }));
     reader.readAsDataURL(file);
   };
 
@@ -166,7 +168,7 @@ export default function QuickControls({
   if (collapsed) {
     return (
       <div style={styles.collapsedPanel}>
-        <button style={styles.collapseBtn} onClick={onToggleCollapse} title="Expand quick controls">
+        <button style={styles.collapseBtn} onClick={onToggleCollapse} title={t("quickControls.expand")}>
           ⟨
         </button>
       </div>
@@ -176,27 +178,27 @@ export default function QuickControls({
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
-        <span style={styles.title}>Controles Rápidos</span>
-        <button style={styles.collapseBtn} onClick={onToggleCollapse} title="Collapse quick controls">
+        <span style={styles.title}>{t("quickControls.title")}</span>
+        <button style={styles.collapseBtn} onClick={onToggleCollapse} title={t("quickControls.collapse")}>
           ⟩
         </button>
       </div>
       <div style={styles.body}>
         {onToggleAutoSend && (
           <div style={styles.row}>
-            <span style={styles.rowLabel}>Auto-send</span>
+            <span style={styles.rowLabel}>{t("quickControls.autoSend")}</span>
             <Toggle checked={autoSendToChat} onChange={onToggleAutoSend} />
           </div>
         )}
         {onToggleMute && (
           <div style={styles.row}>
-            <span style={styles.rowLabel}>Text-to-Speech (TTS)</span>
+            <span style={styles.rowLabel}>{t("quickControls.tts")}</span>
             <Toggle checked={!muted} onChange={onToggleMute} />
           </div>
         )}
         {ttsPlaying && onSkipTts && (
-          <button style={styles.actionBtn} onClick={onSkipTts} title="Skip current TTS">
-            ⏭ Skip TTS
+          <button style={styles.actionBtn} onClick={onSkipTts} title={t("quickControls.skipTtsTitle")}>
+            {t("quickControls.skipTts")}
           </button>
         )}
         {onNowClick && (
@@ -206,13 +208,17 @@ export default function QuickControls({
             disabled={nowDisabled}
             title={nowTitle}
           >
-            ▶ Now{nowOnCooldown ? ` (${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")})` : ""}
+            {t("quickControls.now", {
+              cooldownSuffix: nowOnCooldown
+                ? t("quickControls.nowCooldownSuffix", { time: `${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")}` })
+                : "",
+            })}
           </button>
         )}
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>Avatar</div>
+        <div style={styles.sectionLabel}>{t("quickControls.avatarSection")}</div>
 
         <div style={styles.avatarPreviewWrap}>
           <div
@@ -224,7 +230,7 @@ export default function QuickControls({
             {!previewSrc && <span style={styles.avatarPreviewEmpty}>—</span>}
           </div>
           <span style={styles.avatarPreviewLabel}>
-            {ttsSpeaking ? "🗣️ Hablando" : "🤫 Silencio"}
+            {ttsSpeaking ? t("quickControls.speaking") : t("quickControls.silent")}
           </span>
         </div>
 
@@ -232,9 +238,9 @@ export default function QuickControls({
           style={styles.actionBtn}
           onClick={copyAvatarOverlayUrl}
           disabled={!avatarOverlayUrl}
-          title="Copiar la URL del overlay del avatar para OBS"
+          title={t("quickControls.copyOverlayTitle")}
         >
-          {avatarOverlayCopied ? "✓ Copiado" : "🔗 Copiar overlay"}
+          {avatarOverlayCopied ? t("quickControls.copied") : t("quickControls.copyOverlay")}
         </button>
 
         <div style={styles.avatarUploadRow}>
@@ -248,8 +254,8 @@ export default function QuickControls({
                 }}
               >
                 {avatarUploading[slot]
-                  ? "Subiendo…"
-                  : slot === "speaking" ? "📤 Hablando" : "📤 Silencio"}
+                  ? t("quickControls.uploading")
+                  : slot === "speaking" ? t("quickControls.uploadSpeaking") : t("quickControls.uploadSilent")}
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/gif,image/webp"
@@ -270,12 +276,12 @@ export default function QuickControls({
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>Voz</div>
+        <div style={styles.sectionLabel}>{t("quickControls.voiceSection")}</div>
 
         {settings && onUpdateSetting && (
           <>
             <div style={styles.field}>
-              <label style={styles.fieldLabel}>Proveedor</label>
+              <label style={styles.fieldLabel}>{t("quickControls.provider")}</label>
               <select
                 value={ttsProvider}
                 onChange={(e) => {
@@ -283,9 +289,9 @@ export default function QuickControls({
                   if (e.target.value === "piper") loadPiperVoices();
                 }}
               >
-                <option value="windows">Windows (navegador)</option>
+                <option value="windows">{t("quickControls.windowsOption")}</option>
                 <option value="elevenlabs" disabled={ttsProvider !== "elevenlabs"}>
-                  ElevenLabs{ttsProvider !== "elevenlabs" ? " (no disponible)" : ""}
+                  {t("quickControls.elevenlabsOption")}{ttsProvider !== "elevenlabs" ? t("quickControls.elevenlabsUnavailable") : ""}
                 </option>
                 <option value="piper">Piper</option>
               </select>
@@ -293,12 +299,12 @@ export default function QuickControls({
 
             {ttsProvider === "windows" && (
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>Voz</label>
+                <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
                 <select
                   value={settings.voiceURI || ""}
                   onChange={(e) => onUpdateSetting("voiceURI", e.target.value)}
                 >
-                  <option value="">Predeterminada del sistema</option>
+                  <option value="">{t("quickControls.systemDefault")}</option>
                   {voices.map((v) => (
                     <option key={v.voiceURI} value={v.voiceURI}>
                       {v.name} ({v.lang})
@@ -310,21 +316,21 @@ export default function QuickControls({
 
             {ttsProvider === "elevenlabs" && (
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>Voz</label>
+                <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
                 <div style={{ display: "flex", gap: 6 }}>
                   <select
                     value={settings.elevenLabsVoiceId || ""}
                     onChange={(e) => onUpdateSetting("elevenLabsVoiceId", e.target.value)}
                     style={{ flex: 1 }}
                   >
-                    <option value="">Elegir voz</option>
+                    <option value="">{t("quickControls.chooseVoice")}</option>
                     {elevenVoices.map((v) => (
                       <option key={v.voice_id} value={v.voice_id}>
                         {v.name}{v.category ? ` (${v.category})` : ""}
                       </option>
                     ))}
                     {settings.elevenLabsVoiceId && !elevenVoices.some((v) => v.voice_id === settings.elevenLabsVoiceId) && (
-                      <option value={settings.elevenLabsVoiceId}>{settings.elevenLabsVoiceId} (guardada)</option>
+                      <option value={settings.elevenLabsVoiceId}>{settings.elevenLabsVoiceId}{t("quickControls.saved")}</option>
                     )}
                   </select>
                   <button
@@ -344,14 +350,14 @@ export default function QuickControls({
 
             {ttsProvider === "piper" && (
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>Voz</label>
+                <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
                 <div style={{ display: "flex", gap: 6 }}>
                   <select
                     value={settings.piperVoice || ""}
                     onChange={(e) => onUpdateSetting("piperVoice", e.target.value)}
                     style={{ flex: 1 }}
                   >
-                    <option value="">Predeterminada</option>
+                    <option value="">{t("quickControls.defaultOption")}</option>
                     {piperVoices.map((v) => (
                       <option key={v.id} value={v.id}>{v.name}</option>
                     ))}
@@ -366,7 +372,7 @@ export default function QuickControls({
                   </button>
                 </div>
                 {piperStatus === "missing" && (
-                  <span style={styles.avatarErrorText}>Piper no está instalado</span>
+                  <span style={styles.avatarErrorText}>{t("quickControls.piperMissing")}</span>
                 )}
                 {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
                   <span style={styles.avatarErrorText}>⚠ {piperStatus}</span>
@@ -376,7 +382,7 @@ export default function QuickControls({
           </>
         )}
       </div>
-      <div style={styles.hint}>Este panel se puede ocultar en modo compacto</div>
+      <div style={styles.hint}>{t("quickControls.hint")}</div>
     </div>
   );
 }

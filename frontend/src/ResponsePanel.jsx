@@ -1,13 +1,15 @@
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "./i18n/index.js";
 
 function formatTime(ts) {
   return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
 }
 
 export default function ResponsePanel({
-  responses, loading, onSendToChat, botConnected,
+  responses, loading, onSendToChat, botConnected, lang,
 }) {
   const bottomRef = useRef(null);
+  const { t } = useTranslation(lang);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -16,12 +18,12 @@ export default function ResponsePanel({
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
-        <span style={styles.title}>AI Responses</span>
-        {loading && <span style={styles.thinking}>thinking…</span>}
+        <span style={styles.title}>{t("responsePanel.title")}</span>
+        {loading && <span style={styles.thinking}>{t("responsePanel.thinking")}</span>}
       </div>
       <div style={styles.list}>
         {responses.length === 0 && (
-          <div style={styles.empty}>Responses will appear here once chat triggers one.</div>
+          <div style={styles.empty}>{t("responsePanel.empty")}</div>
         )}
         {responses.map((r) => (
           <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--purple)" }}>
@@ -32,15 +34,15 @@ export default function ResponsePanel({
             <div style={r.error ? styles.errorText : styles.responseText}>{r.text}</div>
             <div style={styles.cardFooter}>
               {r.messageCount && (
-                <span style={styles.meta}>{r.messageCount} mensajes</span>
+                <span style={styles.meta}>{t("responsePanel.messageCount", { count: r.messageCount })}</span>
               )}
               {!r.error && onSendToChat && (
                 <button
                   style={{ ...styles.sendBtn, opacity: botConnected ? 1 : 0.4 }}
-                  title={botConnected ? "Send to Twitch chat" : "Bot not connected"}
+                  title={botConnected ? t("responsePanel.sendTitle") : t("responsePanel.botNotConnected")}
                   onClick={() => botConnected && onSendToChat(r.text)}
                 >
-                  💬 Send
+                  {t("responsePanel.send")}
                 </button>
               )}
             </div>
