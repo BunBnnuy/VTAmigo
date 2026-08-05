@@ -340,17 +340,26 @@ const botAuthErrorInFlight = new Set();
 // Twitch's real token lifetime can be shorter than the expires_in we cached
 // (or the token can be revoked outright), so a linked bot's IRC client can
 // end up retrying forever with a token Twitch will never accept again.
-// Reacts to that by force-refreshing and swapping in a new IRC client —
+// Reacts to that by force-refreshing and swapping in a new IRC client once —
 // self-healing without waiting for the 30-min periodic sweep below. Only
 // wired up for linked-via-OAuth bots (see connectTwitchForUser); manual
 // pasted tokens and the site-wide bot have no refresh token to fall back to.
+//
+// Deliberately does NOT keep re-triggering itself on the new client's own
+// auth_error (learned the hard way): a bad token is only one possible cause
+// of "Login unsuccessful" — an otherwise-valid, correctly-scoped token gets
+// the exact same rejection if the bot account's email isn't verified, which
+// no amount of refreshing fixes. Looping on that just hammers Twitch's token
+// endpoint. One retry covers genuine mid-session expiry; anything past that
+// falls back to TwitchIRCClient's own backoff (1s up to 30s) so a
+// persistently-failing account degrades gracefully instead of spinning hot.
 async function handleBotAuthError(twitchId) {
   if (botAuthErrorInFlight.has(twitchId)) return;
   botAuthErrorInFlight.add(twitchId);
   try {
     const session = twitchSessions.get(twitchId);
     if (!session || !session.botClient) return;
-    session.botClient.disconnect(); // stop its own retry loop — we're taking over
+    session.botClient.disconnect(); // stop its own retry loop — we're taking over, once
     let fresh;
     try {
       fresh = await forceRefreshBotToken(twitchId);
@@ -367,7 +376,6 @@ async function handleBotAuthError(twitchId) {
       onStatus: (status) => {
         console.log("[bot]", status.type, status.message || "");
         broadcastToAccount(twitchId, { type: "bot_status", status, botUsername: fresh.username, usingSiteBot: false });
-        if (status.type === "auth_error") handleBotAuthError(twitchId);
       },
     });
     session.botClient.connect();
