@@ -1410,7 +1410,8 @@ const styles = {
   main: {
     flex: 1,
     display: "flex",
-    overflow: "hidden",
+    overflowX: "auto",
+    overflowY: "hidden",
   },
   leftPanel: {
     width: "40%",
