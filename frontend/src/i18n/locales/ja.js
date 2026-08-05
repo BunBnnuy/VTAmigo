@@ -104,6 +104,16 @@ export default {
       hint: "OBSのブラウザソースとして追加すると、アニメーション付きXPバーとトップ視聴者ランキングを配信画面に表示できます。このリンクはあなたのアカウント専用なので、非公開にしてください。",
     },
 
+    chatOverlay: {
+      title: "OBSオーバーレイ — チャット＆イベント",
+      label: "ブラウザソースURL",
+      copy: "📋 コピー",
+      copied: "✅ コピーしました",
+      hint: "OBSのブラウザソースとして追加すると、チャットメッセージとフォロー／サブスク／レイド／チアーの通知を配信画面に表示できます。URLパラメータで細かく設定可能です（サイズ、色、最大表示件数、バナー通知、言語など）— 下記のパラメータ一覧を参照。このリンクはあなたのアカウント専用なので、非公開にしてください。",
+      paramsTitle: "URLパラメータ",
+      params: "max（表示件数、既定25）・fade（秒、0=消えない）・events（0/1）・redeems（0/1）・banner（0/1）・bannerDuration（ミリ秒）・direction（up/down）・align（left/right）・width（px）・fontsize（px）・bg（不透明度0-1）・textcolor（16進）・usercolor（0/1）・timestamps（0/1）・animate（0/1）・lang（en/es）",
+    },
+
     avatarOverlay: {
       title: "OBSオーバーレイ — アバター（VTube Studio不要）",
       urlLabel: "ブラウザソースURL",

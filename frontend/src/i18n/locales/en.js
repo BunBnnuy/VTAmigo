@@ -104,6 +104,16 @@ export default {
       hint: "Add this as a Browser Source in OBS to show the animated XP bar and top-viewer ranking on stream. The link is unique to your account, so keep it private.",
     },
 
+    chatOverlay: {
+      title: "OBS Overlay — Chat & Events",
+      label: "Browser Source URL",
+      copy: "📋 Copy",
+      copied: "✅ Copied",
+      hint: "Add this as a Browser Source in OBS to show chat messages plus follow/sub/raid/cheer alerts on stream. Fully configurable via URL parameters (size, colors, max messages, banner alerts, language, etc.) — see the params list below. The link is unique to your account, so keep it private.",
+      paramsTitle: "URL parameters",
+      params: "max (msg count, default 25) · fade (seconds, 0=never) · events (0/1) · redeems (0/1) · banner (0/1) · bannerDuration (ms) · direction (up/down) · align (left/right) · width (px) · fontsize (px) · bg (0-1 opacity) · textcolor (hex) · usercolor (0/1) · timestamps (0/1) · animate (0/1) · lang (en/es)",
+    },
+
     avatarOverlay: {
       title: "OBS Overlay — Avatar (no VTube Studio needed)",
       urlLabel: "Browser Source URL",

@@ -838,6 +838,26 @@ app.post("/overlay/avatar/upload", requireApprovedUser, (req, res) => {
   }
 });
 
+// ── Chat overlay (messages + Twitch events: follows, subs, raids, cheers) ────
+// Purely a display layer over the same /chat WS other overlays use — no new
+// data/config storage, all appearance/behavior knobs (colors, size, which
+// events to show, banner vs inline, etc.) are read from its own URL query
+// string client-side (see backend/overlay/chat.html).
+
+// GET /overlay/chat?token=... — transparent overlay page (OBS browser
+// source), public like /overlay/xp and /overlay/video since OBS can't send
+// the session cookie.
+app.get("/overlay/chat", (req, res) => {
+  res.sendFile(path.join(__dirname, "overlay", "chat.html"));
+});
+
+// GET /chat-overlay/overlay-url — the logged-in user's own chat overlay URL,
+// for Settings to display with a copy button.
+app.get("/chat-overlay/overlay-url", requireApprovedUser, (req, res) => {
+  const token = getOverlayToken(req.user.twitchId);
+  res.json({ url: `${req.protocol}://${req.get("host")}/overlay/chat?token=${token}` });
+});
+
 // ── YouTube song-request queue + overlay ─────────────────────────────────────
 // Site-side queue management (add/remove/skip/default playlist) plus the OBS
 // overlay (backend/overlay/video.html) that actually plays the video, synced

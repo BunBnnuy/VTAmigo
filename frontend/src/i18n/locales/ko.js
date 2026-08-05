@@ -104,6 +104,16 @@ export default {
       hint: "OBS에 브라우저 소스로 추가하면 애니메이션 XP 바와 상위 시청자 순위를 방송에 표시할 수 있습니다. 이 링크는 계정마다 고유하므로 비공개로 유지하세요.",
     },
 
+    chatOverlay: {
+      title: "OBS 오버레이 — 채팅 & 이벤트",
+      label: "브라우저 소스 URL",
+      copy: "📋 복사",
+      copied: "✅ 복사됨",
+      hint: "OBS에 브라우저 소스로 추가하면 채팅 메시지와 팔로우/구독/레이드/치어 알림을 방송에 표시할 수 있습니다. URL 파라미터로 세부 설정이 가능합니다 (크기, 색상, 최대 메시지 수, 배너 알림, 언어 등) — 아래 파라미터 목록 참고. 이 링크는 계정마다 고유하므로 비공개로 유지하세요.",
+      paramsTitle: "URL 파라미터",
+      params: "max (메시지 수, 기본 25) · fade (초, 0=사라지지 않음) · events (0/1) · redeems (0/1) · banner (0/1) · bannerDuration (ms) · direction (up/down) · align (left/right) · width (px) · fontsize (px) · bg (투명도 0-1) · textcolor (hex) · usercolor (0/1) · timestamps (0/1) · animate (0/1) · lang (en/es)",
+    },
+
     avatarOverlay: {
       title: "OBS 오버레이 — 아바타 (VTube Studio 불필요)",
       urlLabel: "브라우저 소스 URL",

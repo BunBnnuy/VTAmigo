@@ -1,0 +1,338 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Chat Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+
+  #feed {
+    position: fixed;
+    left: 1.2vw;
+    bottom: 1.2vh;
+    width: var(--width, 420px);
+    max-height: 96vh;
+    display: flex;
+    flex-direction: column-reverse; /* newest at bottom by default (direction=up) */
+    gap: 6px;
+  }
+  #feed.dir-down {
+    flex-direction: column;
+    top: 1.2vh;
+    bottom: auto;
+  }
+  #feed.align-right {
+    left: auto;
+    right: 1.2vw;
+  }
+
+  .row {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    background: rgba(0, 0, 0, var(--bg, 0.35));
+    box-shadow: 0 1px 4px rgba(0,0,0,0.35);
+    font-size: var(--fontsize, 16px);
+    line-height: 1.35;
+    color: var(--textcolor, #fff);
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+    word-break: break-word;
+    opacity: 1;
+    transition: opacity 0.5s ease, transform 0.3s ease;
+  }
+  .row.animate-in {
+    animation: slideIn 0.25s ease-out;
+  }
+  .row.fade-out {
+    opacity: 0;
+  }
+  @keyframes slideIn {
+    from { opacity: 0; transform: translateY(8px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  .row-head {
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+  }
+  .row-user {
+    font-weight: 700;
+  }
+  .row-time {
+    font-size: 0.75em;
+    opacity: 0.6;
+    font-weight: 400;
+  }
+  .row-text {
+    white-space: pre-wrap;
+  }
+
+  /* Redemptions + Twitch events get a distinct highlighted style */
+  .row.event {
+    background: rgba(145, 71, 255, var(--bg-event, 0.55));
+    border: 1px solid rgba(255, 255, 255, 0.25);
+  }
+  .row.event .row-user { color: #ffd75e; }
+  .row.event .row-icon { margin-right: 4px; }
+
+  /* ── Banner: big centered alert for a single event, auto-dismisses ────── */
+  #banner {
+    position: fixed;
+    top: 5vh;
+    left: 50%;
+    transform: translateX(-50%) translateY(-16px) scale(0.92);
+    min-width: 280px;
+    max-width: 80vw;
+    padding: 16px 28px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, rgba(145,71,255,0.92), rgba(88,28,180,0.92));
+    border: 2px solid rgba(255,255,255,0.35);
+    box-shadow: 0 6px 24px rgba(0,0,0,0.5);
+    text-align: center;
+    color: #fff;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  }
+  #banner.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+  #banner .b-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    text-transform: uppercase;
+    color: #ffd75e;
+    text-shadow: 0 1px 3px rgba(0,0,0,0.8);
+  }
+  #banner .b-body {
+    margin-top: 4px;
+    font-size: 24px;
+    font-weight: 800;
+    text-shadow: 0 2px 6px rgba(0,0,0,0.6);
+  }
+  #banner .b-sub {
+    margin-top: 2px;
+    font-size: 14px;
+    font-weight: 500;
+    opacity: 0.9;
+  }
+</style>
+</head>
+<body>
+  <div id="feed"></div>
+  <div id="banner">
+    <div class="b-title" id="b-title"></div>
+    <div class="b-body" id="b-body"></div>
+    <div class="b-sub" id="b-sub"></div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+
+  const cfg = {
+    max: Math.max(1, Number(params.get("max")) || 25),
+    fade: Math.max(0, Number(params.get("fade")) || 0), // seconds; 0 = never auto-remove
+    showEvents: params.get("events") !== "0",
+    showBanner: params.get("banner") !== "0",
+    bannerDuration: Math.max(1000, Number(params.get("bannerDuration")) || 6000),
+    showRedeems: params.get("redeems") !== "0",
+    direction: params.get("direction") === "down" ? "down" : "up",
+    align: params.get("align") === "right" ? "right" : "left",
+    timestamps: params.get("timestamps") === "1",
+    userColor: params.get("usercolor") !== "0",
+    animate: params.get("animate") !== "0",
+    lang: params.get("lang") === "es" ? "es" : "en",
+  };
+
+  const root = document.documentElement.style;
+  root.setProperty("--width", (Math.max(200, Number(params.get("width")) || 420) + "px"));
+  root.setProperty("--fontsize", (Math.max(8, Number(params.get("fontsize")) || 16) + "px"));
+  root.setProperty("--bg", String(Math.min(1, Math.max(0, parseFloat(params.get("bg")) || 0.35))));
+  if (params.get("textcolor")) root.setProperty("--textcolor", "#" + params.get("textcolor").replace(/^#/, ""));
+  const fontFamily = params.get("font");
+  if (fontFamily) document.body.style.fontFamily = decodeURIComponent(fontFamily);
+
+  const feedEl = document.getElementById("feed");
+  feedEl.classList.toggle("dir-down", cfg.direction === "down");
+  feedEl.classList.toggle("align-right", cfg.align === "right");
+
+  const bannerEl = document.getElementById("banner");
+  const bTitleEl = document.getElementById("b-title");
+  const bBodyEl = document.getElementById("b-body");
+  const bSubEl = document.getElementById("b-sub");
+
+  // ── i18n for event copy ───────────────────────────────────────────────────
+  const STR = {
+    en: {
+      follow: (u) => [`New Follower`, u, ``],
+      sub: (u, ev) => [ev.isGift ? `Gift Sub` : `New Sub`, u, ev.tier ? tierLabel(ev.tier) : ``],
+      resub: (u, ev) => [`Resub`, u, `${ev.months} month${ev.months === 1 ? "" : "s"}${ev.message ? ` — "${ev.message}"` : ""}`],
+      giftsub: (u, ev) => [`Gift Subs`, ev.isAnonymous ? "Anonymous" : u, `gifted ${ev.count} sub${ev.count === 1 ? "" : "s"}`],
+      raid: (u, ev) => [`Raid`, u, `${ev.viewers} viewer${ev.viewers === 1 ? "" : "s"}`],
+      cheer: (u, ev) => [`Cheer`, u, `${ev.bits} bits${ev.message ? ` — "${ev.message}"` : ""}`],
+      redeem: (u, ev) => [`Redemption`, u, ev.rewardTitle || ""],
+    },
+    es: {
+      follow: (u) => [`Nuevo Seguidor`, u, ``],
+      sub: (u, ev) => [ev.isGift ? `Sub Regalada` : `Nueva Sub`, u, ev.tier ? tierLabel(ev.tier) : ``],
+      resub: (u, ev) => [`Resub`, u, `${ev.months} mes${ev.months === 1 ? "" : "es"}${ev.message ? ` — "${ev.message}"` : ""}`],
+      giftsub: (u, ev) => [`Subs Regaladas`, ev.isAnonymous ? "Anónimo" : u, `regaló ${ev.count} sub${ev.count === 1 ? "" : "s"}`],
+      raid: (u, ev) => [`Raid`, u, `${ev.viewers} espectador${ev.viewers === 1 ? "" : "es"}`],
+      cheer: (u, ev) => [`Cheer`, u, `${ev.bits} bits${ev.message ? ` — "${ev.message}"` : ""}`],
+      redeem: (u, ev) => [`Canje`, u, ev.rewardTitle || ""],
+    },
+  };
+  function tierLabel(tier) {
+    return tier === "2000" ? "Tier 2" : tier === "3000" ? "Tier 3" : "Tier 1";
+  }
+  function eventCopy(kind, username, ev) {
+    const dict = STR[cfg.lang];
+    const fn = dict[kind];
+    if (!fn) return [kind, username, ""];
+    return fn(username, ev);
+  }
+
+  // ── Chat feed rendering ───────────────────────────────────────────────────
+  function fmtTime(ts) {
+    const d = new Date(ts || Date.now());
+    return d.toLocaleTimeString(cfg.lang === "es" ? "es-ES" : "en-US", { hour: "2-digit", minute: "2-digit" });
+  }
+
+  function addRow({ username, color, text, isEvent, timestamp, iconLabel }) {
+    const row = document.createElement("div");
+    row.className = "row" + (isEvent ? " event" : "") + (cfg.animate ? " animate-in" : "");
+
+    const head = document.createElement("div");
+    head.className = "row-head";
+    if (iconLabel) {
+      const icon = document.createElement("span");
+      icon.className = "row-icon";
+      icon.textContent = iconLabel;
+      head.appendChild(icon);
+    }
+    const userEl = document.createElement("span");
+    userEl.className = "row-user";
+    userEl.textContent = username;
+    if (cfg.userColor && color) userEl.style.color = color;
+    head.appendChild(userEl);
+    if (cfg.timestamps) {
+      const timeEl = document.createElement("span");
+      timeEl.className = "row-time";
+      timeEl.textContent = fmtTime(timestamp);
+      head.appendChild(timeEl);
+    }
+    row.appendChild(head);
+
+    if (text) {
+      const textEl = document.createElement("div");
+      textEl.className = "row-text";
+      textEl.textContent = text;
+      row.appendChild(textEl);
+    }
+
+    feedEl.appendChild(row);
+    trimFeed();
+
+    if (cfg.fade > 0) {
+      setTimeout(() => {
+        row.classList.add("fade-out");
+        setTimeout(() => row.remove(), 550);
+      }, cfg.fade * 1000);
+    }
+  }
+
+  function trimFeed() {
+    while (feedEl.children.length > cfg.max) {
+      // column-reverse (direction=up) keeps DOM order oldest->newest, so the
+      // oldest row is the first child regardless of visual direction.
+      feedEl.removeChild(feedEl.firstChild);
+    }
+  }
+
+  const EVENT_ICONS = { follow: "➕", sub: "⭐", resub: "⭐", giftsub: "🎁", raid: "🚀", cheer: "💎", redeem: "🎉" };
+
+  function showBanner(kind, username, ev) {
+    if (!cfg.showBanner) return;
+    const [title, who, sub] = eventCopy(kind, username, ev);
+    bTitleEl.textContent = `${EVENT_ICONS[kind] || "✨"} ${title}`;
+    bBodyEl.textContent = who;
+    bSubEl.textContent = sub;
+    bannerEl.classList.add("show");
+    clearTimeout(showBanner._t);
+    showBanner._t = setTimeout(() => bannerEl.classList.remove("show"), cfg.bannerDuration);
+  }
+
+  function handleTwitchEvent(ev) {
+    if (!cfg.showEvents) { if (cfg.showBanner) showBanner(ev.kind, ev.username || "?", ev); return; }
+    const [title, who, sub] = eventCopy(ev.kind, ev.username || "?", ev);
+    addRow({
+      username: who,
+      color: "#ffd75e",
+      text: sub ? `${title} — ${sub}` : title,
+      isEvent: true,
+      timestamp: Date.now(),
+      iconLabel: EVENT_ICONS[ev.kind] || "✨",
+    });
+    showBanner(ev.kind, ev.username || "?", ev);
+  }
+
+  function handleChatMessage(msg) {
+    if (msg.isRedeem) {
+      if (!cfg.showRedeems) return;
+      if (cfg.showEvents) {
+        addRow({
+          username: msg.username,
+          color: msg.color,
+          text: msg.rewardTitle + (msg.text ? ` — "${msg.text}"` : ""),
+          isEvent: true,
+          timestamp: msg.timestamp,
+          iconLabel: EVENT_ICONS.redeem,
+        });
+      }
+      showBanner("redeem", msg.username, { rewardTitle: msg.rewardTitle });
+      return;
+    }
+    addRow({
+      username: msg.username,
+      color: msg.color,
+      text: msg.text,
+      isEvent: false,
+      timestamp: msg.timestamp,
+    });
+  }
+
+  // ── WebSocket ────────────────────────────────────────────────────────────
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "chat") {
+        handleChatMessage(data.msg);
+      } else if (data.type === "twitch_event") {
+        handleTwitchEvent(data.event);
+      }
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>
+</content>

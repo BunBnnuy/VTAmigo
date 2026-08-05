@@ -35,6 +35,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const downloadTriggeredRef = useRef(false);
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
+  const [chatOverlayUrl, setChatOverlayUrl] = useState("");
+  const [chatOverlayCopied, setChatOverlayCopied] = useState(false);
   const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
   const [avatarOverlayToken, setAvatarOverlayToken] = useState("");
   const [avatarOverlayCopied, setAvatarOverlayCopied] = useState(false);
@@ -60,6 +62,10 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     apiFetch("/xp/overlay-url")
       .then((res) => res.json())
       .then((data) => setOverlayUrl(data.url || ""))
+      .catch(() => {});
+    apiFetch("/chat-overlay/overlay-url")
+      .then((res) => res.json())
+      .then((data) => setChatOverlayUrl(data.url || ""))
       .catch(() => {});
     apiFetch("/overlay/avatar/overlay-url")
       .then((res) => res.json())
@@ -152,6 +158,16 @@ export default function Settings({ settings, tier, onSave, onClose }) {
       await navigator.clipboard.writeText(overlayUrl);
       setOverlayCopied(true);
       setTimeout(() => setOverlayCopied(false), 1500);
+    } catch {
+      // Clipboard API unavailable — user can still select the text manually.
+    }
+  };
+
+  const copyChatOverlayUrl = async () => {
+    try {
+      await navigator.clipboard.writeText(chatOverlayUrl);
+      setChatOverlayCopied(true);
+      setTimeout(() => setChatOverlayCopied(false), 1500);
     } catch {
       // Clipboard API unavailable — user can still select the text manually.
     }
@@ -525,6 +541,26 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 </button>
               </div>
               <span style={styles.hint}>{t("settings.overlay.hint")}</span>
+            </div>
+          </section>
+
+          <section style={styles.section}>
+            <h3 style={styles.sectionTitle}>{t("settings.chatOverlay.title")}</h3>
+            <div style={styles.field}>
+              <label>{t("settings.chatOverlay.label")}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <input readOnly value={chatOverlayUrl} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
+                <button
+                  type="button"
+                  onClick={copyChatOverlayUrl}
+                  disabled={!chatOverlayUrl}
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
+                >
+                  {chatOverlayCopied ? t("settings.chatOverlay.copied") : t("settings.chatOverlay.copy")}
+                </button>
+              </div>
+              <span style={styles.hint}>{t("settings.chatOverlay.hint")}</span>
+              <span style={styles.hint}><strong>{t("settings.chatOverlay.paramsTitle")}:</strong> {t("settings.chatOverlay.params")}</span>
             </div>
           </section>
 
