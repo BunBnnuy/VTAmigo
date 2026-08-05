@@ -9,7 +9,7 @@ const { sendEvent } = require("./analytics");
 const errorLog = require("./errorLog");
 const { router: adminRouter } = require("./adminAuth");
 const { router: devicesRouter } = require("./devices");
-const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory } = require("./claude");
+const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory, containsPromptLeak } = require("./claude");
 const usage = require("./usage");
 const siteConfig = require("./siteConfig");
 const memoryExport = require("./memoryExport");
@@ -324,6 +324,15 @@ app.post("/connect-bot", (req, res) => {
 app.post("/say", (req, res) => {
   const { text } = req.body;
   if (!text) return res.status(400).json({ error: "text is required" });
+
+  // Backstop against prompt injection: blocks AI-generated text that leaked
+  // our internal prompt scaffolding or recites the streamer's base prompt
+  // back into chat. Doesn't affect the streamer's own typed messages, which
+  // never go through this endpoint.
+  if (containsPromptLeak(req.user.twitchId, text)) {
+    console.warn(`[say] blocked a likely prompt leak/injection attempt for ${req.user.login}`);
+    return res.status(400).json({ error: "Blocked — response looked like a prompt leak or injection attempt" });
+  }
 
   const session = twitchSessions.get(req.user.twitchId);
   if (!session || !session.botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
