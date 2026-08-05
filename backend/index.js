@@ -29,6 +29,12 @@ const youtube = require("./youtube");
 
 const PORT = process.env.PORT || 3001;
 const app = express();
+// nginx sits in front of this process on localhost and sets X-Forwarded-For /
+// X-Real-IP from the real client (see sites-available/vtamigo). "loopback"
+// tells Express to only trust those headers when the direct TCP peer is
+// 127.0.0.1/::1 — i.e. only nginx can set them, so req.ip reflects the real
+// visitor without letting an internet client spoof its own IP by hand.
+app.set("trust proxy", "loopback");
 app.use(cors({ origin: true, credentials: true }));
 app.use(cookieParser());
 app.use(express.json({ limit: "10mb" })); // memory .md imports and base64 avatar image uploads (5MB image -> ~6.7MB base64) can be large
