@@ -427,8 +427,6 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 4,
-    maxHeight: 180,
-    overflowY: "auto",
   },
   queueItem: {
     display: "flex",
