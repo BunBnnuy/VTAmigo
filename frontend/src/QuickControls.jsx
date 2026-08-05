@@ -171,6 +171,7 @@ export default function QuickControls({
         <button style={styles.collapseBtn} onClick={onToggleCollapse} title={t("quickControls.expand")}>
           ⟨
         </button>
+        <span style={styles.verticalTitle}>{t("quickControls.title")}</span>
       </div>
     );
   }
@@ -427,6 +428,14 @@ const styles = {
     color: "var(--text-muted)",
     fontSize: 12,
     padding: "3px 7px",
+  },
+  verticalTitle: {
+    writingMode: "vertical-rl",
+    fontWeight: 700,
+    fontSize: 13,
+    color: "var(--text)",
+    whiteSpace: "nowrap",
+    marginTop: 10,
   },
   body: {
     flex: 1,

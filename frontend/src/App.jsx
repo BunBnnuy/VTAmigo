@@ -1157,9 +1157,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         {/* Left: chat feed */}
         <div style={leftPanelCollapsed ? styles.leftPanelCollapsed : styles.leftPanel} data-tour="live-chat">
           {leftPanelCollapsed ? (
-            <button style={styles.collapseBtn} onClick={toggleLeftPanel} title={t("app.expandLiveChat")}>
-              ⟩
-            </button>
+            <>
+              <button style={styles.collapseBtn} onClick={toggleLeftPanel} title={t("app.expandLiveChat")}>
+                ⟩
+              </button>
+              <span style={styles.verticalTitle}>{t("app.liveChat")}</span>
+            </>
           ) : (
             <>
               <div style={styles.panelHeader}>
@@ -1197,9 +1200,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         {/* Right: response history */}
         <div style={rightPanelCollapsed ? styles.rightPanelCollapsed : styles.rightPanel} data-tour="ai-response">
           {rightPanelCollapsed ? (
-            <button style={styles.collapseBtn} onClick={toggleRightPanel} title={t("app.expandAiResponses")}>
-              ⟨
-            </button>
+            <>
+              <button style={styles.collapseBtn} onClick={toggleRightPanel} title={t("app.expandAiResponses")}>
+                ⟨
+              </button>
+              <span style={styles.verticalTitle}>{t("responsePanel.title")}</span>
+            </>
           ) : (
             <>
               <div style={styles.rightPanelCollapseRow}>
@@ -1468,6 +1474,14 @@ const styles = {
     justifyContent: "flex-end",
     padding: "10px 12px 0",
     flexShrink: 0,
+  },
+  verticalTitle: {
+    writingMode: "vertical-rl",
+    fontWeight: 700,
+    fontSize: 13,
+    color: "var(--text)",
+    whiteSpace: "nowrap",
+    marginTop: 10,
   },
   collapseBtn: {
     background: "var(--surface2)",
