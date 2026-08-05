@@ -68,6 +68,19 @@ export default function VideoQueue({ videoState }) {
     }
   };
 
+  const [copiedVideoId, setCopiedVideoId] = useState(null);
+
+  const copyVideoUrl = async (videoId) => {
+    if (!videoId) return;
+    try {
+      await navigator.clipboard.writeText(`https://www.youtube.com/watch?v=${videoId}`);
+      setCopiedVideoId(videoId);
+      setTimeout(() => setCopiedVideoId((cur) => (cur === videoId ? null : cur)), 1500);
+    } catch {
+      // Clipboard API unavailable — user can still copy manually.
+    }
+  };
+
   const addToQueue = async (e) => {
     e.preventDefault();
     const input = addInput.trim();
@@ -144,6 +157,7 @@ export default function VideoQueue({ videoState }) {
 
   const nowPlaying = videoState?.nowPlaying || null;
   const queue = videoState?.queue || [];
+  const history = videoState?.history || [];
   const defaultPlaylistId = videoState?.defaultPlaylistId || null;
   const defaultPlaylistCache = videoState?.defaultPlaylistCache || null;
   const nextDefaultItem =
@@ -198,6 +212,13 @@ export default function VideoQueue({ videoState }) {
           <div style={styles.nowPlaying}>
             {nowPlaying.thumbnail && <img src={nowPlaying.thumbnail} alt="" style={styles.thumb} />}
             <span style={styles.nowPlayingTitle}>{nowPlaying.title}</span>
+            <button
+              style={styles.copyIconBtn}
+              onClick={() => copyVideoUrl(nowPlaying.videoId)}
+              title="Copiar URL del video"
+            >
+              {copiedVideoId === nowPlaying.videoId ? "✓" : "🔗"}
+            </button>
           </div>
         ) : (
           <span style={styles.emptyText}>Nada en reproducción</span>
@@ -237,6 +258,13 @@ export default function VideoQueue({ videoState }) {
               <div key={item.id} style={styles.queueItem}>
                 <span style={styles.queueItemTitle} title={item.title}>{item.title}</span>
                 {item.requestedBy && <span style={styles.queueItemBy}>{item.requestedBy}</span>}
+                <button
+                  style={styles.copyIconBtnSmall}
+                  onClick={() => copyVideoUrl(item.videoId)}
+                  title="Copiar URL del video"
+                >
+                  {copiedVideoId === item.videoId ? "✓" : "🔗"}
+                </button>
                 <button style={styles.smallBtn} onClick={() => removeItem(item.id)} title="Quitar de la cola">
                   ✕
                 </button>
@@ -286,6 +314,28 @@ export default function VideoQueue({ videoState }) {
           </button>
           {playlistError && <span style={styles.errorText}>⚠ {playlistError}</span>}
         </form>
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionLabel}>Historial (últimas 20)</div>
+        {history.length > 0 ? (
+          <div style={styles.queueList}>
+            {[...history].reverse().map((item, i) => (
+              <div key={`${item.videoId}-${item.startedAt || i}`} style={styles.queueItem}>
+                <span style={styles.queueItemTitle} title={item.title}>{item.title}</span>
+                <button
+                  style={styles.copyIconBtnSmall}
+                  onClick={() => copyVideoUrl(item.videoId)}
+                  title="Copiar URL del video"
+                >
+                  {copiedVideoId === item.videoId ? "✓" : "🔗"}
+                </button>
+              </div>
+            ))}
+          </div>
+        ) : (
+          <span style={styles.emptyText}>Sin historial todavía</span>
+        )}
       </div>
       <div style={styles.hint}>Los espectadores también pueden pedir canciones con !sr</div>
     </div>
@@ -461,6 +511,24 @@ const styles = {
   queueItemBy: {
     color: "var(--text-muted)",
     flexShrink: 0,
+  },
+  copyIconBtn: {
+    background: "transparent",
+    border: "none",
+    color: "var(--text-muted)",
+    fontSize: 12,
+    padding: "2px 4px",
+    flexShrink: 0,
+    cursor: "pointer",
+  },
+  copyIconBtnSmall: {
+    background: "transparent",
+    border: "none",
+    color: "var(--text-muted)",
+    fontSize: 11,
+    padding: "0 4px",
+    flexShrink: 0,
+    cursor: "pointer",
   },
   smallBtn: {
     background: "var(--surface2)",
