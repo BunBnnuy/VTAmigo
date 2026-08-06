@@ -330,7 +330,8 @@ export default function ChatOverlayPanel({ lang }) {
         </div>
         <div style={styles.field}>
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacity", { pct: Math.round(cfg.bg * 100) })}</label>
-          <input type="range" min={0} max={1} step={0.05} value={cfg.bg} onChange={(e) => set("bg", Number(e.target.value))} disabled={!loaded} />
+          <input type="range" min={0} max={1} step={0.05} value={cfg.bg} onChange={(e) => set("bg", Number(e.target.value))} disabled={!loaded || cfg.hasBgImage} />
+          {cfg.hasBgImage && <span style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacityDisabled")}</span>}
         </div>
         <div style={styles.field}>
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.textColor")}</label>

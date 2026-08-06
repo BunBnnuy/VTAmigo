@@ -502,6 +502,7 @@ export default {
     maxHeight: "Alto máximo (px)",
     fontSize: "Tamaño de fuente (px)",
     bgOpacity: "Opacidad de fondo de mensaje ({pct}%)",
+    bgOpacityDisabled: "Deshabilitado — hay una imagen de fondo configurada abajo, que reemplaza por completo el fondo plano.",
     textColor: "Color de texto",
     fontFamily: "Fuente (nombres y mensajes)",
     fontFamilyPlaceholder: "Escribe o elige una fuente…",

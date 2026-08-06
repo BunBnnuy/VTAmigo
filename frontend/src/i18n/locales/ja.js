@@ -502,6 +502,7 @@ export default {
     maxHeight: "最大高さ（px）",
     fontSize: "フォントサイズ（px）",
     bgOpacity: "メッセージ背景の不透明度（{pct}%）",
+    bgOpacityDisabled: "無効 — 下で背景画像が設定されているため、フラットな背景は完全に置き換えられます。",
     textColor: "文字色",
     fontFamily: "フォント（名前とメッセージ）",
     fontFamilyPlaceholder: "フォント名を入力または選択…",

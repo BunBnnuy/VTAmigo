@@ -502,6 +502,7 @@ export default {
     maxHeight: "최대 높이 (px)",
     fontSize: "글꼴 크기 (px)",
     bgOpacity: "메시지 배경 불투명도 ({pct}%)",
+    bgOpacityDisabled: "비활성화됨 — 아래에 배경 이미지가 설정되어 있어 단색 배경을 완전히 대체합니다.",
     textColor: "텍스트 색상",
     fontFamily: "글꼴 (이름 & 메시지)",
     fontFamilyPlaceholder: "글꼴 이름을 입력하거나 선택…",

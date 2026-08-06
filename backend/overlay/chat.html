@@ -96,6 +96,12 @@
   .row.event .row-user { color: #ffd75e; }
   .row.event .row-icon { margin-right: 4px; }
 
+  /* When a nine-slice background image is set, it replaces the flat
+     tinted background entirely instead of showing through/under it. */
+  .row.bg-image-active {
+    background: transparent;
+  }
+
   /* ── Banner: big centered alert for a single event, auto-dismisses ────── */
   #banner {
     position: fixed;
@@ -184,6 +190,8 @@
     feedEl.classList.toggle("dir-down", cfg.direction === "down");
     feedEl.classList.toggle("align-right", cfg.align === "right");
     trimFeed();
+    // The image (if any) replaces the flat tinted row background entirely.
+    feedEl.querySelectorAll(".row").forEach((r) => r.classList.toggle("bg-image-active", cfg.hasBgImage));
     if (cfg.hasBgImage !== prevHasBgImage) loadBgImage();
     else redrawAllRowBgs();
   }
@@ -332,7 +340,7 @@
 
   function addRow({ username, color, text, isEvent, timestamp, iconLabel }) {
     const row = document.createElement("div");
-    row.className = "row" + (isEvent ? " event" : "") + (cfg.animate ? " animate-in" : "");
+    row.className = "row" + (isEvent ? " event" : "") + (cfg.animate ? " animate-in" : "") + (cfg.hasBgImage ? " bg-image-active" : "");
 
     const bgCanvas = document.createElement("canvas");
     bgCanvas.className = "row-bg";

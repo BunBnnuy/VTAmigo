@@ -502,6 +502,7 @@ export default {
     maxHeight: "Max height (px)",
     fontSize: "Font size (px)",
     bgOpacity: "Message background opacity ({pct}%)",
+    bgOpacityDisabled: "Disabled — a background image is set below, so it fully replaces the flat background.",
     textColor: "Text color",
     fontFamily: "Font (usernames & messages)",
     fontFamilyPlaceholder: "Type or pick a font…",
