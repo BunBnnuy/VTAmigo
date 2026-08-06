@@ -7,7 +7,7 @@ const DEFAULTS = {
   showRedeems: true, showBotMessages: true, direction: "up", align: "left",
   timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
   maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
-  bgImageOpacity: 1, sliceLeft: 15, sliceRight: 15, sliceTop: 15, sliceBottom: 15,
+  bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
   mirrorH: false, mirrorV: false, hasBgImage: false,
 };
 
@@ -71,6 +71,10 @@ export default function ChatOverlayPanel({ lang }) {
   const [bgPreview, setBgPreview] = useState(null); // local data URL, once (re)uploaded this session
   const [bgUploading, setBgUploading] = useState(false);
   const [bgError, setBgError] = useState("");
+  // Real pixel size of the uploaded image — slice insets are px of this, but
+  // the preview thumbnail is scaled down, so guide lines need this to place
+  // themselves at the correct % of the shrunk preview box.
+  const [bgNaturalSize, setBgNaturalSize] = useState({ width: 0, height: 0 });
 
   useEffect(() => {
     apiFetch("/chat-overlay/overlay-url")
@@ -370,11 +374,20 @@ export default function ChatOverlayPanel({ lang }) {
         {bgImageSrc && (
           <div style={styles.bgPreviewWrap}>
             <div style={styles.bgPreviewFrame}>
-              <img src={bgImageSrc} alt="" style={styles.bgPreviewImg} />
-              <div style={{ ...styles.sliceLineV, left: `${cfg.sliceLeft}%` }} />
-              <div style={{ ...styles.sliceLineV, right: `${cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight}%` }} />
-              <div style={{ ...styles.sliceLineH, top: `${cfg.sliceTop}%` }} />
-              <div style={{ ...styles.sliceLineH, bottom: `${cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom}%` }} />
+              <img
+                src={bgImageSrc}
+                alt=""
+                style={styles.bgPreviewImg}
+                onLoad={(e) => setBgNaturalSize({ width: e.target.naturalWidth, height: e.target.naturalHeight })}
+              />
+              {bgNaturalSize.width > 0 && (
+                <>
+                  <div style={{ ...styles.sliceLineV, left: `${Math.min(100, (cfg.sliceLeft / bgNaturalSize.width) * 100)}%` }} />
+                  <div style={{ ...styles.sliceLineV, right: `${Math.min(100, ((cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight) / bgNaturalSize.width) * 100)}%` }} />
+                  <div style={{ ...styles.sliceLineH, top: `${Math.min(100, (cfg.sliceTop / bgNaturalSize.height) * 100)}%` }} />
+                  <div style={{ ...styles.sliceLineH, bottom: `${Math.min(100, ((cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom) / bgNaturalSize.height) * 100)}%` }} />
+                </>
+              )}
             </div>
           </div>
         )}
@@ -411,20 +424,20 @@ export default function ChatOverlayPanel({ lang }) {
             <div style={styles.fieldLabel}>{t("chatOverlayPanel.sliceHint")}</div>
             <div style={styles.row2}>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceLeft", { pct: cfg.sliceLeft })}</label>
-                <input type="range" min={0} max={50} value={cfg.sliceLeft} onChange={(e) => set("sliceLeft", Number(e.target.value))} disabled={!loaded} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceLeft")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceLeft} onChange={(e) => set("sliceLeft", Number(e.target.value))} disabled={!loaded} />
               </div>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceRight", { pct: cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight })}</label>
-                <input type="range" min={0} max={50} value={cfg.sliceRight} onChange={(e) => set("sliceRight", Number(e.target.value))} disabled={!loaded || cfg.mirrorH} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceRight")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceRight} onChange={(e) => set("sliceRight", Number(e.target.value))} disabled={!loaded || cfg.mirrorH} />
               </div>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceTop", { pct: cfg.sliceTop })}</label>
-                <input type="range" min={0} max={50} value={cfg.sliceTop} onChange={(e) => set("sliceTop", Number(e.target.value))} disabled={!loaded} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceTop")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceTop} onChange={(e) => set("sliceTop", Number(e.target.value))} disabled={!loaded} />
               </div>
               <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceBottom", { pct: cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom })}</label>
-                <input type="range" min={0} max={50} value={cfg.sliceBottom} onChange={(e) => set("sliceBottom", Number(e.target.value))} disabled={!loaded || cfg.mirrorV} />
+                <label style={styles.fieldLabel}>{t("chatOverlayPanel.sliceBottom")}</label>
+                <input type="number" min={0} max={500} value={cfg.sliceBottom} onChange={(e) => set("sliceBottom", Number(e.target.value))} disabled={!loaded || cfg.mirrorV} />
               </div>
             </div>
             <div style={styles.row}>

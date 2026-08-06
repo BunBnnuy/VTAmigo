@@ -163,7 +163,7 @@
     showRedeems: true, showBotMessages: true, direction: "up", align: "left",
     timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
     maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
-    bgImageOpacity: 1, sliceLeft: 15, sliceRight: 15, sliceTop: 15, sliceBottom: 15,
+    bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
     mirrorH: false, mirrorV: false, hasBgImage: false,
   };
   let cfg = { ...DEFAULTS };
@@ -227,24 +227,28 @@
 
     const iw = bgImg.naturalWidth, ih = bgImg.naturalHeight;
     if (!iw || !ih) return;
-    // Slice insets are a % of each side's own dimension, applied identically
-    // to the source image (for cropping) and the destination row (for
-    // placement) — so a corner always occupies the same % of the row as it
-    // does of the source image, regardless of how the two resolutions
-    // compare. (Comparing raw source-image px against raw row px directly,
-    // as an earlier version did, broke badly whenever the image was much
-    // higher-res than the row — corners would get clamped to fit the row
-    // but drawn from an uncropped source region, squashing the whole corner
-    // artwork into a sliver and warping it into a blob.)
-    const pctL = cfg.sliceLeft / 100;
-    const pctT = cfg.sliceTop / 100;
-    const pctR = (cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight) / 100;
-    const pctB = (cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom) / 100;
+    // Slice insets are native px of the SOURCE image — classic nine-slice,
+    // corners render at their natural size. Clamped first to the image's
+    // own bounds, then (if a row is too small to fit both corners on an
+    // axis) shrunk together proportionally for BOTH the source crop and the
+    // destination placement — never just the destination, which is what
+    // caused the earlier "flying saucer" distortion (a full-size corner
+    // squeezed into a tiny box while its opposite corner ate the rest).
+    let L = Math.min(cfg.sliceLeft, iw);
+    let T = Math.min(cfg.sliceTop, ih);
+    let R = cfg.mirrorH ? L : Math.min(cfg.sliceRight, iw);
+    let B = cfg.mirrorV ? T : Math.min(cfg.sliceBottom, ih);
+    if (L + R > iw) { const s = iw / (L + R); L *= s; R *= s; }
+    if (T + B > ih) { const s = ih / (T + B); T *= s; B *= s; }
 
-    const sx = [0, pctL * iw, iw - pctR * iw, iw];
-    const sy = [0, pctT * ih, ih - pctB * ih, ih];
-    const dx = [0, pctL * w, w - pctR * w, w];
-    const dy = [0, pctT * h, h - pctB * h, h];
+    let dL = L, dR = R, dT = T, dB = B;
+    if (dL + dR > w) { const s = w / (dL + dR); dL *= s; dR *= s; }
+    if (dT + dB > h) { const s = h / (dT + dB); dT *= s; dB *= s; }
+
+    const sx = [0, L, iw - R, iw];
+    const sy = [0, T, ih - B, ih];
+    const dx = [0, dL, w - dR, w];
+    const dy = [0, dT, h - dB, h];
 
     ctx.globalAlpha = cfg.bgImageOpacity;
     for (let row = 0; row < 3; row++) {
