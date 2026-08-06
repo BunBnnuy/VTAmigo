@@ -929,6 +929,94 @@ app.delete("/chat-overlay/bg-image", requireApprovedUser, (req, res) => {
   res.json({ ok: true, hasBgImage: false });
 });
 
+// ── Chat overlay test data ────────────────────────────────────────────────
+// Lets the streamer preview their overlay settings (fonts, colors, banner,
+// nine-slice, etc.) without waiting for real chat activity. Broadcast under
+// dedicated WS types (chat_overlay_test_chat / chat_overlay_test_event)
+// rather than the real "chat"/"twitch_event" types so this never touches XP,
+// !sr parsing, or the AI's event-response trigger — the overlay is the only
+// listener that recognizes these types (backend/overlay/chat.html); the main
+// app's own WS handler silently ignores unknown types.
+const TEST_USERNAMES = ["PixelPanda", "NightOwl99", "CoffeeCat", "ChatGremlin", "StreamSquid", "LurkMaster", "ClipQueen", "ByteBunny", "GG_Wizard", "MoonlitFox"];
+const TEST_MESSAGES = [
+  "PogChamp this is amazing!", "Can we get a hello?", "LUL that was great", "First time here, loving the stream!",
+  "o7", "What game is this?", "Chat is going wild right now", "GGs", "This overlay looks awesome", "Kappa",
+];
+const TEST_REWARDS = ["Highlight My Message", "Hydrate!", "Sing a Song", "Play a Sound", "Pet the Cat"];
+const TEST_COLORS = ["#ff4f4f", "#4fa8ff", "#4fff8f", "#ffd24f", "#c04fff", "#ff4fc0", "#4ffff0"];
+
+function randomOf(arr) {
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+// POST /chat-overlay/test-message — broadcasts a fake plain chat message.
+app.post("/chat-overlay/test-message", requireApprovedUser, (req, res) => {
+  const msg = {
+    id: `test-${Date.now()}-${Math.random()}`,
+    username: randomOf(TEST_USERNAMES),
+    color: randomOf(TEST_COLORS),
+    text: randomOf(TEST_MESSAGES),
+    timestamp: Date.now(),
+    isRedeem: false,
+    isBot: false,
+  };
+  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_test_chat", msg });
+  res.json({ ok: true });
+});
+
+// POST /chat-overlay/test-redeem — broadcasts a fake channel-point redemption.
+app.post("/chat-overlay/test-redeem", requireApprovedUser, (req, res) => {
+  const withMessage = Math.random() < 0.5;
+  const msg = {
+    id: `test-${Date.now()}-${Math.random()}`,
+    username: randomOf(TEST_USERNAMES),
+    color: randomOf(TEST_COLORS),
+    text: withMessage ? randomOf(TEST_MESSAGES) : "",
+    timestamp: Date.now(),
+    isRedeem: true,
+    rewardTitle: randomOf(TEST_REWARDS),
+    isBot: false,
+  };
+  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_test_chat", msg });
+  res.json({ ok: true });
+});
+
+// POST /chat-overlay/test-event — broadcasts a fake follow/sub/raid/cheer/etc.
+app.post("/chat-overlay/test-event", requireApprovedUser, (req, res) => {
+  const kind = randomOf(["follow", "sub", "resub", "giftsub", "raid", "cheer"]);
+  const username = randomOf(TEST_USERNAMES);
+  let event = { kind, username };
+  if (kind === "sub") {
+    event = { ...event, tier: randomOf(["1000", "2000", "3000"]), isGift: Math.random() < 0.3 };
+  } else if (kind === "resub") {
+    event = {
+      ...event,
+      tier: randomOf(["1000", "2000", "3000"]),
+      months: 1 + Math.floor(Math.random() * 24),
+      streak: Math.random() < 0.5 ? 1 + Math.floor(Math.random() * 12) : null,
+      message: Math.random() < 0.5 ? randomOf(TEST_MESSAGES) : "",
+    };
+  } else if (kind === "giftsub") {
+    event = {
+      ...event,
+      tier: randomOf(["1000", "2000", "3000"]),
+      count: 1 + Math.floor(Math.random() * 10),
+      isAnonymous: Math.random() < 0.2,
+    };
+  } else if (kind === "raid") {
+    event = { ...event, viewers: 1 + Math.floor(Math.random() * 500) };
+  } else if (kind === "cheer") {
+    event = {
+      ...event,
+      bits: randomOf([1, 100, 500, 1000, 5000]),
+      message: Math.random() < 0.5 ? randomOf(TEST_MESSAGES) : "",
+      isAnonymous: Math.random() < 0.1,
+    };
+  }
+  broadcastToAccount(req.user.twitchId, { type: "chat_overlay_test_event", event });
+  res.json({ ok: true, event });
+});
+
 // ── YouTube song-request queue + overlay ─────────────────────────────────────
 // Site-side queue management (add/remove/skip/default playlist) plus the OBS
 // overlay (backend/overlay/video.html) that actually plays the video, synced

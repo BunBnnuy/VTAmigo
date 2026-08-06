@@ -454,6 +454,10 @@
         handleChatMessage(data.msg);
       } else if (data.type === "twitch_event") {
         handleTwitchEvent(data.event);
+      } else if (data.type === "chat_overlay_test_chat") {
+        handleChatMessage(data.msg);
+      } else if (data.type === "chat_overlay_test_event") {
+        handleTwitchEvent(data.event);
       } else if (data.type === "chat_overlay_config") {
         applyConfig(data.config || {});
       } else if (data.type === "chat_overlay_bg_updated") {

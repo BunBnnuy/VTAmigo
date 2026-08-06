@@ -188,6 +188,18 @@ export default function ChatOverlayPanel({ lang }) {
     });
   }, []);
 
+  // Fake data, broadcast only to this account's overlay(s) over the /chat
+  // WS under dedicated types the main app ignores — see the
+  // /chat-overlay/test-* routes in backend/index.js. Lets the streamer
+  // preview fonts/colors/banner/nine-slice without waiting for real chat.
+  const sendTest = async (kind) => {
+    try {
+      await apiFetch(`/chat-overlay/test-${kind}`, { method: "POST" });
+    } catch {
+      // Best-effort preview helper — nothing to show the user on failure.
+    }
+  };
+
   if (collapsed) {
     return (
       <div style={styles.collapsedPanel}>
@@ -211,6 +223,22 @@ export default function ChatOverlayPanel({ lang }) {
         <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title={t("chatOverlayPanel.copyOverlayTitle")}>
           {overlayCopied ? t("chatOverlayPanel.copied") : t("chatOverlayPanel.copyOverlay")}
         </button>
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionLabel}>{t("chatOverlayPanel.testSection")}</div>
+        <div style={styles.row2}>
+          <button type="button" style={styles.actionBtn} onClick={() => sendTest("message")}>
+            {t("chatOverlayPanel.testMessage")}
+          </button>
+          <button type="button" style={styles.actionBtn} onClick={() => sendTest("redeem")}>
+            {t("chatOverlayPanel.testRedeem")}
+          </button>
+        </div>
+        <button type="button" style={styles.actionBtn} onClick={() => sendTest("event")}>
+          {t("chatOverlayPanel.testEvent")}
+        </button>
+        <span style={styles.fieldLabel}>{t("chatOverlayPanel.testHint")}</span>
 
         <div style={styles.divider} />
 
