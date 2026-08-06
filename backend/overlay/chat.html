@@ -227,17 +227,24 @@
 
     const iw = bgImg.naturalWidth, ih = bgImg.naturalHeight;
     if (!iw || !ih) return;
-    // Slice insets are stored as a % of the source image's own dimensions,
-    // not px, so they stay correct regardless of the image's resolution.
-    let L = Math.min((cfg.sliceLeft / 100) * iw, iw / 2);
-    let T = Math.min((cfg.sliceTop / 100) * ih, ih / 2);
-    let R = cfg.mirrorH ? L : Math.min((cfg.sliceRight / 100) * iw, iw - L);
-    let B = cfg.mirrorV ? T : Math.min((cfg.sliceBottom / 100) * ih, ih - T);
+    // Slice insets are a % of each side's own dimension, applied identically
+    // to the source image (for cropping) and the destination row (for
+    // placement) — so a corner always occupies the same % of the row as it
+    // does of the source image, regardless of how the two resolutions
+    // compare. (Comparing raw source-image px against raw row px directly,
+    // as an earlier version did, broke badly whenever the image was much
+    // higher-res than the row — corners would get clamped to fit the row
+    // but drawn from an uncropped source region, squashing the whole corner
+    // artwork into a sliver and warping it into a blob.)
+    const pctL = cfg.sliceLeft / 100;
+    const pctT = cfg.sliceTop / 100;
+    const pctR = (cfg.mirrorH ? cfg.sliceLeft : cfg.sliceRight) / 100;
+    const pctB = (cfg.mirrorV ? cfg.sliceTop : cfg.sliceBottom) / 100;
 
-    const sx = [0, L, iw - R, iw];
-    const sy = [0, T, ih - B, ih];
-    const dx = [0, Math.min(L, w / 2), Math.max(w - R, w / 2), w];
-    const dy = [0, Math.min(T, h / 2), Math.max(h - B, h / 2), h];
+    const sx = [0, pctL * iw, iw - pctR * iw, iw];
+    const sy = [0, pctT * ih, ih - pctB * ih, ih];
+    const dx = [0, pctL * w, w - pctR * w, w];
+    const dy = [0, pctT * h, h - pctB * h, h];
 
     ctx.globalAlpha = cfg.bgImageOpacity;
     for (let row = 0; row < 3; row++) {
