@@ -22,9 +22,12 @@ const TWITCH_LOGIN_SCOPES = [
   "bits:read",
 ].join(" ");
 
-// Scope needed for a separate bot account to post chat messages on the
-// streamer's behalf — see connectTwitchForUser() in index.js.
-const TWITCH_BOT_SCOPES = "chat:edit";
+// Scopes needed for a separate bot account to post chat messages on the
+// streamer's behalf — see connectTwitchForUser() in index.js. chat:edit alone
+// isn't enough: Twitch's IRC PASS handshake rejects tokens missing chat:read
+// too ("Login unsuccessful"), even though we never subscribe to chat:read
+// features here.
+const TWITCH_BOT_SCOPES = "chat:read chat:edit";
 const BOT_LINK_STATE_COOKIE = "twitch_bot_link_state";
 const BOT_LINK_TTL_MS = 10 * 60 * 1000;
 
