@@ -8,7 +8,6 @@ export default function Admin() {
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [users, setUsers] = useState(null);
-  const [devices, setDevices] = useState(null);
   const [stats, setStats] = useState(null);
   const [usage, setUsage] = useState(null);
   const [busy, setBusy] = useState(false);
@@ -34,13 +33,6 @@ export default function Admin() {
     if (res.status === 401) { setAuthed(false); return; }
     const data = await res.json();
     setUsers(data.users);
-  }, []);
-
-  const loadDevices = useCallback(async () => {
-    const res = await apiFetch("/admin/devices");
-    if (res.status === 401) { setAuthed(false); return; }
-    const data = await res.json();
-    setDevices(data.devices);
   }, []);
 
   const loadStats = useCallback(async () => {
@@ -76,8 +68,8 @@ export default function Admin() {
   }, []);
 
   useEffect(() => {
-    if (authed) { loadUsers(); loadDevices(); loadUsage(); loadSiteConfig(); loadErrorLog(); }
-  }, [authed, loadUsers, loadDevices, loadUsage, loadSiteConfig, loadErrorLog]);
+    if (authed) { loadUsers(); loadUsage(); loadSiteConfig(); loadErrorLog(); }
+  }, [authed, loadUsers, loadUsage, loadSiteConfig, loadErrorLog]);
 
   useEffect(() => {
     if (!authed) return;
@@ -86,17 +78,10 @@ export default function Admin() {
     return () => clearInterval(id);
   }, [authed, loadStats]);
 
-  const revokeDevice = async (deviceCode) => {
-    await apiFetch(`/admin/devices/${deviceCode}/revoke`, { method: "POST" });
-    loadDevices();
-  };
-
   const clearErrorLog = async () => {
     await apiFetch("/admin/error-log", { method: "DELETE" });
     loadErrorLog();
   };
-
-  const userLabel = (twitchId) => users?.find((u) => u.twitchId === twitchId)?.displayName || twitchId || "—";
 
   const login = async (e) => {
     e.preventDefault();
@@ -183,8 +168,6 @@ export default function Admin() {
 
   const approvedUsers = users?.filter((u) => u.approved).length ?? 0;
   const pendingUsers = users ? users.length - approvedUsers : 0;
-  const approvedDevices = devices?.filter((d) => d.status === "approved").length ?? 0;
-  const pendingDevices = devices?.filter((d) => d.status === "pending").length ?? 0;
 
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -200,7 +183,6 @@ export default function Admin() {
           <button className="admin-nav-link" onClick={() => scrollTo("sec-system")}><span className="dot" />System</button>
           <button className="admin-nav-link" onClick={() => scrollTo("sec-agent")}><span className="dot" />AI agent</button>
           <button className="admin-nav-link" onClick={() => scrollTo("sec-users")}><span className="dot" />Users</button>
-          <button className="admin-nav-link" onClick={() => scrollTo("sec-devices")}><span className="dot" />Devices</button>
           <button className="admin-nav-link" onClick={() => scrollTo("sec-errors")}><span className="dot" />Errors</button>
         </nav>
         <button style={styles.logoutBtn} onClick={logout}>Log out</button>
@@ -230,11 +212,6 @@ export default function Admin() {
               <span style={styles.statLabel}>Users</span>
               <span style={styles.statValue}>{users ? users.length : "—"}</span>
               {users && <span style={styles.statSub}>{approvedUsers} approved · {pendingUsers} pending</span>}
-            </div>
-            <div style={styles.statCard}>
-              <span style={styles.statLabel}>Devices</span>
-              <span style={styles.statValue}>{devices ? devices.length : "—"}</span>
-              {devices && <span style={styles.statSub}>{approvedDevices} approved · {pendingDevices} pending</span>}
             </div>
             <div style={styles.statCard}>
               <span style={styles.statLabel}>Uptime</span>
@@ -392,53 +369,6 @@ export default function Admin() {
                         </tr>
                       );
                     })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </section>
-
-          {/* Tunnel devices */}
-          <section id="sec-devices" style={styles.card}>
-            <h2 style={styles.cardTitle}>Tunnel devices</h2>
-            {!devices ? (
-              <p style={styles.muted}>Loading…</p>
-            ) : devices.length === 0 ? (
-              <p style={styles.muted}>No tunnel-client devices enrolled yet.</p>
-            ) : (
-              <div style={styles.tableWrap}>
-                <table className="admin-table" style={styles.table}>
-                  <thead>
-                    <tr>
-                      <th style={styles.th}>Approved by</th>
-                      <th style={styles.th}>Status</th>
-                      <th style={styles.th}>Port</th>
-                      <th style={styles.th}>Since</th>
-                      <th style={styles.th}></th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {devices.map((d) => (
-                      <tr key={d.deviceCode}>
-                        <td style={styles.td}>{d.twitchId ? userLabel(d.twitchId) : <span style={{ opacity: 0.5 }}>unclaimed</span>}</td>
-                        <td style={styles.td}>
-                          {d.status === "approved"
-                            ? <span style={styles.badgeGreen}>Approved</span>
-                            : d.status === "revoked"
-                              ? <span style={styles.badgeRed}>Revoked</span>
-                              : <span style={styles.badgeYellow}>Pending</span>}
-                        </td>
-                        <td style={styles.td}>{d.assignedPort || "—"}</td>
-                        <td style={styles.td}>{new Date(d.createdAt).toLocaleString()}</td>
-                        <td style={styles.td}>
-                          {d.status === "approved" && (
-                            <button style={{ ...styles.smallBtn, background: "var(--red, #e91916)" }} onClick={() => revokeDevice(d.deviceCode)}>
-                              Revoke
-                            </button>
-                          )}
-                        </td>
-                      </tr>
-                    ))}
                   </tbody>
                 </table>
               </div>
