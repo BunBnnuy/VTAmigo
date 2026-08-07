@@ -2,6 +2,7 @@ const { spawn } = require("child_process");
 const path = require("path");
 const fs = require("fs");
 const { randomUUID } = require("crypto");
+const errorLog = require("./errorLog");
 
 const TIMEOUT_MS = 60000;
 
@@ -298,10 +299,28 @@ function withSessions(providers, twitchId, fn) {
   return run;
 }
 
+// A CLI call that resolves cleanly (no thrown error) but with blank stdout
+// surfaces to the user as "No response" with nothing to go on. Log it here —
+// the single spot every provider/branch funnels through — so it shows up in
+// the admin error log with enough context (provider, prompt) to investigate.
+function logEmptyResponse(out, { provider, twitchId, prompt }) {
+  if (out != null && !String(out).trim()) {
+    errorLog.addEntry({
+      message: `${provider} CLI returned an empty response`,
+      source: "runCLI:empty",
+      stack: prompt ? `Prompt:\n${prompt.slice(0, 1000)}` : null,
+      twitchLogin: twitchId || null,
+    });
+  }
+  return out;
+}
+
 function runCLI(prompt, { provider = "claude", twitchId = null, model = null, cwd = null, timeoutMs = TIMEOUT_MS, session = true } = {}) {
-  if (provider === "chatgpt") return runOpenAI(prompt, { timeoutMs });
+  if (provider === "chatgpt") {
+    return runOpenAI(prompt, { timeoutMs }).then((out) => logEmptyResponse(out, { provider, twitchId, prompt }));
+  }
   if (!session || !twitchId || !sessions[provider]) {
-    return spawnCLI(prompt, { provider, model, cwd, timeoutMs });
+    return spawnCLI(prompt, { provider, model, cwd, timeoutMs }).then((out) => logEmptyResponse(out, { provider, twitchId, prompt }));
   }
 
   const run = getQueue(provider, twitchId).then(async () => {
@@ -347,7 +366,7 @@ function runCLI(prompt, { provider = "claude", twitchId = null, model = null, cw
   });
 
   setQueue(provider, twitchId, run.catch(() => {}));
-  return run;
+  return run.then((out) => logEmptyResponse(out, { provider, twitchId, prompt }));
 }
 
 function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeoutMs = TIMEOUT_MS, sessionArgs = [], sessionRef = null } = {}) {
