@@ -1,8 +1,4 @@
-const fs = require("fs");
-const path = require("path");
-
-const DATA_DIR = path.join(__dirname, "xp-data");
-if (!fs.existsSync(DATA_DIR)) fs.mkdirSync(DATA_DIR, { recursive: true });
+const { db } = require("./db");
 
 // Users that never earn XP (the AI itself + known chat bots).
 // Overridden per-account by the frontend's "Ignored Users" setting via POST /xp/config.
@@ -14,18 +10,21 @@ const DEFAULT_IGNORED = "jonejo_ia, streamelements, nightbot, moobot, fossabot, 
 // streamer's viewers/resets/ignore-list can't affect another's.
 const accounts = new Map(); // twitchId -> { users, ignored, saveTimer }
 
-function dataFile(twitchId) {
-  return path.join(DATA_DIR, `${twitchId}.json`);
-}
+const selectAccountUsersStmt = db.prepare(`SELECT usernameLower, username, color, xp, messages FROM xp_users WHERE twitchId = ?`);
+const upsertXpUserStmt = db.prepare(`
+  INSERT INTO xp_users (twitchId, usernameLower, username, color, xp, messages)
+  VALUES (@twitchId, @usernameLower, @username, @color, @xp, @messages)
+  ON CONFLICT(twitchId, usernameLower) DO UPDATE SET
+    username = excluded.username, color = excluded.color, xp = excluded.xp, messages = excluded.messages
+`);
+const deleteAccountXpStmt = db.prepare(`DELETE FROM xp_users WHERE twitchId = ?`);
 
 function getAccount(twitchId) {
   let acc = accounts.get(twitchId);
   if (acc) return acc;
-  let users = {};
-  try {
-    users = JSON.parse(fs.readFileSync(dataFile(twitchId), "utf8"));
-  } catch {
-    users = {};
+  const users = {};
+  for (const row of selectAccountUsersStmt.all(twitchId)) {
+    users[row.usernameLower] = { username: row.username, color: row.color, xp: row.xp, messages: row.messages };
   }
   acc = {
     users,
@@ -36,43 +35,20 @@ function getAccount(twitchId) {
   return acc;
 }
 
-// One-time migration: before the per-account split, all XP lived in a single
-// backend/xp-data.json. If there's exactly one approved Twitch account, that
-// file unambiguously belongs to them — move it into the new per-account
-// layout instead of silently discarding real viewer XP history. If there are
-// zero or multiple approved accounts it's ambiguous, so leave the legacy file
-// alone rather than guess.
-function migrateLegacyDataOnce() {
-  const legacyFile = path.join(__dirname, "xp-data.json");
-  if (!fs.existsSync(legacyFile)) return;
-  let approved;
-  try {
-    approved = require("./auth").readUsers().filter((u) => u.approved);
-  } catch {
-    return;
-  }
-  if (approved.length !== 1) return;
-  const twitchId = approved[0].twitchId;
-  const target = dataFile(twitchId);
-  if (fs.existsSync(target)) return;
-  try {
-    const legacyUsers = JSON.parse(fs.readFileSync(legacyFile, "utf8"));
-    fs.writeFileSync(target, JSON.stringify(legacyUsers, null, 2));
-    fs.renameSync(legacyFile, legacyFile + ".migrated");
-    console.log(`[xp] migrated legacy xp-data.json to account ${twitchId}`);
-  } catch (err) {
-    console.error("[xp] legacy migration failed:", err.message);
-  }
-}
-migrateLegacyDataOnce();
-
 function scheduleSave(twitchId, acc) {
   if (acc.saveTimer) return;
   acc.saveTimer = setTimeout(() => {
     acc.saveTimer = null;
-    fs.writeFile(dataFile(twitchId), JSON.stringify(acc.users, null, 2), (err) => {
-      if (err) console.error("[xp] save failed:", err.message);
-    });
+    try {
+      const txn = db.transaction((users) => {
+        for (const [usernameLower, u] of Object.entries(users)) {
+          upsertXpUserStmt.run({ twitchId, usernameLower, username: u.username, color: u.color, xp: u.xp, messages: u.messages });
+        }
+      });
+      txn(acc.users);
+    } catch (err) {
+      console.error("[xp] save failed:", err.message);
+    }
   }, 2000);
 }
 
@@ -142,14 +118,16 @@ function getRanking(twitchId, limit = 10) {
     });
 }
 
-// Wipe one account's XP data (memory + disk)
+// Wipe one account's XP data (memory + DB)
 function reset(twitchId) {
   const acc = getAccount(twitchId);
   acc.users = {};
   if (acc.saveTimer) { clearTimeout(acc.saveTimer); acc.saveTimer = null; }
-  fs.rm(dataFile(twitchId), { force: true }, (err) => {
-    if (err) console.error("[xp] reset failed:", err.message);
-  });
+  try {
+    deleteAccountXpStmt.run(twitchId);
+  } catch (err) {
+    console.error("[xp] reset failed:", err.message);
+  }
 }
 
 module.exports = { addMessage, getRanking, reset, setIgnored };

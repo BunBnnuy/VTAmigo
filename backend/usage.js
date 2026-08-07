@@ -7,25 +7,21 @@
 // common "~4 chars per token" rule of thumb applied to the input messages and
 // the generated response. Good enough to compare relative usage across
 // users/time, not for billing-grade accounting.
-const fs = require("fs");
-const path = require("path");
+const { db } = require("./db");
 const { readUsers, writeUsers } = require("./auth");
 
-const USAGE_PATH = path.join(__dirname, "usage.json");
 const MAX_AGE_DAYS = 400; // keep a bit over a year of history, then trim
 const FREE_TO_BASIC_THRESHOLD = 20; // all-time AI responses generated
 
 function readLog() {
-  try {
-    return JSON.parse(fs.readFileSync(USAGE_PATH, "utf8"));
-  } catch {
-    return [];
-  }
+  return db.prepare(`SELECT twitchId, login, provider, ts, tokensIn, tokensOut FROM usage_log ORDER BY ts ASC`).all();
 }
 
-function writeLog(entries) {
-  fs.writeFileSync(USAGE_PATH, JSON.stringify(entries, null, 2));
-}
+const insertEntryStmt = db.prepare(`
+  INSERT INTO usage_log (twitchId, login, provider, ts, tokensIn, tokensOut)
+  VALUES (@twitchId, @login, @provider, @ts, @tokensIn, @tokensOut)
+`);
+const deleteOlderThanStmt = db.prepare(`DELETE FROM usage_log WHERE ts < ?`);
 
 function estimateTokens(text) {
   return Math.max(1, Math.ceil((text || "").length / 4));
@@ -33,10 +29,9 @@ function estimateTokens(text) {
 
 function recordGeneration({ twitchId, login, provider, inputText, outputText }) {
   if (!twitchId) return;
-  const entries = readLog();
   const cutoff = Date.now() - MAX_AGE_DAYS * 86400000;
-  const trimmed = entries.filter((e) => e.ts >= cutoff);
-  trimmed.push({
+  deleteOlderThanStmt.run(cutoff);
+  insertEntryStmt.run({
     twitchId,
     login: login || null,
     provider: provider || "claude",
@@ -44,7 +39,6 @@ function recordGeneration({ twitchId, login, provider, inputText, outputText }) 
     tokensIn: estimateTokens(inputText),
     tokensOut: estimateTokens(outputText),
   });
-  writeLog(trimmed);
 }
 
 function startOfDay(d) {

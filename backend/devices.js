@@ -5,18 +5,17 @@
 // port-forwarding access on the VPS. Flat JSON store, same pattern as users.json.
 //
 // Approved keys are looked up live by sshd via an AuthorizedKeysCommand
-// (server/tunnel-authorized-keys.sh) that reads this same devices.json —
-// so this file is the only thing the backend needs to write; there's no
-// authorized_keys file to manage/chmod here. See server/README.md.
+// (server/tunnel-authorized-keys.sh) that reads this same store — now the
+// `devices` SQLite table (see db.js) instead of devices.json directly, so
+// that script needs to query the DB file for this environment instead.
+// See server/README.md.
 const express = require("express");
 const rateLimit = require("express-rate-limit");
-const fs = require("fs");
-const path = require("path");
 const crypto = require("crypto");
 const { requireApprovedUser } = require("./auth");
 const { requireAdmin } = require("./adminAuth");
+const { db } = require("./db");
 
-const DEVICES_PATH = path.join(__dirname, "devices.json");
 const PENDING_TTL_MS = 15 * 60 * 1000;
 const BASE_PORT = 8001;
 
@@ -34,16 +33,39 @@ const deviceCodeLimiter = rateLimit({
 const TUNNEL_HOST = process.env.TUNNEL_HOST || "vtamigo.top";
 const TUNNEL_SSH_USER = "tunnel";
 
+const DEVICE_COLUMNS = ["deviceCode", "userCode", "publicKey", "twitchId", "status", "assignedPort", "createdAt", "approvedAt"];
+
+const upsertDeviceStmt = db.prepare(`
+  INSERT INTO devices (${DEVICE_COLUMNS.join(", ")})
+  VALUES (${DEVICE_COLUMNS.map((c) => "@" + c).join(", ")})
+  ON CONFLICT(deviceCode) DO UPDATE SET
+    ${DEVICE_COLUMNS.filter((c) => c !== "deviceCode").map((c) => `${c} = excluded.${c}`).join(", ")}
+`);
+const deleteDeviceStmt = db.prepare(`DELETE FROM devices WHERE deviceCode = ?`);
+const selectAllDeviceCodesStmt = db.prepare(`SELECT deviceCode FROM devices`);
+
 function readDevices() {
-  try {
-    return JSON.parse(fs.readFileSync(DEVICES_PATH, "utf8"));
-  } catch {
-    return [];
-  }
+  return db.prepare(`SELECT * FROM devices`).all();
 }
 
+// Callers read the full array, mutate/push entries, then pass the whole
+// thing back — same "rewrite the whole file" contract devices.json used to
+// have, just against SQLite: upsert everything present, delete anything no
+// longer in the array.
 function writeDevices(devices) {
-  fs.writeFileSync(DEVICES_PATH, JSON.stringify(devices, null, 2));
+  const txn = db.transaction((list) => {
+    const keep = new Set();
+    for (const d of list) {
+      keep.add(d.deviceCode);
+      const row = {};
+      for (const c of DEVICE_COLUMNS) row[c] = d[c] === undefined ? null : d[c];
+      upsertDeviceStmt.run(row);
+    }
+    for (const { deviceCode } of selectAllDeviceCodesStmt.all()) {
+      if (!keep.has(deviceCode)) deleteDeviceStmt.run(deviceCode);
+    }
+  });
+  txn(devices);
 }
 
 function pruneExpired(devices) {

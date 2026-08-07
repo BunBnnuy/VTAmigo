@@ -1,25 +1,29 @@
 // Per-account YouTube song-request queue for the site + OBS overlay
-// (backend/overlay/video.html) — same flat-JSON-manifest style as
-// backend/avatarOverlay.js and backend/xp-data.json.
-const fs = require("fs");
-const path = require("path");
+// (backend/overlay/video.html), stored in the video_queue SQLite table (see
+// db.js) — previously a flat JSON manifest (data/videoQueue.json), same
+// style backend/avatarOverlay.js and backend/xp-data.json used to follow.
+const { db } = require("./db");
 
-const DATA_DIR = path.join(__dirname, "data");
-const STATE_PATH = path.join(DATA_DIR, "videoQueue.json");
 const DEFAULT_PLAYLIST_MAX_AGE_MS = 6 * 60 * 60 * 1000; // refresh cache every 6h
 
-fs.mkdirSync(DATA_DIR, { recursive: true });
+const getStateStmt = db.prepare(`SELECT state FROM video_queue WHERE twitchId = ?`);
+const upsertStateStmt = db.prepare(`
+  INSERT INTO video_queue (twitchId, state) VALUES (?, ?)
+  ON CONFLICT(twitchId) DO UPDATE SET state = excluded.state
+`);
 
-function readAll() {
+function readOne(twitchId) {
+  const row = getStateStmt.get(twitchId);
+  if (!row) return null;
   try {
-    return JSON.parse(fs.readFileSync(STATE_PATH, "utf8"));
+    return JSON.parse(row.state);
   } catch {
-    return {};
+    return null;
   }
 }
 
-function writeAll(all) {
-  fs.writeFileSync(STATE_PATH, JSON.stringify(all, null, 2));
+function writeOne(twitchId, account) {
+  upsertStateStmt.run(twitchId, JSON.stringify(account));
 }
 
 const MAX_HISTORY = 20;
@@ -38,8 +42,7 @@ function emptyAccount() {
 }
 
 function getState(twitchId) {
-  const all = readAll();
-  const account = all[twitchId] || emptyAccount();
+  const account = readOne(twitchId) || emptyAccount();
   // back-compat with state saved before these fields existed
   if (!account.history) account.history = [];
   if (account.viewerRequestsEnabled === undefined) account.viewerRequestsEnabled = true;
@@ -56,9 +59,7 @@ function setSettings(twitchId, { viewerRequestsEnabled, skipDefaultOnRequest } =
 }
 
 function saveAccount(twitchId, account) {
-  const all = readAll();
-  all[twitchId] = account;
-  writeAll(all);
+  writeOne(twitchId, account);
   return account;
 }
 

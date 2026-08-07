@@ -1,13 +1,12 @@
-// Twitch OAuth login + session cookies. Approval state lives in users.json,
-// a flat JSON file in the same style as .agent-sessions.json / xp-data.json.
+// Twitch OAuth login + session cookies. Approval state lives in the `users`
+// table of the per-environment SQLite DB (see db.js) — previously a flat
+// JSON file (users.json) in the same style as .agent-sessions.json / xp-data.json.
 const express = require("express");
-const fs = require("fs");
-const path = require("path");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { sendEvent } = require("./analytics");
+const { db } = require("./db");
 
-const USERS_PATH = path.join(__dirname, "users.json");
 const SESSION_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
 const STATE_COOKIE = "twitch_oauth_state";
 const SESSION_COOKIE = "session";
@@ -73,16 +72,51 @@ function decryptToken(encoded) {
   }
 }
 
-function readUsers() {
-  try {
-    return JSON.parse(fs.readFileSync(USERS_PATH, "utf8"));
-  } catch {
-    return [];
-  }
+const USER_COLUMNS = [
+  "twitchId", "login", "displayName", "profileImageUrl", "approved", "tier",
+  "createdAt", "approvedAt", "twitchAccessTokenEnc", "twitchRefreshTokenEnc",
+  "twitchTokenExpiresAt", "botTwitchId", "botLogin", "botAccessTokenEnc",
+  "botRefreshTokenEnc", "botTokenExpiresAt", "botLinkedAt",
+];
+
+const upsertUserStmt = db.prepare(`
+  INSERT INTO users (${USER_COLUMNS.join(", ")})
+  VALUES (${USER_COLUMNS.map((c) => "@" + c).join(", ")})
+  ON CONFLICT(twitchId) DO UPDATE SET
+    ${USER_COLUMNS.filter((c) => c !== "twitchId").map((c) => `${c} = excluded.${c}`).join(", ")}
+`);
+const deleteUserStmt = db.prepare(`DELETE FROM users WHERE twitchId = ?`);
+const selectAllTwitchIdsStmt = db.prepare(`SELECT twitchId FROM users`);
+
+function rowToUser(row) {
+  if (!row) return undefined;
+  return { ...row, approved: !!row.approved };
 }
 
+function readUsers() {
+  return db.prepare(`SELECT * FROM users`).all().map(rowToUser);
+}
+
+// Callers read the full array, mutate/add entries, then pass the whole thing
+// back here — same "rewrite the whole file" contract users.json used to
+// have, just against SQLite: upsert everything present, delete anything
+// that's no longer in the array.
 function writeUsers(users) {
-  fs.writeFileSync(USERS_PATH, JSON.stringify(users, null, 2));
+  const txn = db.transaction((list) => {
+    const keep = new Set();
+    for (const u of list) {
+      keep.add(u.twitchId);
+      const row = {};
+      for (const c of USER_COLUMNS) {
+        row[c] = c === "approved" ? (u[c] ? 1 : 0) : u[c] === undefined ? null : u[c];
+      }
+      upsertUserStmt.run(row);
+    }
+    for (const { twitchId } of selectAllTwitchIdsStmt.all()) {
+      if (!keep.has(twitchId)) deleteUserStmt.run(twitchId);
+    }
+  });
+  txn(users);
 }
 
 function findUser(twitchId) {

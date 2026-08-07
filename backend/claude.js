@@ -226,38 +226,39 @@ function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS } = {}) {
 // Twitch account opens the session with --session-id, later queries from
 // that same account --resume it, so each streamer's co-host remembers their
 // own stream without mixing memories with anyone else on the site. IDs live
-// in a JSON file next to the backend so memory survives restarts — delete
-// the file (or a user's entry) to give that account's bot a clean slate.
-const SESSIONS_FILE = path.join(__dirname, ".agent-sessions.json");
+// in the agent_sessions SQLite table (see db.js) so memory survives restarts
+// — previously a flat JSON file (.agent-sessions.json) next to the backend.
+// Delete a (provider, twitchId) row to give that account's bot a clean slate.
+const { db } = require("./db");
+
+const selectSessionsStmt = db.prepare(`SELECT provider, twitchId, sessionId, started FROM agent_sessions`);
+const upsertSessionStmt = db.prepare(`
+  INSERT INTO agent_sessions (provider, twitchId, sessionId, started) VALUES (@provider, @twitchId, @sessionId, @started)
+  ON CONFLICT(provider, twitchId) DO UPDATE SET sessionId = excluded.sessionId, started = excluded.started
+`);
 
 function loadSessions() {
-  let saved = {};
-  try {
-    saved = JSON.parse(fs.readFileSync(SESSIONS_FILE, "utf8"));
-  } catch {
-    // Missing or unreadable file → start fresh
+  const out = { claude: {}, grok: {}, agy: {} };
+  for (const row of selectSessionsStmt.all()) {
+    if (!out[row.provider]) continue;
+    out[row.provider][row.twitchId] = { id: row.sessionId, started: !!row.started };
   }
-  // Old file shape (pre per-user sessions) was a single { id, started } per
-  // provider shared site-wide — there's no safe owner to migrate it to, so
-  // it's discarded and each account starts a clean session instead.
-  const restoreProvider = (p) => {
-    const entry = saved[p];
-    const out = {};
-    if (entry && typeof entry === "object" && typeof entry.id !== "string") {
-      for (const [twitchId, s] of Object.entries(entry)) {
-        if (s && typeof s.id === "string") out[twitchId] = { id: s.id, started: !!s.started };
-      }
-    }
-    return out;
-  };
-  return { claude: restoreProvider("claude"), grok: restoreProvider("grok"), agy: restoreProvider("agy") };
+  return out;
+}
+
+function saveSession(provider, twitchId, session) {
+  try {
+    upsertSessionStmt.run({ provider, twitchId, sessionId: session.id, started: session.started ? 1 : 0 });
+  } catch (err) {
+    console.error("Failed to save agent session:", err.message);
+  }
 }
 
 function saveSessions() {
-  try {
-    fs.writeFileSync(SESSIONS_FILE, JSON.stringify(sessions, null, 2));
-  } catch (err) {
-    console.error("Failed to save agent sessions:", err.message);
+  for (const provider of Object.keys(sessions)) {
+    for (const [twitchId, session] of Object.entries(sessions[provider])) {
+      saveSession(provider, twitchId, session);
+    }
   }
 }
 
@@ -266,6 +267,7 @@ const sessions = loadSessions();
 function getSession(provider, twitchId) {
   if (!sessions[provider][twitchId]) {
     sessions[provider][twitchId] = { id: randomUUID(), started: false };
+    saveSession(provider, twitchId, sessions[provider][twitchId]);
   }
   return sessions[provider][twitchId];
 }

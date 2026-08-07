@@ -7,6 +7,7 @@ Wants=network-online.target
 Type=simple
 User=vtamigo
 Environment=HOME=/home/vtamigo
+Environment=APP_ENV=production
 WorkingDirectory=/opt/vtamigo/backend
 EnvironmentFile=/etc/vtamigo.env
 ExecStart=/usr/bin/node index.js

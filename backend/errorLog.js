@@ -1,34 +1,25 @@
 // Client-side error log — frontend app errors (uncaught exceptions, unhandled
 // promise rejections, React render errors, and explicit logError() calls) are
 // POSTed here so they're visible from the Admin panel instead of only living
-// in a viewer's own devtools console. Same flat-JSON-file storage pattern as
-// siteConfig.js / devices.js.
-const fs = require("fs");
-const path = require("path");
+// in a viewer's own devtools console. Stored in the error_log SQLite table
+// (see db.js) — previously a flat JSON file (error-log.json), same pattern
+// siteConfig.js / devices.js used to follow.
+const { db } = require("./db");
 
-const LOG_FILE = path.join(__dirname, "error-log.json");
 const MAX_ENTRIES = 500;
 
-function load() {
-  try {
-    return JSON.parse(fs.readFileSync(LOG_FILE, "utf8"));
-  } catch {
-    return [];
-  }
-}
-
-let entries = load();
-
-function save() {
-  try {
-    fs.writeFileSync(LOG_FILE, JSON.stringify(entries, null, 2));
-  } catch (err) {
-    console.error("Failed to save error log:", err.message);
-  }
-}
+const insertStmt = db.prepare(`
+  INSERT INTO error_log (id, timestamp, message, stack, source, url, userAgent, twitchLogin)
+  VALUES (@id, @timestamp, @message, @stack, @source, @url, @userAgent, @twitchLogin)
+`);
+const trimStmt = db.prepare(`
+  DELETE FROM error_log WHERE id NOT IN (
+    SELECT id FROM error_log ORDER BY timestamp DESC LIMIT ?
+  )
+`);
 
 function addEntry({ message, stack, source, url, userAgent, twitchLogin }) {
-  entries.push({
+  insertStmt.run({
     id: `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
     timestamp: new Date().toISOString(),
     message: String(message || "Unknown error").slice(0, 2000),
@@ -38,17 +29,15 @@ function addEntry({ message, stack, source, url, userAgent, twitchLogin }) {
     userAgent: userAgent ? String(userAgent).slice(0, 300) : null,
     twitchLogin: twitchLogin || null,
   });
-  if (entries.length > MAX_ENTRIES) entries = entries.slice(-MAX_ENTRIES);
-  save();
+  trimStmt.run(MAX_ENTRIES);
 }
 
 function getEntries() {
-  return entries;
+  return db.prepare(`SELECT * FROM error_log ORDER BY timestamp ASC`).all();
 }
 
 function clear() {
-  entries = [];
-  save();
+  db.prepare(`DELETE FROM error_log`).run();
 }
 
 module.exports = { addEntry, getEntries, clear };

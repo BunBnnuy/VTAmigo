@@ -97,6 +97,28 @@ export default function App() {
 
   useEffect(() => { checkAuth(); }, [checkAuth]);
 
+  // TEMPORARY: settings still live only in this browser's localStorage
+  // (Settings.jsx), now that the server has moved to SQLite we push a copy
+  // up on every approved login so it also exists server-side. One-way,
+  // client -> server, and only fired once per login. Remove this whole
+  // effect (and the POST /settings route) once settings are actually
+  // persisted server-side as the source of truth instead of localStorage.
+  const settingsSyncedRef = useRef(false);
+  useEffect(() => {
+    if (!authState?.loggedIn || !authState?.approved || settingsSyncedRef.current) return;
+    settingsSyncedRef.current = true;
+    try {
+      const localSettings = JSON.parse(localStorage.getItem("settings") || "{}");
+      apiFetch("/settings", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(localSettings),
+      }).catch(() => {}); // best-effort; losing this sync isn't user-visible
+    } catch {
+      // malformed localStorage settings — nothing to sync
+    }
+  }, [authState]);
+
   if (!authState) return null;
   if (!authState.loggedIn) return <Login />;
   if (!authState.approved) {

@@ -26,6 +26,7 @@ const piper = require("./piper");
 const avatarOverlay = require("./avatarOverlay");
 const videoQueue = require("./videoQueue");
 const chatOverlayConfig = require("./chatOverlayConfig");
+const userSettings = require("./userSettings");
 const chatOverlayBg = require("./chatOverlayBg");
 const youtube = require("./youtube");
 
@@ -890,6 +891,24 @@ app.post("/chat-overlay/config", requireApprovedUser, (req, res) => {
   const fullConfig = { ...config, hasBgImage: chatOverlayBg.hasImage(req.user.twitchId) };
   broadcastToAccount(req.user.twitchId, { type: "chat_overlay_config", config: fullConfig });
   res.json({ config: fullConfig });
+});
+
+// GET /settings — the copy of this account's client-side Settings.jsx
+// localStorage blob last synced to the server (see userSettings.js).
+app.get("/settings", requireApprovedUser, (req, res) => {
+  res.json({ settings: userSettings.getSettings(req.user.twitchId) });
+});
+
+// POST /settings — temporary sync shim: the frontend calls this once right
+// after login with its current localStorage settings so the SQLite copy
+// exists too. See userSettings.js for why this is meant to be removed later.
+app.post("/settings", requireApprovedUser, (req, res) => {
+  try {
+    userSettings.setSettings(req.user.twitchId, req.body || {});
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
 });
 
 // GET /chat-overlay/bg-image?token=... — serves the uploaded nine-slice

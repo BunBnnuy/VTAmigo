@@ -5,12 +5,12 @@
 // HTTP request — a synchronous request risked hitting nginx's proxy timeout
 // and getting an HTML error page back instead of JSON. Both the job and the
 // cooldown are keyed by Twitch account so one streamer's download/cooldown
-// never blocks or leaks into another account's Settings panel.
-const fs = require("fs");
-const path = require("path");
+// never blocks or leaks into another account's Settings panel. The cooldown
+// is persisted in the memory_download_state SQLite table (see db.js) —
+// previously a flat JSON file (.memory-download-state.json).
 const { dumpMemory } = require("./claude");
+const { db } = require("./db");
 
-const STATE_FILE = path.join(__dirname, ".memory-download-state.json");
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 // Simulated progress — the CLI call itself doesn't report incremental
@@ -28,34 +28,19 @@ const EMPTY_JOB = { running: false, pct: 0, stage: "", error: null, markdown: nu
 const jobs = new Map(); // twitchId -> job
 const stageTimers = new Map(); // twitchId -> interval handle
 
-function loadState() {
-  try {
-    return JSON.parse(fs.readFileSync(STATE_FILE, "utf8"));
-  } catch {
-    return {};
-  }
-}
-
-function saveState(state) {
-  try {
-    fs.writeFileSync(STATE_FILE, JSON.stringify(state));
-  } catch (err) {
-    console.error("Failed to save memory download state:", err.message);
-  }
-}
+const getLastDownloadStmt = db.prepare(`SELECT lastDownloadAt FROM memory_download_state WHERE twitchId = ?`);
+const setLastDownloadStmt = db.prepare(`
+  INSERT INTO memory_download_state (twitchId, lastDownloadAt) VALUES (?, ?)
+  ON CONFLICT(twitchId) DO UPDATE SET lastDownloadAt = excluded.lastDownloadAt
+`);
 
 function getAvailableAt(twitchId) {
-  const state = loadState();
-  // Old file shape (pre per-user) was a single { lastDownloadAt } shared
-  // site-wide — ignore it, each account starts with no cooldown.
-  const lastDownloadAt = state[twitchId]?.lastDownloadAt;
-  return lastDownloadAt ? lastDownloadAt + COOLDOWN_MS : 0;
+  const row = getLastDownloadStmt.get(twitchId);
+  return row ? row.lastDownloadAt + COOLDOWN_MS : 0;
 }
 
 function setLastDownloadAt(twitchId, ts) {
-  const state = loadState();
-  state[twitchId] = { lastDownloadAt: ts };
-  saveState(state);
+  setLastDownloadStmt.run(twitchId, ts);
 }
 
 function getStatus(twitchId) {

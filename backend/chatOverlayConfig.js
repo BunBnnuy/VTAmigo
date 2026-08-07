@@ -1,12 +1,10 @@
 // Per-account appearance/behavior settings for the chat overlay
-// (backend/overlay/chat.html), stored the same way as users.json — a flat
-// JSON file keyed by twitchId. Edited live from the frontend's
+// (backend/overlay/chat.html), stored in the chat_overlay_config SQLite
+// table (see db.js), keyed by twitchId — previously a flat JSON file in the
+// same style as users.json. Edited live from the frontend's
 // ChatOverlayPanel side panel; changes are pushed to any open overlay over
 // the /chat WS ({ type: "chat_overlay_config" }) so OBS never needs a reload.
-const fs = require("fs");
-const path = require("path");
-
-const CONFIG_PATH = path.join(__dirname, "chatOverlayConfig.json");
+const { db } = require("./db");
 
 const DEFAULTS = {
   max: 25,
@@ -45,16 +43,24 @@ const DEFAULTS = {
 
 const FONT_FAMILY_RE = /^[\w\s,'"\-]{0,120}$/;
 
-function readAll() {
+const getConfigStmt = db.prepare(`SELECT config FROM chat_overlay_config WHERE twitchId = ?`);
+const upsertConfigStmt = db.prepare(`
+  INSERT INTO chat_overlay_config (twitchId, config) VALUES (?, ?)
+  ON CONFLICT(twitchId) DO UPDATE SET config = excluded.config
+`);
+
+function readOne(twitchId) {
+  const row = getConfigStmt.get(twitchId);
+  if (!row) return null;
   try {
-    return JSON.parse(fs.readFileSync(CONFIG_PATH, "utf8"));
+    return JSON.parse(row.config);
   } catch {
-    return {};
+    return null;
   }
 }
 
-function writeAll(data) {
-  fs.writeFileSync(CONFIG_PATH, JSON.stringify(data, null, 2));
+function writeOne(twitchId, config) {
+  upsertConfigStmt.run(twitchId, JSON.stringify(config));
 }
 
 function sanitize(partial) {
@@ -100,15 +106,12 @@ function sanitize(partial) {
 }
 
 function getConfig(twitchId) {
-  const all = readAll();
-  return { ...DEFAULTS, ...(all[twitchId] || {}) };
+  return { ...DEFAULTS, ...(readOne(twitchId) || {}) };
 }
 
 function setConfig(twitchId, partial) {
-  const all = readAll();
-  const merged = { ...DEFAULTS, ...(all[twitchId] || {}), ...sanitize(partial) };
-  all[twitchId] = merged;
-  writeAll(all);
+  const merged = { ...DEFAULTS, ...(readOne(twitchId) || {}), ...sanitize(partial) };
+  writeOne(twitchId, merged);
   return merged;
 }
 
