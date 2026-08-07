@@ -467,6 +467,25 @@ export default {
     footerHint: "Viewers can also request songs with !sr",
   },
 
+  streamSettingsPanel: {
+    expand: "Expand stream settings controls",
+    collapse: "Collapse stream settings controls",
+    title: "Stream Settings",
+    titleLabel: "Stream title",
+    titlePlaceholder: "What's happening today?",
+    categoryLabel: "Category",
+    categorySearchPlaceholder: "Search categories…",
+    save: "💾 Save",
+    saving: "Saving…",
+    saved: "✓ Saved",
+    saveError: "Couldn't save: {error}",
+    loadError: "Couldn't load your current stream info.",
+    scopeErrorTitle: "Permission needed",
+    scopeErrorBody: "This feature needs an extra Twitch permission that wasn't requested when you last logged in. Log out and back in to grant it.",
+    logout: "Log out",
+    noResults: "No categories found",
+  },
+
   chatOverlayPanel: {
     expand: "Expand chat overlay controls",
     collapse: "Collapse chat overlay controls",
