@@ -446,12 +446,13 @@ export default {
 
   chatOverlayPreview: {
     title: "Chat Overlay Preview",
-    stageTitle: "Canvas size to preview at — match your OBS base resolution",
+    sizeCaption: "{width}×{height}px",
+    sizeCaptionTitle: "Matches the Width / Max height fields in the Chat Overlay panel's Appearance section",
     reload: "↻ Reload",
     testMessage: "💬 Message",
     testRedeem: "🎁 Redeem",
     testEvent: "🎉 Event",
-    hint: "Live view of your overlay. Collapse or close this panel to unload it — it stops connecting and using resources until you open it again.",
+    hint: "Live view of your overlay, sized to match Appearance. Collapse or close this panel to unload it — it stops connecting and using resources until you open it again.",
   },
 
   videoQueue: {
