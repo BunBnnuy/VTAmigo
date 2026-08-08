@@ -7,6 +7,11 @@
 const { db } = require("./db");
 
 const DEFAULTS = {
+  // "default" = the original flat-row renderer (nine-slice background image,
+  // canvas-backed). "bubbles" = the decorated speech-bubble renderer. The two
+  // share the feed/WS plumbing and the behavior knobs below, but nothing else:
+  // each has its own CSS and its own row builder in overlay/chat.html.
+  theme: "default",
   max: 25,
   fade: 0, // seconds; 0 = messages never auto-remove (only capped by `max`)
   showEvents: true,
@@ -39,9 +44,63 @@ const DEFAULTS = {
   sliceBottom: 24,
   mirrorH: false, // right column = horizontally-flipped copy of the left column
   mirrorV: false, // bottom row = vertically-flipped copy of the top row
+
+  // ── "bubbles" theme ────────────────────────────────────────────────────
+  // Only read when theme === "bubbles". Several of the generic knobs above
+  // are reused rather than duplicated: `max` is the message limit, `fade` the
+  // auto-hide delay, `showEvents` toggles alerts, `userColor` overrides the
+  // configured username color with the chatter's own Twitch color, and
+  // `fontFamily` names the Google Font to load.
+  allCaps: false, // uppercase non-emote words
+  showBadges: true, // draw the role badge tag under the bubble
+  ignoreCommands: "", // comma-separated command prefixes to hide, e.g. "!bot,!sr"
+
+  fontSizeUsername: 24,
+  fontWeightUsername: 400,
+  fontSizeMessage: 20,
+  fontWeightMessage: 400,
+  fontSizeAlertUsername: 19,
+  fontWeightAlertUsername: 400,
+
+  usernameColor: "#F7FBFF",
+  messageBackground: "#F7FBFF",
+  messageBorder: "#EEB09E",
+  messageColor: "#DB867A",
+  alertColor: "#F7FBFF",
+  flowerBorder: "#EEB09E",
+  flowerFill: "#FCFEFF",
+  flowerCenter: "#FBD5B5",
+  flowerLeaf: "#92AF3E",
+  flower2Leaf: "#92AF3E",
+  flower2Fill: "#EEB09E",
+
+  // Alert copy. "[amount]" is substituted with the event's count/bits/viewers.
+  followAlertMessage: "just followed!",
+  subAlertMessage: "just subscribed!",
+  resubAlertMessage: "resubscribed for [amount] months!",
+  giftedSubAlertMessage: "just gifted x[amount]!",
+  cheerAlertMessage: "just cheered [amount] bits!",
+  raidAlertMessage: "just raided with [amount]!",
+  redeemAlertMessage: "redeemed [amount]!",
 };
 
 const FONT_FAMILY_RE = /^[\w\s,'"\-]{0,120}$/;
+
+// Keys whose value is a "#rrggbb" CSS color (the bubbles theme writes them
+// straight into custom properties, so the "#" is kept — unlike `textcolor`,
+// which predates this and is stored bare).
+const COLOR_KEYS = new Set([
+  "usernameColor", "messageBackground", "messageBorder", "messageColor", "alertColor",
+  "flowerBorder", "flowerFill", "flowerCenter", "flowerLeaf", "flower2Leaf", "flower2Fill",
+]);
+const COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+
+// Free-text keys, length-capped. Alert copy is rendered with textContent in
+// the overlay, so no markup can escape from here.
+const TEXT_MAX = { ignoreCommands: 300 };
+const ALERT_MESSAGE_KEYS = new Set(
+  Object.keys(DEFAULTS).filter((k) => k.endsWith("AlertMessage"))
+);
 
 const getConfigStmt = db.prepare(`SELECT config FROM chat_overlay_config WHERE twitchId = ?`);
 const upsertConfigStmt = db.prepare(`
@@ -75,6 +134,15 @@ function sanitize(partial) {
     } else if (typeof def === "number") {
       const n = Number(val);
       if (Number.isFinite(n)) out[key] = n;
+    } else if (key === "theme") {
+      if (val === "default" || val === "bubbles") out[key] = val;
+    } else if (COLOR_KEYS.has(key)) {
+      const hex = String(val).startsWith("#") ? String(val) : "#" + String(val);
+      if (COLOR_RE.test(hex)) out[key] = hex;
+    } else if (ALERT_MESSAGE_KEYS.has(key)) {
+      out[key] = String(val).slice(0, 200);
+    } else if (key in TEXT_MAX) {
+      out[key] = String(val).slice(0, TEXT_MAX[key]);
     } else if (key === "direction") {
       if (val === "up" || val === "down") out[key] = val;
     } else if (key === "align") {
@@ -102,6 +170,12 @@ function sanitize(partial) {
   if ("sliceRight" in out) out.sliceRight = Math.min(1000, Math.max(0, Math.round(out.sliceRight)));
   if ("sliceTop" in out) out.sliceTop = Math.min(1000, Math.max(0, Math.round(out.sliceTop)));
   if ("sliceBottom" in out) out.sliceBottom = Math.min(1000, Math.max(0, Math.round(out.sliceBottom)));
+  for (const key of ["fontSizeUsername", "fontSizeMessage", "fontSizeAlertUsername"]) {
+    if (key in out) out[key] = Math.min(96, Math.max(8, Math.round(out[key])));
+  }
+  for (const key of ["fontWeightUsername", "fontWeightMessage", "fontWeightAlertUsername"]) {
+    if (key in out) out[key] = Math.min(1000, Math.max(100, Math.round(out[key] / 100) * 100));
+  }
   return out;
 }
 

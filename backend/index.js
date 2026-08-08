@@ -16,6 +16,7 @@ const memoryExport = require("./memoryExport");
 const memoryDownload = require("./memoryDownload");
 const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
+const emotes = require("./emotes");
 const { EventSubClient } = require("./eventsub");
 const { TikTokChatClient } = require("./tiktok");
 const { fetchRandomStory } = require("./reddit");
@@ -154,7 +155,9 @@ function broadcastToAccount(twitchId, data) {
 function handleChat(twitchId, msg) {
   const session = twitchSessions.get(twitchId);
   const isBot = !!(session?.botUsername && msg.login && msg.login === session.botUsername);
-  broadcastToAccount(twitchId, { type: "chat", msg: { ...msg, isBot } });
+  // Resolves the raw IRC emote/badge tags into renderable objects against an
+  // in-memory cache — synchronous, so it can't reorder the feed (see emotes.js).
+  broadcastToAccount(twitchId, { type: "chat", msg: { ...emotes.enrich(msg, twitchId), isBot } });
   if (msg.username && msg.text) {
     const ev = xp.addMessage(twitchId, msg.username, msg.text, msg.color);
     if (ev && ev.gained > 0) broadcastToAccount(twitchId, { type: "xp", ...ev });
@@ -1013,22 +1016,42 @@ const TEST_MESSAGES = [
 ];
 const TEST_REWARDS = ["Highlight My Message", "Hydrate!", "Sing a Song", "Play a Sound", "Pet the Cat"];
 const TEST_COLORS = ["#ff4f4f", "#4fa8ff", "#4fff8f", "#ffd24f", "#c04fff", "#ff4fc0", "#4ffff0"];
+// Badge tags in real IRC format so the test path exercises the same
+// resolveBadges() code the live feed uses, including the per-theme icons.
+const TEST_BADGE_TAGS = ["", "", "subscriber/12", "moderator/1", "vip/1", "broadcaster/1", "founder/0,subscriber/24"];
 
 function randomOf(arr) {
   return arr[Math.floor(Math.random() * arr.length)];
 }
 
+// Build a test message the same way a real one is built: enrich() resolves it
+// against the live emote/badge caches, so a channel's own 7TV/BTTV emotes and
+// real badge art show up in previews. The streamer's own twitchId doubles as
+// the room id — a Twitch channel's room id IS the broadcaster's user id.
+function buildTestMessage(twitchId, extra) {
+  return emotes.enrich(
+    {
+      id: `test-${Date.now()}-${Math.random()}`,
+      username: randomOf(TEST_USERNAMES),
+      color: randomOf(TEST_COLORS),
+      text: "",
+      timestamp: Date.now(),
+      isRedeem: false,
+      isBot: false,
+      isAction: false,
+      roomId: twitchId,
+      badgeTag: randomOf(TEST_BADGE_TAGS),
+      emoteTag: "",
+      emoteOnly: false,
+      ...extra,
+    },
+    twitchId
+  );
+}
+
 // POST /chat-overlay/test-message — broadcasts a fake plain chat message.
 app.post("/chat-overlay/test-message", requireApprovedUser, (req, res) => {
-  const msg = {
-    id: `test-${Date.now()}-${Math.random()}`,
-    username: randomOf(TEST_USERNAMES),
-    color: randomOf(TEST_COLORS),
-    text: randomOf(TEST_MESSAGES),
-    timestamp: Date.now(),
-    isRedeem: false,
-    isBot: false,
-  };
+  const msg = buildTestMessage(req.user.twitchId, { text: randomOf(TEST_MESSAGES) });
   broadcastToAccount(req.user.twitchId, { type: "chat_overlay_test_chat", msg });
   res.json({ ok: true });
 });
@@ -1036,16 +1059,11 @@ app.post("/chat-overlay/test-message", requireApprovedUser, (req, res) => {
 // POST /chat-overlay/test-redeem — broadcasts a fake channel-point redemption.
 app.post("/chat-overlay/test-redeem", requireApprovedUser, (req, res) => {
   const withMessage = Math.random() < 0.5;
-  const msg = {
-    id: `test-${Date.now()}-${Math.random()}`,
-    username: randomOf(TEST_USERNAMES),
-    color: randomOf(TEST_COLORS),
+  const msg = buildTestMessage(req.user.twitchId, {
     text: withMessage ? randomOf(TEST_MESSAGES) : "",
-    timestamp: Date.now(),
     isRedeem: true,
     rewardTitle: randomOf(TEST_REWARDS),
-    isBot: false,
-  };
+  });
   broadcastToAccount(req.user.twitchId, { type: "chat_overlay_test_chat", msg });
   res.json({ ok: true });
 });
