@@ -277,6 +277,24 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const wsRef = useRef(null);
   const seenMsgIds = useRef(new Set());
   const bufferRef = useRef([]);
+  const [queuedCount, setQueuedCount] = useState(0);
+  // Safety cap for when AI responses are toggled off for a long stretch —
+  // messages keep queuing (nothing should be silently lost), but without a
+  // ceiling a long-idle stream could grow this unbounded. Oldest entries
+  // drop first once the cap is hit; the Prune button in Quick Controls lets
+  // the streamer clear it manually at any time.
+  const MAX_QUEUED_MESSAGES = 300;
+  const pushToBuffer = useCallback((entry) => {
+    bufferRef.current.push(entry);
+    if (bufferRef.current.length > MAX_QUEUED_MESSAGES) {
+      bufferRef.current.splice(0, bufferRef.current.length - MAX_QUEUED_MESSAGES);
+    }
+    setQueuedCount(bufferRef.current.length);
+  }, []);
+  const pruneQueue = useCallback(() => {
+    bufferRef.current = [];
+    setQueuedCount(0);
+  }, []);
   const batchTimerRef = useRef(null);
   const burstTimerRef = useRef(null);
   const idleCountRef = useRef(0);
@@ -339,9 +357,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         timestamp: Date.now(),
         color: "#00d4ff",
       }]);
-      bufferRef.current.push({ username: label, text });
+      pushToBuffer({ username: label, text });
     };
-  }, []);
+  }, [pushToBuffer]);
 
   const handleSendTyped = useCallback((text) => {
     const label = twitchLogin || "Streamer";
@@ -352,8 +370,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       text,
       isTyped: true,
     }]);
-    bufferRef.current.push({ username: label, text });
-  }, [twitchLogin]);
+    pushToBuffer({ username: label, text });
+  }, [twitchLogin, pushToBuffer]);
 
   // Apply mic settings whenever they change
   useEffect(() => {
@@ -418,18 +436,18 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   // ── Batch triggering ──────────────────────────────────────────────────────
 
   const triggerResponse = useCallback(async (manual) => {
+    // AI responses toggled off in Quick Controls: the batch timer/countdown
+    // is paused entirely (see the effect below), not just skipped here, so
+    // this only fires from a stray race — bail without touching the buffer
+    // so nothing queued gets lost. Resuming the toggle restarts the timer.
+    if (settingsRef.current.aiResponsesEnabled === false) return;
+
     clearInterval(countdownIntervalRef.current);
     setCountdown(null);
 
     const { maxMessages } = clampToTier(tierRef.current, settingsRef.current);
     const batch = bufferRef.current.splice(0, maxMessages);
-
-    if (settingsRef.current.aiResponsesEnabled === false) {
-      // Drop the batch rather than letting it pile up unbounded while
-      // disabled — same throttling as normal, just no /respond call.
-      startCountdown();
-      return;
-    }
+    setQueuedCount(bufferRef.current.length);
 
     if (batch.length === 0) {
       if (settingsRef.current.idleRedditStories !== false) {
@@ -846,6 +864,21 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     }, 1000);
   }
 
+  // Pause the batch timer/countdown entirely while AI responses are toggled
+  // off — rather than letting it keep firing and dropping batches, which
+  // would lose queued messages. Resuming the toggle restarts it (only if
+  // already connected; otherwise there's nothing to resume yet).
+  useEffect(() => {
+    if (settings.aiResponsesEnabled === false) {
+      clearTimeout(batchTimerRef.current);
+      clearInterval(countdownIntervalRef.current);
+      setCountdown(null);
+    } else if (connected) {
+      startCountdown();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [settings.aiResponsesEnabled]);
+
   // ── WebSocket ─────────────────────────────────────────────────────────────
 
   const connectWS = useCallback(() => {
@@ -876,7 +909,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             seenMsgIds.current.delete(first);
           }
           setMessages((prev) => [...prev.slice(-199), msg]);
-          bufferRef.current.push({
+          pushToBuffer({
             username: msg.username,
             text: msg.text,
             isRedeem: msg.isRedeem || false,
@@ -893,7 +926,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           if (isHype) {
             clearTimeout(burstTimerRef.current);
             burstTimerRef.current = setTimeout(() => {
-              if (bufferRef.current.length >= 5) triggerResponse();
+              if (bufferRef.current.length >= 5 && settingsRef.current.aiResponsesEnabled !== false) triggerResponse();
             }, BURST_SILENCE_MS);
           }
         } else if (data.type === "status") {
@@ -940,7 +973,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         // ignore parse errors
       }
     };
-  }, [triggerResponse, handleScreenQuestion]);
+  }, [triggerResponse, handleScreenQuestion, pushToBuffer]);
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
@@ -1237,6 +1270,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           settings,
           onUpdateSetting: updateSetting,
           lang: settings.language,
+          queuedCount,
+          onPruneQueue: pruneQueue,
         }}
         videoQueueProps={{ videoState }}
       />
@@ -1314,8 +1349,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         )}
 
         {/* Buffer size */}
-        {bufferRef.current.length > 0 && (
-          <span style={styles.bufLabel}>{t("app.buffered", { count: bufferRef.current.length })}</span>
+        {queuedCount > 0 && (
+          <span style={styles.bufLabel}>{t("app.buffered", { count: queuedCount })}</span>
         )}
 
         {/* TTS volume */}
