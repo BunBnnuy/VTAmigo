@@ -9,12 +9,12 @@ import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
-    chat:           { x: 0,    y: 0,   w: 480, h: 560, z: 1, collapsed: false },
-    responses:      { x: 500,  y: 0,   w: 480, h: 560, z: 2, collapsed: false },
-    quickControls:  { x: 1000, y: 0,   w: 260, h: 280, z: 3, collapsed: false },
-    videoQueue:     { x: 1000, y: 300, w: 260, h: 280, z: 4, collapsed: false },
-    streamSettings: { x: 1280, y: 0,   w: 260, h: 400, z: 5, collapsed: false },
-    chatOverlay:    { x: 1280, y: 420, w: 260, h: 400, z: 6, collapsed: false },
+    chat:           { x: 20,   y: 20,  w: 480, h: 560, z: 1, collapsed: false },
+    responses:      { x: 520,  y: 20,  w: 480, h: 560, z: 2, collapsed: false },
+    quickControls:  { x: 1020, y: 20,  w: 260, h: 280, z: 3, collapsed: false },
+    videoQueue:     { x: 1020, y: 320, w: 260, h: 280, z: 4, collapsed: false },
+    streamSettings: { x: 1300, y: 20,  w: 260, h: 400, z: 5, collapsed: false },
+    chatOverlay:    { x: 1300, y: 440, w: 260, h: 400, z: 6, collapsed: false },
   },
 };
 
@@ -63,10 +63,10 @@ export default function WindowManager({
 const styles = {
   canvas: {
     flex: 1,
+    minWidth: 0,
+    minHeight: 0,
     position: "relative",
     overflow: "auto",
     background: "var(--bg)",
-    minWidth: 2000,
-    minHeight: 1200,
   },
 };
