@@ -9,53 +9,74 @@ import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
-    chat:           { x: 20,   y: 20,  w: 480, h: 560, z: 1, collapsed: false },
-    responses:      { x: 520,  y: 20,  w: 480, h: 560, z: 2, collapsed: false },
-    quickControls:  { x: 1020, y: 20,  w: 260, h: 280, z: 3, collapsed: false },
-    videoQueue:     { x: 1020, y: 320, w: 260, h: 280, z: 4, collapsed: false },
-    streamSettings: { x: 1300, y: 20,  w: 260, h: 400, z: 5, collapsed: false },
-    chatOverlay:    { x: 1300, y: 440, w: 260, h: 400, z: 6, collapsed: false },
+    chat:           { x: 20,   y: 20,  w: 480, h: 560, z: 1, collapsed: false, closed: false },
+    responses:      { x: 520,  y: 20,  w: 480, h: 560, z: 2, collapsed: false, closed: false },
+    quickControls:  { x: 1020, y: 20,  w: 260, h: 280, z: 3, collapsed: false, closed: false },
+    videoQueue:     { x: 1020, y: 320, w: 260, h: 280, z: 4, collapsed: false, closed: false },
+    streamSettings: { x: 1300, y: 20,  w: 260, h: 400, z: 5, collapsed: false, closed: false },
+    chatOverlay:    { x: 1300, y: 440, w: 260, h: 400, z: 6, collapsed: false, closed: false },
   },
 };
 
-const WINDOW_IDS = Object.keys(DEFAULT_PANEL_LAYOUT.windows);
+// Stable list of every window's ID + i18n title key + optional data-tour
+// hook, in display order — used both to render the canvas below and to
+// build the "Panels" show/hide menu in App.jsx, so the two never drift.
+export const PANEL_META = [
+  { id: "chat", titleKey: "app.liveChat", dataTour: "live-chat" },
+  { id: "responses", titleKey: "responsePanel.title", dataTour: "ai-response" },
+  { id: "quickControls", titleKey: "quickControls.title", dataTour: null },
+  { id: "videoQueue", titleKey: "videoQueue.title", dataTour: null },
+  { id: "streamSettings", titleKey: "streamSettingsPanel.title", dataTour: null },
+  { id: "chatOverlay", titleKey: "chatOverlayPanel.title", dataTour: null },
+];
 
 // Fills in any window key missing from a saved layout (new panel added in a
 // later release, or a user who never had one) with its default position —
 // merged per-key rather than shallow-merged, so a partially-saved layout
 // doesn't drop windows the user never touched.
 export function mergePanelLayout(saved) {
-  return {
-    windows: { ...DEFAULT_PANEL_LAYOUT.windows, ...(saved?.windows || {}) },
-  };
+  const windows = { ...DEFAULT_PANEL_LAYOUT.windows };
+  for (const [id, w] of Object.entries(saved?.windows || {})) {
+    windows[id] = { ...windows[id], ...w };
+  }
+  return { windows };
 }
 
 export default function WindowManager({
   panelLayout, onUpdateWindow, onFocusWindow, t,
   chatFeedProps, responsePanelProps, quickControlsProps, videoQueueProps, lang,
 }) {
-  const windowFor = (id, title, dataTour, node) => (
-    <Window
-      key={id}
-      id={id}
-      title={title}
-      dataTour={dataTour}
-      layout={panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id]}
-      onChange={(patch) => onUpdateWindow(id, patch)}
-      onFocus={() => onFocusWindow(id)}
-    >
-      {node}
-    </Window>
-  );
+  const contentFor = (id) => {
+    switch (id) {
+      case "chat": return <ChatFeed {...chatFeedProps} />;
+      case "responses": return <ResponsePanel {...responsePanelProps} />;
+      case "quickControls": return <QuickControls {...quickControlsProps} />;
+      case "videoQueue": return <VideoQueue {...videoQueueProps} lang={lang} />;
+      case "streamSettings": return <StreamSettingsPanel lang={lang} />;
+      case "chatOverlay": return <ChatOverlayPanel lang={lang} />;
+      default: return null;
+    }
+  };
 
   return (
     <div style={styles.canvas}>
-      {windowFor("chat", t("app.liveChat"), "live-chat", <ChatFeed {...chatFeedProps} />)}
-      {windowFor("responses", t("responsePanel.title"), "ai-response", <ResponsePanel {...responsePanelProps} />)}
-      {windowFor("quickControls", t("quickControls.title"), null, <QuickControls {...quickControlsProps} />)}
-      {windowFor("videoQueue", t("videoQueue.title"), null, <VideoQueue {...videoQueueProps} lang={lang} />)}
-      {windowFor("streamSettings", t("streamSettingsPanel.title"), null, <StreamSettingsPanel lang={lang} />)}
-      {windowFor("chatOverlay", t("chatOverlayPanel.title"), null, <ChatOverlayPanel lang={lang} />)}
+      {PANEL_META.map(({ id, titleKey, dataTour }) => {
+        const layout = panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id];
+        if (layout.closed) return null;
+        return (
+          <Window
+            key={id}
+            id={id}
+            title={t(titleKey)}
+            dataTour={dataTour}
+            layout={layout}
+            onChange={(patch) => onUpdateWindow(id, patch)}
+            onFocus={() => onFocusWindow(id)}
+          >
+            {contentFor(id)}
+          </Window>
+        );
+      })}
     </div>
   );
 }

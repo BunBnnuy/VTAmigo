@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
+import PanelsMenu from "./PanelsMenu.jsx";
 import Settings from "./Settings.jsx";
 import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
@@ -1129,6 +1130,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           )}
         </div>
         <div style={styles.topRight}>
+          <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} />
           <button
             style={styles.settingsBtn}
             onClick={cycleTheme}

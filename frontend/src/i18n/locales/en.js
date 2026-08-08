@@ -312,6 +312,7 @@ export default {
     themeLight: "light",
     themeDark: "dark",
     themeSystem: "system",
+    panelsTitle: "Show/hide panels",
     settingsBtn: "⚙ Settings",
     connect: "Connect",
     disconnect: "Disconnect",
