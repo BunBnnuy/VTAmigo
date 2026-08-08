@@ -6,6 +6,22 @@ import { useTranslation } from "./i18n/index.js";
 // used only until the real config loads.
 const DEFAULT_SIZE = { width: 420, maxHeight: 600 };
 
+// The overlay is built to sit inside a canvas much bigger than the feed
+// itself (a real OBS browser source) — #feed is anchored with a 1.2vw/1.2vh
+// offset from the edges, adds its own padding (30/20px for the bubble
+// theme), and the bubble theme's flowers/badge tag deliberately overflow the
+// bubble's own box by up to ~20px. If the iframe viewport were exactly
+// width×maxHeight, that extra footprint gets clipped by the page's
+// `overflow: hidden` — losing the border, flowers and badge entirely. These
+// margins give the feed the same kind of breathing room a real OBS canvas
+// would, at every size the Appearance panel allows (width 200–1200,
+// maxHeight 100–3000): X_MARGIN covers the 1.2vw offset + padding + overflow;
+// Y_MARGIN is large enough that `min(maxHeight, 96vh)` never clamps below
+// the configured maxHeight (96% of maxHeight+160 always exceeds maxHeight),
+// plus the same offset/decoration room vertically.
+const STAGE_MARGIN_X = 120;
+const STAGE_MARGIN_Y = 160;
+
 // Content only — outer window chrome (drag/resize/collapse) is provided by
 // WindowManager.jsx's shared <Window>.
 //
@@ -25,7 +41,12 @@ export default function ChatOverlayPreview({ lang, visible }) {
   const [scale, setScale] = useState(0);
   const stageWrapRef = useRef(null);
 
-  const stage = { w: size.width || DEFAULT_SIZE.width, h: size.maxHeight || DEFAULT_SIZE.maxHeight };
+  const contentW = size.width || DEFAULT_SIZE.width;
+  const contentH = size.maxHeight || DEFAULT_SIZE.maxHeight;
+  // The iframe itself is padded out by the stage margins above; the feed
+  // content box inside it still comes out to exactly contentW × contentH,
+  // which is what gets shown in the size caption below.
+  const stage = { w: contentW + STAGE_MARGIN_X, h: contentH + STAGE_MARGIN_Y };
 
   // Deferred until the panel is actually shown, so a dashboard that starts
   // with this window collapsed never even asks for anything. The overlay URL
@@ -86,7 +107,7 @@ export default function ChatOverlayPreview({ lang, visible }) {
       <div style={styles.body}>
         <div style={styles.toolbar}>
           <span style={styles.sizeCaption} title={t("chatOverlayPreview.sizeCaptionTitle")}>
-            {t("chatOverlayPreview.sizeCaption", { width: stage.w, height: stage.h })}
+            {t("chatOverlayPreview.sizeCaption", { width: contentW, height: contentH })}
           </span>
           <button type="button" style={styles.smallBtn} onClick={() => setReloadKey((k) => k + 1)}>
             {t("chatOverlayPreview.reload")}
