@@ -1260,7 +1260,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           muted,
           onToggleMute: toggleMute,
           ttsPlaying,
-          ttsSpeaking,
           onSkipTts: () => tts.skip(),
           nowDisabled,
           nowOnCooldown,
@@ -1273,6 +1272,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           queuedCount,
           onPruneQueue: pruneQueue,
         }}
+        avatarPanelProps={{ ttsSpeaking }}
         videoQueueProps={{ videoState }}
       />
 
