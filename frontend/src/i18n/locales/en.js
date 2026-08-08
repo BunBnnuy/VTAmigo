@@ -313,6 +313,7 @@ export default {
     themeDark: "dark",
     themeSystem: "system",
     panelsTitle: "Show/hide panels",
+    ttsVolumeTitle: "TTS volume: {pct}%",
     settingsBtn: "⚙ Settings",
     connect: "Connect",
     disconnect: "Disconnect",

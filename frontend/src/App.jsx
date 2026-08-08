@@ -1307,6 +1307,23 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           <span style={styles.bufLabel}>{t("app.buffered", { count: bufferRef.current.length })}</span>
         )}
 
+        {/* TTS volume */}
+        <div style={styles.volumeGroup}>
+          <span style={styles.statusText}>{muted ? "🔇" : "🔊"}</span>
+          <input
+            type="range"
+            min={0}
+            max={1}
+            step={0.05}
+            value={settings.ttsVolume}
+            onChange={(e) => updateSetting("ttsVolume", Number(e.target.value))}
+            disabled={muted}
+            style={styles.volumeSlider}
+            title={t("app.ttsVolumeTitle", { pct: Math.round(settings.ttsVolume * 100) })}
+          />
+          <span style={styles.countdownLabel}>{Math.round(settings.ttsVolume * 100)}%</span>
+        </div>
+
       </div>
 
       {/* Settings modal */}
@@ -1450,6 +1467,15 @@ const styles = {
   bufLabel: {
     fontSize: 11,
     color: "var(--yellow)",
+  },
+  volumeGroup: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    marginLeft: "auto",
+  },
+  volumeSlider: {
+    width: 90,
   },
   iconBtn: {
     background: "var(--surface2)",
