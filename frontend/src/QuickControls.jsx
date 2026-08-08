@@ -1,10 +1,7 @@
 import React, { useState, useEffect } from "react";
-import { apiFetch, apiUrl } from "./api.js";
+import { apiFetch } from "./api.js";
 import { tts } from "./TTSController.js";
 import { useTranslation } from "./i18n/index.js";
-
-const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
-const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
 function Toggle({ checked, onChange }) {
   return (
@@ -32,86 +29,12 @@ function Toggle({ checked, onChange }) {
 export default function QuickControls({
   autoSendToChat, onToggleAutoSend,
   muted, onToggleMute,
-  ttsPlaying, ttsSpeaking, onSkipTts,
+  ttsPlaying, onSkipTts,
   nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
   settings, onUpdateSetting, lang,
   queuedCount, onPruneQueue,
 }) {
   const { t } = useTranslation(lang);
-  // ── Avatar overlay: URL, uploads, live preview ──────────────────────────
-  const [avatarOverlayUrl, setAvatarOverlayUrl] = useState("");
-  const [avatarOverlayToken, setAvatarOverlayToken] = useState("");
-  const [avatarOverlayCopied, setAvatarOverlayCopied] = useState(false);
-  const [avatarStatus, setAvatarStatus] = useState({ hasSpeaking: false, hasSilent: false });
-  const [avatarPreviews, setAvatarPreviews] = useState({ speaking: null, silent: null });
-  const [avatarUploading, setAvatarUploading] = useState({ speaking: false, silent: false });
-  const [avatarError, setAvatarError] = useState({ speaking: "", silent: "" });
-
-  useEffect(() => {
-    apiFetch("/overlay/avatar/overlay-url")
-      .then((res) => res.json())
-      .then((data) => {
-        setAvatarOverlayUrl(data.url || "");
-        setAvatarOverlayToken(data.token || "");
-        setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
-      })
-      .catch(() => {});
-  }, []);
-
-  const copyAvatarOverlayUrl = async () => {
-    try {
-      await navigator.clipboard.writeText(avatarOverlayUrl);
-      setAvatarOverlayCopied(true);
-      setTimeout(() => setAvatarOverlayCopied(false), 1500);
-    } catch {
-      // Clipboard API unavailable — user can still copy from Settings instead.
-    }
-  };
-
-  const avatarImageSrc = (slot) => {
-    if (avatarPreviews[slot]) return avatarPreviews[slot];
-    const has = slot === "speaking" ? avatarStatus.hasSpeaking : avatarStatus.hasSilent;
-    if (!has || !avatarOverlayToken) return null;
-    return apiUrl(`/overlay/avatar/image?slot=${slot}&token=${avatarOverlayToken}`);
-  };
-
-  const uploadAvatarImage = (slot, file) => {
-    if (!file) return;
-    setAvatarError((prev) => ({ ...prev, [slot]: "" }));
-    if (!ALLOWED_AVATAR_TYPES.includes(file.type)) {
-      setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.badFormat") }));
-      return;
-    }
-    if (file.size > MAX_AVATAR_BYTES) {
-      setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.tooLarge") }));
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const dataUrl = reader.result;
-      setAvatarPreviews((prev) => ({ ...prev, [slot]: dataUrl }));
-      setAvatarUploading((prev) => ({ ...prev, [slot]: true }));
-      try {
-        const res = await apiFetch("/overlay/avatar/upload", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ slot, dataUrl }),
-        });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        setAvatarStatus({ hasSpeaking: !!data.hasSpeaking, hasSilent: !!data.hasSilent });
-      } catch (err) {
-        setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.uploadError", { error: err.message }) }));
-      } finally {
-        setAvatarUploading((prev) => ({ ...prev, [slot]: false }));
-      }
-    };
-    reader.onerror = () => setAvatarError((prev) => ({ ...prev, [slot]: t("quickControls.readError", { file: file.name }) }));
-    reader.readAsDataURL(file);
-  };
-
-  const previewSlot = ttsSpeaking ? "speaking" : "silent";
-  const previewSrc = avatarImageSrc(previewSlot);
 
   // ── TTS provider / voice ─────────────────────────────────────────────────
   const [voices, setVoices] = useState([]);
@@ -223,64 +146,6 @@ export default function QuickControls({
 
         <div style={styles.divider} />
 
-        <div style={styles.sectionLabel}>{t("quickControls.avatarSection")}</div>
-
-        <div style={styles.avatarPreviewWrap}>
-          <div
-            style={{
-              ...styles.avatarPreview,
-              backgroundImage: previewSrc ? `url("${previewSrc.replace(/"/g, "%22")}")` : "none",
-            }}
-          >
-            {!previewSrc && <span style={styles.avatarPreviewEmpty}>—</span>}
-          </div>
-          <span style={styles.avatarPreviewLabel}>
-            {ttsSpeaking ? t("quickControls.speaking") : t("quickControls.silent")}
-          </span>
-        </div>
-
-        <button
-          style={styles.actionBtn}
-          onClick={copyAvatarOverlayUrl}
-          disabled={!avatarOverlayUrl}
-          title={t("quickControls.copyOverlayTitle")}
-        >
-          {avatarOverlayCopied ? t("quickControls.copied") : t("quickControls.copyOverlay")}
-        </button>
-
-        <div style={styles.avatarUploadRow}>
-          {["speaking", "silent"].map((slot) => (
-            <div key={slot} style={styles.avatarUploadCol}>
-              <label
-                style={{
-                  ...styles.uploadLabel,
-                  cursor: avatarUploading[slot] ? "default" : "pointer",
-                  opacity: avatarUploading[slot] ? 0.6 : 1,
-                }}
-              >
-                {avatarUploading[slot]
-                  ? t("quickControls.uploading")
-                  : slot === "speaking" ? t("quickControls.uploadSpeaking") : t("quickControls.uploadSilent")}
-                <input
-                  type="file"
-                  accept="image/jpeg,image/png,image/gif,image/webp"
-                  disabled={avatarUploading[slot]}
-                  onChange={(e) => {
-                    uploadAvatarImage(slot, e.target.files[0]);
-                    e.target.value = "";
-                  }}
-                  style={{ display: "none" }}
-                />
-              </label>
-              {avatarError[slot] && (
-                <span style={styles.avatarErrorText}>{avatarError[slot]}</span>
-              )}
-            </div>
-          ))}
-        </div>
-
-        <div style={styles.divider} />
-
         <div style={styles.sectionLabel}>{t("quickControls.voiceSection")}</div>
 
         {settings && onUpdateSetting && (
@@ -348,7 +213,7 @@ export default function QuickControls({
                   </button>
                 </div>
                 {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
-                  <span style={styles.avatarErrorText}>⚠ {elevenVoicesStatus}</span>
+                  <span style={styles.errorText}>⚠ {elevenVoicesStatus}</span>
                 )}
               </div>
             )}
@@ -377,10 +242,10 @@ export default function QuickControls({
                   </button>
                 </div>
                 {piperStatus === "missing" && (
-                  <span style={styles.avatarErrorText}>{t("quickControls.piperMissing")}</span>
+                  <span style={styles.errorText}>{t("quickControls.piperMissing")}</span>
                 )}
                 {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
-                  <span style={styles.avatarErrorText}>⚠ {piperStatus}</span>
+                  <span style={styles.errorText}>⚠ {piperStatus}</span>
                 )}
               </div>
             )}
@@ -447,57 +312,7 @@ const styles = {
     textTransform: "uppercase",
     letterSpacing: "0.03em",
   },
-  avatarPreviewWrap: {
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    gap: 6,
-  },
-  avatarPreview: {
-    width: "100%",
-    aspectRatio: "1 / 1",
-    borderRadius: 8,
-    border: "1px solid var(--border)",
-    background: "var(--surface2)",
-    backgroundSize: "contain",
-    backgroundPosition: "center",
-    backgroundRepeat: "no-repeat",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  avatarPreviewEmpty: {
-    color: "var(--text-muted)",
-    fontSize: 11,
-  },
-  avatarPreviewLabel: {
-    fontSize: 11,
-    color: "var(--text-muted)",
-  },
-  avatarUploadRow: {
-    display: "flex",
-    gap: 8,
-  },
-  avatarUploadCol: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    gap: 4,
-  },
-  uploadLabel: {
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text)",
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "center",
-    borderRadius: 6,
-    padding: "6px 4px",
-    fontSize: 11,
-    fontWeight: 600,
-    textAlign: "center",
-  },
-  avatarErrorText: {
+  errorText: {
     fontSize: 10,
     color: "var(--red)",
   },
