@@ -35,6 +35,7 @@ export default function QuickControls({
   ttsPlaying, ttsSpeaking, onSkipTts,
   nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
   settings, onUpdateSetting, lang,
+  queuedCount, onPruneQueue,
 }) {
   const { t } = useTranslation(lang);
   // ── Avatar overlay: URL, uploads, live preview ──────────────────────────
@@ -169,6 +170,25 @@ export default function QuickControls({
   return (
     <>
       <div style={styles.body}>
+        {settings && onUpdateSetting && (
+          <div style={styles.row}>
+            <span style={styles.rowLabel}>{t("quickControls.aiResponses")}</span>
+            <Toggle
+              checked={settings.aiResponsesEnabled !== false}
+              onChange={() => onUpdateSetting("aiResponsesEnabled", !(settings.aiResponsesEnabled !== false))}
+            />
+          </div>
+        )}
+        {typeof queuedCount === "number" && (
+          <div style={styles.row}>
+            <span style={styles.rowLabel}>{t("quickControls.queued", { count: queuedCount })}</span>
+            {onPruneQueue && queuedCount > 0 && (
+              <button style={styles.smallBtn} onClick={onPruneQueue} title={t("quickControls.pruneTitle")}>
+                {t("quickControls.prune")}
+              </button>
+            )}
+          </div>
+        )}
         {onToggleAutoSend && (
           <div style={styles.row}>
             <span style={styles.rowLabel}>{t("quickControls.autoSend")}</span>
