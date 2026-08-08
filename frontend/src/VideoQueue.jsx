@@ -23,26 +23,10 @@ function Toggle({ checked, onChange }) {
   );
 }
 
+// Content only — outer window chrome (drag/resize/collapse) is provided by
+// WindowManager.jsx's shared <Window>.
 export default function VideoQueue({ videoState, lang }) {
   const { t } = useTranslation(lang);
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("videoQueueCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const toggleCollapsed = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("videoQueueCollapsed", next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — collapse choice won't persist.
-      }
-      return next;
-    });
-  };
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
   const [addInput, setAddInput] = useState("");
@@ -167,25 +151,8 @@ export default function VideoQueue({ videoState, lang }) {
       ? defaultPlaylistCache.items[defaultPlaylistCache.index % defaultPlaylistCache.items.length]
       : null;
 
-  if (collapsed) {
-    return (
-      <div style={styles.collapsedPanel}>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("videoQueue.expand")}>
-          ⟨
-        </button>
-        <span style={styles.verticalTitle}>{t("videoQueue.title")}</span>
-      </div>
-    );
-  }
-
   return (
-    <div style={styles.panel}>
-      <div style={styles.header}>
-        <span style={styles.title}>{t("videoQueue.title")}</span>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("videoQueue.collapse")}>
-          ⟩
-        </button>
-      </div>
+    <>
       <div style={styles.body}>
         <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title={t("videoQueue.copyOverlayTitle")}>
           {overlayCopied ? t("videoQueue.copied") : t("videoQueue.copyOverlay")}
@@ -343,59 +310,11 @@ export default function VideoQueue({ videoState, lang }) {
         )}
       </div>
       <div style={styles.hint}>{t("videoQueue.footerHint")}</div>
-    </div>
+    </>
   );
 }
 
 const styles = {
-  panel: {
-    width: 240,
-    minWidth: 200,
-    display: "flex",
-    flexDirection: "column",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--surface)",
-    overflow: "hidden",
-    flexShrink: 0,
-  },
-  collapsedPanel: {
-    width: 28,
-    minWidth: 28,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--surface)",
-    flexShrink: 0,
-    paddingTop: 10,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 12px",
-    borderBottom: "1px solid var(--border)",
-    flexShrink: 0,
-  },
-  title: {
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  collapseBtn: {
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text-muted)",
-    fontSize: 12,
-    padding: "3px 7px",
-  },
-  verticalTitle: {
-    writingMode: "vertical-rl",
-    fontWeight: 700,
-    fontSize: 13,
-    color: "var(--text)",
-    whiteSpace: "nowrap",
-    marginTop: 10,
-  },
   body: {
     flex: 1,
     display: "flex",

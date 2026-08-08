@@ -32,26 +32,10 @@ function Toggle({ checked, onChange }) {
   );
 }
 
+// Content only — outer window chrome (drag/resize/collapse) is provided by
+// WindowManager.jsx's shared <Window>.
 export default function ChatOverlayPanel({ lang }) {
   const { t } = useTranslation(lang);
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("chatOverlayPanelCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const toggleCollapsed = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("chatOverlayPanelCollapsed", next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — collapse choice won't persist.
-      }
-      return next;
-    });
-  };
 
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
@@ -204,25 +188,8 @@ export default function ChatOverlayPanel({ lang }) {
     }
   };
 
-  if (collapsed) {
-    return (
-      <div style={styles.collapsedPanel}>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("chatOverlayPanel.expand")}>
-          ⟨
-        </button>
-        <span style={styles.verticalTitle}>{t("chatOverlayPanel.title")}</span>
-      </div>
-    );
-  }
-
   return (
-    <div style={styles.panel}>
-      <div style={styles.header}>
-        <span style={styles.title}>{t("chatOverlayPanel.title")}</span>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("chatOverlayPanel.collapse")}>
-          ⟩
-        </button>
-      </div>
+    <>
       <div style={styles.body}>
         <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title={t("chatOverlayPanel.copyOverlayTitle")}>
           {overlayCopied ? t("chatOverlayPanel.copied") : t("chatOverlayPanel.copyOverlay")}
@@ -453,59 +420,11 @@ export default function ChatOverlayPanel({ lang }) {
         )}
       </div>
       <div style={styles.hint}>{t("chatOverlayPanel.hint")}</div>
-    </div>
+    </>
   );
 }
 
 const styles = {
-  panel: {
-    width: 240,
-    minWidth: 200,
-    display: "flex",
-    flexDirection: "column",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--surface)",
-    overflow: "hidden",
-    flexShrink: 0,
-  },
-  collapsedPanel: {
-    width: 28,
-    minWidth: 28,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--surface)",
-    flexShrink: 0,
-    paddingTop: 10,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 12px",
-    borderBottom: "1px solid var(--border)",
-    flexShrink: 0,
-  },
-  title: {
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  collapseBtn: {
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text-muted)",
-    fontSize: 12,
-    padding: "3px 7px",
-  },
-  verticalTitle: {
-    writingMode: "vertical-rl",
-    fontWeight: 700,
-    fontSize: 13,
-    color: "var(--text)",
-    whiteSpace: "nowrap",
-    marginTop: 10,
-  },
   body: {
     flex: 1,
     display: "flex",

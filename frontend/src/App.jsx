@@ -1,10 +1,7 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
-import QuickControls from "./QuickControls.jsx";
-import VideoQueue from "./VideoQueue.jsx";
-import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
-import StreamSettingsPanel from "./StreamSettingsPanel.jsx";
+import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
 import Settings from "./Settings.jsx";
 import OnboardingTour from "./OnboardingTour.jsx";
 import Login from "./Login.jsx";
@@ -22,6 +19,7 @@ const TIER_LABELS = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "
 
 const DEFAULT_SETTINGS = {
   language: detectLanguage(),
+  panelLayout: DEFAULT_PANEL_LAYOUT,
   tiktokUsername: "",
   batchWindow: 20,
   maxMessages: 20,
@@ -140,6 +138,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       saved.youtubePeekEnabled = false;
       saved.screenWatchEnabled = false;
       saved.provider = "claude";
+      saved.panelLayout = mergePanelLayout(saved.panelLayout);
       return saved;
     } catch {
       return DEFAULT_SETTINGS;
@@ -168,60 +167,52 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const cycleTheme = () => {
     setTheme((cur) => (cur === "system" ? "light" : cur === "light" ? "dark" : "system"));
   };
-  const [quickControlsCollapsed, setQuickControlsCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("quickControlsCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const toggleQuickControls = () => {
-    setQuickControlsCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("quickControlsCollapsed", next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — collapse choice won't persist.
-      }
+  // Debounced persistence for window drag/resize/collapse — react-rnd's
+  // onDragStop/onResizeStop already fire once per gesture, so this is a
+  // safety net rather than load-bearing, kept for consistency with the
+  // debounce pattern used elsewhere (e.g. ChatOverlayPanel's set()).
+  const layoutSaveTimerRef = useRef(null);
+  const updateWindowLayout = useCallback((id, patch) => {
+    setSettings((prev) => {
+      const next = {
+        ...prev,
+        panelLayout: {
+          windows: {
+            ...prev.panelLayout.windows,
+            [id]: { ...prev.panelLayout.windows[id], ...patch },
+          },
+        },
+      };
+      clearTimeout(layoutSaveTimerRef.current);
+      layoutSaveTimerRef.current = setTimeout(() => {
+        localStorage.setItem("settings", JSON.stringify(next));
+      }, 300);
       return next;
     });
-  };
-  const [leftPanelCollapsed, setLeftPanelCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("leftPanelCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const toggleLeftPanel = () => {
-    setLeftPanelCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("leftPanelCollapsed", next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — collapse choice won't persist.
+  }, []);
+
+  // Bring-to-front without an ever-growing z counter: assign the clicked
+  // window one past the current max, then if any z exceeds the window
+  // count, re-rank all windows 1..N by relative order — keeps window
+  // z-values permanently in a small band, safely below the Settings modal
+  // (z=100) and onboarding tour (z=1000).
+  const bringToFront = useCallback((id) => {
+    setSettings((prev) => {
+      const windows = prev.panelLayout.windows;
+      const ids = Object.keys(windows);
+      const maxZ = Math.max(...ids.map((k) => windows[k].z || 0));
+      let nextWindows = { ...windows, [id]: { ...windows[id], z: maxZ + 1 } };
+      if (maxZ + 1 > ids.length) {
+        const ranked = [...ids].sort((a, b) => nextWindows[a].z - nextWindows[b].z);
+        nextWindows = { ...nextWindows };
+        ranked.forEach((k, i) => { nextWindows[k] = { ...nextWindows[k], z: i + 1 }; });
       }
+      const next = { ...prev, panelLayout: { windows: nextWindows } };
+      localStorage.setItem("settings", JSON.stringify(next));
       return next;
     });
-  };
-  const [rightPanelCollapsed, setRightPanelCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("rightPanelCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const toggleRightPanel = () => {
-    setRightPanelCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("rightPanelCollapsed", next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — collapse choice won't persist.
-      }
-      return next;
-    });
-  };
+  }, []);
+
   const [showSettings, setShowSettings] = useState(false);
   const [tourActive, setTourActive] = useState(() => {
     try {
@@ -1176,113 +1167,66 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         </div>
       </div>
 
-      {/* ── Main content ── */}
-      <div style={styles.main}>
-        {/* Left: chat feed */}
-        <div style={leftPanelCollapsed ? styles.leftPanelCollapsed : styles.leftPanel} data-tour="live-chat">
-          {leftPanelCollapsed ? (
-            <>
-              <button style={styles.collapseBtn} onClick={toggleLeftPanel} title={t("app.expandLiveChat")}>
-                ⟩
-              </button>
-              <span style={styles.verticalTitle}>{t("app.liveChat")}</span>
-            </>
-          ) : (
-            <>
-              <div style={styles.panelHeader}>
-                <span style={styles.panelTitle}>{t("app.liveChat")}</span>
-                <span style={styles.msgCount}>{t("app.msgCount", { count: messages.length })}</span>
-                <button style={styles.collapseBtn} onClick={toggleLeftPanel} title={t("app.collapseLiveChat")}>
-                  ⟨
-                </button>
-              </div>
-              <ChatFeed
-                messages={messages}
-                onSend={handleSendTyped}
-                micSupported={voice.supported}
-                micChromeAllowed={voice.supported && isChromeBrowser()}
-                micActive={micActive}
-                micError={micError}
-                micModelStatus={micModelStatus}
-                micSpeaking={micSpeaking}
-                micLastText={micLastText}
-                lang={settings.language}
-                onToggleMic={() => {
-                  const next = !settings.micEnabled;
-                  const ns = { ...settings, micEnabled: next };
-                  setSettings(ns);
-                  localStorage.setItem("settings", JSON.stringify(ns));
-                }}
-              />
-            </>
-          )}
-        </div>
-
-        {/* Divider */}
-        <div style={styles.divider} />
-
-        {/* Right: response history */}
-        <div style={rightPanelCollapsed ? styles.rightPanelCollapsed : styles.rightPanel} data-tour="ai-response">
-          {rightPanelCollapsed ? (
-            <>
-              <button style={styles.collapseBtn} onClick={toggleRightPanel} title={t("app.expandAiResponses")}>
-                ⟨
-              </button>
-              <span style={styles.verticalTitle}>{t("responsePanel.title")}</span>
-            </>
-          ) : (
-            <>
-              <div style={styles.rightPanelCollapseRow}>
-                <button style={styles.collapseBtn} onClick={toggleRightPanel} title={t("app.collapseAiResponses")}>
-                  ⟩
-                </button>
-              </div>
-              <ResponsePanel
-                responses={responses}
-                loading={loading}
-                botConnected={botStatus === "connected"}
-                lang={settings.language}
-                onSendToChat={(text) => apiFetch("/say", {
-                  method: "POST",
-                  headers: { "Content-Type": "application/json" },
-                  body: JSON.stringify({ text }),
-                }).then(async (r) => {
-                  if (!r.ok) {
-                    const d = await r.json().catch(() => ({}));
-                    alert(t("app.botError", { error: d.error || r.status }));
-                  }
-                }).catch((e) => alert(t("app.botError", { error: e.message })))}
-              />
-            </>
-          )}
-        </div>
-
-        <QuickControls
-          collapsed={quickControlsCollapsed}
-          onToggleCollapse={toggleQuickControls}
-          autoSendToChat={settings.autoSendToChat}
-          onToggleAutoSend={toggleAutoSend}
-          muted={muted}
-          onToggleMute={toggleMute}
-          ttsPlaying={ttsPlaying}
-          ttsSpeaking={ttsSpeaking}
-          onSkipTts={() => tts.skip()}
-          nowDisabled={nowDisabled}
-          nowOnCooldown={nowOnCooldown}
-          nowRemainingSec={nowRemainingSec}
-          nowTitle={nowTitle}
-          onNowClick={handleNowClick}
-          settings={settings}
-          onUpdateSetting={updateSetting}
-          lang={settings.language}
-        />
-
-        <VideoQueue videoState={videoState} lang={settings.language} />
-
-        <StreamSettingsPanel lang={settings.language} />
-
-        <ChatOverlayPanel lang={settings.language} />
-      </div>
+      {/* ── Main content: movable/resizable windows ── */}
+      <WindowManager
+        t={t}
+        lang={settings.language}
+        panelLayout={settings.panelLayout}
+        onUpdateWindow={updateWindowLayout}
+        onFocusWindow={bringToFront}
+        chatFeedProps={{
+          messages,
+          onSend: handleSendTyped,
+          micSupported: voice.supported,
+          micChromeAllowed: voice.supported && isChromeBrowser(),
+          micActive,
+          micError,
+          micModelStatus,
+          micSpeaking,
+          micLastText,
+          lang: settings.language,
+          onToggleMic: () => {
+            const next = !settings.micEnabled;
+            const ns = { ...settings, micEnabled: next };
+            setSettings(ns);
+            localStorage.setItem("settings", JSON.stringify(ns));
+          },
+        }}
+        responsePanelProps={{
+          responses,
+          loading,
+          botConnected: botStatus === "connected",
+          lang: settings.language,
+          onSendToChat: (text) => apiFetch("/say", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text }),
+          }).then(async (r) => {
+            if (!r.ok) {
+              const d = await r.json().catch(() => ({}));
+              alert(t("app.botError", { error: d.error || r.status }));
+            }
+          }).catch((e) => alert(t("app.botError", { error: e.message }))),
+        }}
+        quickControlsProps={{
+          autoSendToChat: settings.autoSendToChat,
+          onToggleAutoSend: toggleAutoSend,
+          muted,
+          onToggleMute: toggleMute,
+          ttsPlaying,
+          ttsSpeaking,
+          onSkipTts: () => tts.skip(),
+          nowDisabled,
+          nowOnCooldown,
+          nowRemainingSec,
+          nowTitle,
+          onNowClick: handleNowClick,
+          settings,
+          onUpdateSetting: updateSetting,
+          lang: settings.language,
+        }}
+        videoQueueProps={{ videoState }}
+      />
 
       {/* ── Bottom bar ── */}
       <div style={styles.bottomBar} data-tour="status-footer">
@@ -1450,89 +1394,6 @@ const styles = {
   btn: {
     color: "#fff",
     minWidth: 90,
-  },
-  main: {
-    flex: 1,
-    display: "flex",
-    overflowX: "auto",
-    overflowY: "hidden",
-  },
-  leftPanel: {
-    width: "40%",
-    minWidth: 260,
-    display: "flex",
-    flexDirection: "column",
-    borderRight: "1px solid var(--border)",
-    background: "var(--surface)",
-    overflow: "hidden",
-  },
-  leftPanelCollapsed: {
-    width: 28,
-    minWidth: 28,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    borderRight: "1px solid var(--border)",
-    background: "var(--surface)",
-    flexShrink: 0,
-    paddingTop: 10,
-  },
-  divider: {
-    width: 0,
-  },
-  rightPanel: {
-    flex: 1,
-    display: "flex",
-    flexDirection: "column",
-    background: "var(--surface)",
-    overflow: "hidden",
-  },
-  rightPanelCollapsed: {
-    width: 28,
-    minWidth: 28,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    background: "var(--surface)",
-    flexShrink: 0,
-    paddingTop: 10,
-  },
-  rightPanelCollapseRow: {
-    display: "flex",
-    justifyContent: "flex-end",
-    padding: "10px 12px 0",
-    flexShrink: 0,
-  },
-  verticalTitle: {
-    writingMode: "vertical-rl",
-    fontWeight: 700,
-    fontSize: 13,
-    color: "var(--text)",
-    whiteSpace: "nowrap",
-    marginTop: 10,
-  },
-  collapseBtn: {
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text-muted)",
-    fontSize: 12,
-    padding: "3px 7px",
-  },
-  panelHeader: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 12px",
-    borderBottom: "1px solid var(--border)",
-    flexShrink: 0,
-  },
-  panelTitle: {
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  msgCount: {
-    fontSize: 11,
-    color: "var(--text-muted)",
   },
   bottomBar: {
     display: "flex",

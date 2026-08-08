@@ -8,26 +8,10 @@ function boxArtThumb(url) {
   return url ? url.replace("{width}x{height}", "40x53") : "";
 }
 
+// Content only — outer window chrome (drag/resize/collapse) is provided by
+// WindowManager.jsx's shared <Window>.
 export default function StreamSettingsPanel({ lang }) {
   const { t } = useTranslation(lang);
-  const [collapsed, setCollapsed] = useState(() => {
-    try {
-      return localStorage.getItem("streamSettingsPanelCollapsed") === "1";
-    } catch {
-      return false;
-    }
-  });
-  const toggleCollapsed = () => {
-    setCollapsed((c) => {
-      const next = !c;
-      try {
-        localStorage.setItem("streamSettingsPanelCollapsed", next ? "1" : "0");
-      } catch {
-        // localStorage unavailable — collapse choice won't persist.
-      }
-      return next;
-    });
-  };
 
   const [loaded, setLoaded] = useState(false);
   const [scopeError, setScopeError] = useState(false);
@@ -71,11 +55,11 @@ export default function StreamSettingsPanel({ lang }) {
   }, []);
 
   useEffect(() => {
-    if (!collapsed) loadInfo();
+    loadInfo();
     return () => {
       clearTimeout(searchTimerRef.current);
     };
-  }, [collapsed, loadInfo]);
+  }, [loadInfo]);
 
   // Debounced, out-of-order-safe category search as the user types.
   useEffect(() => {
@@ -144,147 +128,81 @@ export default function StreamSettingsPanel({ lang }) {
   const dirty = title !== initialTitle || (category?.id || null) !== initialCategoryId;
   const logout = () => apiFetch("/auth/logout", { method: "POST" }).finally(() => window.location.reload());
 
-  if (collapsed) {
+  if (scopeError) {
     return (
-      <div style={styles.collapsedPanel}>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("streamSettingsPanel.expand")}>
-          ⟨
-        </button>
-        <span style={styles.verticalTitle}>{t("streamSettingsPanel.title")}</span>
+      <div style={styles.body}>
+        <div style={styles.scopeErrorBox}>
+          <div style={styles.scopeErrorTitle}>{t("streamSettingsPanel.scopeErrorTitle")}</div>
+          <div style={styles.fieldLabel}>{t("streamSettingsPanel.scopeErrorBody")}</div>
+          <button type="button" style={styles.actionBtn} onClick={logout}>
+            {t("streamSettingsPanel.logout")}
+          </button>
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={styles.panel}>
-      <div style={styles.header}>
-        <span style={styles.title}>{t("streamSettingsPanel.title")}</span>
-        <button style={styles.collapseBtn} onClick={toggleCollapsed} title={t("streamSettingsPanel.collapse")}>
-          ⟩
-        </button>
+    <div style={styles.body}>
+      {loadError && <span style={styles.errorText}>{t("streamSettingsPanel.loadError")}</span>}
+
+      <div style={styles.field}>
+        <label style={styles.fieldLabel}>{t("streamSettingsPanel.titleLabel")}</label>
+        <input
+          type="text"
+          value={title}
+          placeholder={t("streamSettingsPanel.titlePlaceholder")}
+          onChange={(e) => setTitle(e.target.value)}
+          disabled={!loaded}
+          maxLength={140}
+        />
       </div>
 
-      {scopeError ? (
-        <div style={styles.body}>
-          <div style={styles.scopeErrorBox}>
-            <div style={styles.scopeErrorTitle}>{t("streamSettingsPanel.scopeErrorTitle")}</div>
-            <div style={styles.fieldLabel}>{t("streamSettingsPanel.scopeErrorBody")}</div>
-            <button type="button" style={styles.actionBtn} onClick={logout}>
-              {t("streamSettingsPanel.logout")}
-            </button>
-          </div>
-        </div>
-      ) : (
-        <div style={styles.body}>
-          {loadError && <span style={styles.errorText}>{t("streamSettingsPanel.loadError")}</span>}
-
-          <div style={styles.field}>
-            <label style={styles.fieldLabel}>{t("streamSettingsPanel.titleLabel")}</label>
-            <input
-              type="text"
-              value={title}
-              placeholder={t("streamSettingsPanel.titlePlaceholder")}
-              onChange={(e) => setTitle(e.target.value)}
-              disabled={!loaded}
-              maxLength={140}
-            />
-          </div>
-
-          <div style={{ ...styles.field, position: "relative" }}>
-            <label style={styles.fieldLabel}>{t("streamSettingsPanel.categoryLabel")}</label>
-            {category && !searchOpen ? (
-              <button type="button" style={styles.categoryChip} onClick={() => setSearchOpen(true)} disabled={!loaded}>
-                {category.boxArtUrl && <img src={boxArtThumb(category.boxArtUrl)} alt="" style={styles.categoryChipImg} />}
-                <span>{category.name}</span>
-              </button>
-            ) : (
-              <input
-                type="text"
-                value={categoryQuery}
-                placeholder={t("streamSettingsPanel.categorySearchPlaceholder")}
-                onChange={(e) => setCategoryQuery(e.target.value)}
-                onFocus={() => setSearchOpen(true)}
-                disabled={!loaded}
-              />
-            )}
-            {searchOpen && categoryQuery.trim() && (
-              <div style={styles.dropdown}>
-                {categoryResults.length === 0 ? (
-                  <div style={styles.dropdownEmpty}>{t("streamSettingsPanel.noResults")}</div>
-                ) : (
-                  categoryResults.map((c) => (
-                    <button key={c.id} type="button" style={styles.dropdownRow} onClick={() => pickCategory(c)}>
-                      <img src={boxArtThumb(c.boxArtUrl)} alt="" style={styles.dropdownImg} />
-                      <span>{c.name}</span>
-                    </button>
-                  ))
-                )}
-              </div>
-            )}
-          </div>
-
-          <button type="button" style={styles.actionBtn} onClick={save} disabled={!loaded || !dirty || saveStatus === "saving"}>
-            {saveStatus === "saving" ? t("streamSettingsPanel.saving") : t("streamSettingsPanel.save")}
+      <div style={{ ...styles.field, position: "relative" }}>
+        <label style={styles.fieldLabel}>{t("streamSettingsPanel.categoryLabel")}</label>
+        {category && !searchOpen ? (
+          <button type="button" style={styles.categoryChip} onClick={() => setSearchOpen(true)} disabled={!loaded}>
+            {category.boxArtUrl && <img src={boxArtThumb(category.boxArtUrl)} alt="" style={styles.categoryChipImg} />}
+            <span>{category.name}</span>
           </button>
-          {saveStatus === "saved" && <span style={styles.fieldLabel}>{t("streamSettingsPanel.saved")}</span>}
-          {saveStatus === "error" && (
-            <span style={styles.errorText}>{t("streamSettingsPanel.saveError", { error: saveErrorMsg })}</span>
-          )}
-        </div>
+        ) : (
+          <input
+            type="text"
+            value={categoryQuery}
+            placeholder={t("streamSettingsPanel.categorySearchPlaceholder")}
+            onChange={(e) => setCategoryQuery(e.target.value)}
+            onFocus={() => setSearchOpen(true)}
+            disabled={!loaded}
+          />
+        )}
+        {searchOpen && categoryQuery.trim() && (
+          <div style={styles.dropdown}>
+            {categoryResults.length === 0 ? (
+              <div style={styles.dropdownEmpty}>{t("streamSettingsPanel.noResults")}</div>
+            ) : (
+              categoryResults.map((c) => (
+                <button key={c.id} type="button" style={styles.dropdownRow} onClick={() => pickCategory(c)}>
+                  <img src={boxArtThumb(c.boxArtUrl)} alt="" style={styles.dropdownImg} />
+                  <span>{c.name}</span>
+                </button>
+              ))
+            )}
+          </div>
+        )}
+      </div>
+
+      <button type="button" style={styles.actionBtn} onClick={save} disabled={!loaded || !dirty || saveStatus === "saving"}>
+        {saveStatus === "saving" ? t("streamSettingsPanel.saving") : t("streamSettingsPanel.save")}
+      </button>
+      {saveStatus === "saved" && <span style={styles.fieldLabel}>{t("streamSettingsPanel.saved")}</span>}
+      {saveStatus === "error" && (
+        <span style={styles.errorText}>{t("streamSettingsPanel.saveError", { error: saveErrorMsg })}</span>
       )}
     </div>
   );
 }
 
 const styles = {
-  panel: {
-    width: 240,
-    minWidth: 200,
-    display: "flex",
-    flexDirection: "column",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--surface)",
-    overflow: "hidden",
-    flexShrink: 0,
-  },
-  collapsedPanel: {
-    width: 28,
-    minWidth: 28,
-    display: "flex",
-    flexDirection: "column",
-    alignItems: "center",
-    borderLeft: "1px solid var(--border)",
-    background: "var(--surface)",
-    flexShrink: 0,
-    paddingTop: 10,
-  },
-  header: {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 12px",
-    borderBottom: "1px solid var(--border)",
-    flexShrink: 0,
-  },
-  title: {
-    fontWeight: 700,
-    fontSize: 13,
-  },
-  collapseBtn: {
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text-muted)",
-    fontSize: 12,
-    padding: "3px 7px",
-  },
-  verticalTitle: {
-    writingMode: "vertical-rl",
-    fontWeight: 700,
-    fontSize: 13,
-    color: "var(--text)",
-    whiteSpace: "nowrap",
-    marginTop: 10,
-  },
   body: {
     flex: 1,
     display: "flex",
