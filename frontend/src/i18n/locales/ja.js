@@ -439,12 +439,13 @@ export default {
 
   chatOverlayPreview: {
     title: "チャットオーバーレイのプレビュー",
-    stageTitle: "プレビューのキャンバスサイズ — OBSの基本解像度に合わせてください",
+    sizeCaption: "{width}×{height}px",
+    sizeCaptionTitle: "チャットオーバーレイパネルの「外観」セクションにある幅・最大高さの設定と一致します",
     reload: "↻ 再読み込み",
     testMessage: "💬 メッセージ",
     testRedeem: "🎁 交換",
     testEvent: "🎉 イベント",
-    hint: "オーバーレイのライブ表示です。このパネルを折りたたむか閉じるとアンロードされ、再び開くまで接続もリソース消費も停止します。",
+    hint: "オーバーレイのライブ表示です（外観の設定に合わせたサイズ）。このパネルを折りたたむか閉じるとアンロードされ、再び開くまで接続もリソース消費も停止します。",
   },
 
   videoQueue: {

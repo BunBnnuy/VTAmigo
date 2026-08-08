@@ -2,14 +2,9 @@ import React, { useState, useEffect, useRef } from "react";
 import { apiFetch } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
-// Stage sizes the preview can emulate — the overlay page sizes itself off the
-// viewport (vw/vh units, `min(maxHeight, 96vh)`), so the iframe has to be a
-// real OBS-canvas-sized box that we scale down to fit the panel, rather than
-// just letting it fill whatever width the window happens to be.
-const STAGES = [
-  { id: "1080p", w: 1920, h: 1080 },
-  { id: "720p", w: 1280, h: 720 },
-];
+// Matches the width/maxHeight fields in ChatOverlayPanel.jsx's DEFAULTS —
+// used only until the real config loads.
+const DEFAULT_SIZE = { width: 420, maxHeight: 600 };
 
 // Content only — outer window chrome (drag/resize/collapse) is provided by
 // WindowManager.jsx's shared <Window>.
@@ -25,29 +20,43 @@ export default function ChatOverlayPreview({ lang, visible }) {
   const { t } = useTranslation(lang);
 
   const [overlayUrl, setOverlayUrl] = useState("");
-  const [stageId, setStageId] = useState(STAGES[0].id);
+  const [size, setSize] = useState(DEFAULT_SIZE);
   const [reloadKey, setReloadKey] = useState(0);
   const [scale, setScale] = useState(0);
   const stageWrapRef = useRef(null);
 
-  const stage = STAGES.find((s) => s.id === stageId) || STAGES[0];
+  const stage = { w: size.width || DEFAULT_SIZE.width, h: size.maxHeight || DEFAULT_SIZE.maxHeight };
 
   // Deferred until the panel is actually shown, so a dashboard that starts
-  // with this window collapsed never even asks for the URL.
+  // with this window collapsed never even asks for anything. The overlay URL
+  // only needs fetching once, but the width/maxHeight config is re-fetched
+  // every time the panel opens (and on Reload) so a size change made in the
+  // Chat Overlay panel — possibly minutes ago, possibly in another tab — is
+  // picked up without needing a live subscription.
   useEffect(() => {
-    if (!visible || overlayUrl) return;
+    if (!visible) return;
     let cancelled = false;
-    apiFetch("/chat-overlay/overlay-url")
+    if (!overlayUrl) {
+      apiFetch("/chat-overlay/overlay-url")
+        .then((res) => res.json())
+        .then((data) => {
+          if (!cancelled) setOverlayUrl(data.url || "");
+        })
+        .catch(() => {});
+    }
+    apiFetch("/chat-overlay/config")
       .then((res) => res.json())
       .then((data) => {
-        if (!cancelled) setOverlayUrl(data.url || "");
+        if (cancelled) return;
+        const cfg = data.config || {};
+        setSize({ width: cfg.width || DEFAULT_SIZE.width, maxHeight: cfg.maxHeight || DEFAULT_SIZE.maxHeight });
       })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [visible, overlayUrl]);
+  }, [visible, overlayUrl, reloadKey]);
 
   // Fit the fixed-size stage into whatever width the window has been dragged
-  // to. Scale starts at 0 so the iframe isn't painted at full 1920px for a
+  // to. Scale starts at 0 so the iframe isn't painted at full size for a
   // frame before the first measurement lands.
   useEffect(() => {
     const el = stageWrapRef.current;
@@ -76,16 +85,9 @@ export default function ChatOverlayPreview({ lang, visible }) {
     <>
       <div style={styles.body}>
         <div style={styles.toolbar}>
-          <select
-            value={stageId}
-            onChange={(e) => setStageId(e.target.value)}
-            style={styles.select}
-            title={t("chatOverlayPreview.stageTitle")}
-          >
-            {STAGES.map((s) => (
-              <option key={s.id} value={s.id}>{`${s.w}×${s.h}`}</option>
-            ))}
-          </select>
+          <span style={styles.sizeCaption} title={t("chatOverlayPreview.sizeCaptionTitle")}>
+            {t("chatOverlayPreview.sizeCaption", { width: stage.w, height: stage.h })}
+          </span>
           <button type="button" style={styles.smallBtn} onClick={() => setReloadKey((k) => k + 1)}>
             {t("chatOverlayPreview.reload")}
           </button>
@@ -110,7 +112,7 @@ export default function ChatOverlayPreview({ lang, visible }) {
           <div style={{ ...styles.stage, height: scale ? stage.h * scale : 0 }}>
             {overlayUrl && scale > 0 && (
               <iframe
-                key={`${overlayUrl}-${stageId}-${reloadKey}`}
+                key={`${overlayUrl}-${stage.w}x${stage.h}-${reloadKey}`}
                 src={overlayUrl}
                 title={t("chatOverlayPreview.title")}
                 scrolling="no"
@@ -144,9 +146,14 @@ const styles = {
     alignItems: "center",
     gap: 8,
   },
-  select: {
+  sizeCaption: {
     flex: 1,
     minWidth: 0,
+    fontSize: 11,
+    color: "var(--text-muted)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   row3: {
     display: "grid",

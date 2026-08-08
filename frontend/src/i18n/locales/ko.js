@@ -439,12 +439,13 @@ export default {
 
   chatOverlayPreview: {
     title: "채팅 오버레이 미리보기",
-    stageTitle: "미리보기 캔버스 크기 — OBS 기본 해상도에 맞추세요",
+    sizeCaption: "{width}×{height}px",
+    sizeCaptionTitle: "채팅 오버레이 패널의 '외관' 섹션에 있는 너비 / 최대 높이 값과 일치합니다",
     reload: "↻ 새로고침",
     testMessage: "💬 메시지",
     testRedeem: "🎁 교환",
     testEvent: "🎉 이벤트",
-    hint: "오버레이의 실시간 화면입니다. 이 패널을 접거나 닫으면 언로드되어 다시 열 때까지 연결과 리소스 사용이 멈춥니다.",
+    hint: "오버레이의 실시간 화면입니다(외관 설정에 맞춘 크기). 이 패널을 접거나 닫으면 언로드되어 다시 열 때까지 연결과 리소스 사용이 멈춥니다.",
   },
 
   videoQueue: {
