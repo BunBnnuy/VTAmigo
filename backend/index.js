@@ -29,6 +29,7 @@ const chatOverlayConfig = require("./chatOverlayConfig");
 const userSettings = require("./userSettings");
 const chatOverlayBg = require("./chatOverlayBg");
 const youtube = require("./youtube");
+const streamSettings = require("./streamSettings");
 
 const PORT = process.env.PORT || 3001;
 const app = express();
@@ -891,6 +892,55 @@ app.post("/chat-overlay/config", requireApprovedUser, (req, res) => {
   const fullConfig = { ...config, hasBgImage: chatOverlayBg.hasImage(req.user.twitchId) };
   broadcastToAccount(req.user.twitchId, { type: "chat_overlay_config", config: fullConfig });
   res.json({ config: fullConfig });
+});
+
+// Shared error mapping for the /stream/* routes below — gives the frontend a
+// stable string to switch on instead of parsing HTTP status alone (403 could
+// mean other things elsewhere in this app).
+function handleStreamSettingsError(err, res) {
+  if (err.code === "MISSING_SCOPE") return res.status(403).json({ error: "MISSING_SCOPE" });
+  if (err.message === "NO_TWITCH_TOKEN") return res.status(401).json({ error: "NO_TWITCH_TOKEN" });
+  console.error("[stream-settings]", err.message);
+  return res.status(502).json({ error: "TWITCH_API_ERROR" });
+}
+
+// GET /stream/categories?query=... — Twitch category search for the Stream
+// Settings panel's autocomplete, including box art thumbnails.
+app.get("/stream/categories", requireApprovedUser, async (req, res) => {
+  const query = (req.query.query || "").trim();
+  if (!query) return res.json({ categories: [] });
+  try {
+    const token = await getValidTwitchToken(req.user.twitchId);
+    const categories = await streamSettings.searchCategories(token, query);
+    res.json({ categories });
+  } catch (err) {
+    handleStreamSettingsError(err, res);
+  }
+});
+
+// GET /stream/info — the logged-in streamer's current live title/category,
+// fetched fresh each time rather than cached (it can change from outside
+// this panel, e.g. directly on Twitch).
+app.get("/stream/info", requireApprovedUser, async (req, res) => {
+  try {
+    const token = await getValidTwitchToken(req.user.twitchId);
+    const info = await streamSettings.getChannelInfo(token, req.user.twitchId);
+    res.json(info);
+  } catch (err) {
+    handleStreamSettingsError(err, res);
+  }
+});
+
+// POST /stream/settings — { title?, gameId? }; updates whichever of
+// title/category was provided, leaving the other unchanged on Twitch.
+app.post("/stream/settings", requireApprovedUser, async (req, res) => {
+  try {
+    const token = await getValidTwitchToken(req.user.twitchId);
+    await streamSettings.updateChannelInfo(token, req.user.twitchId, req.body || {});
+    res.json({ ok: true });
+  } catch (err) {
+    handleStreamSettingsError(err, res);
+  }
 });
 
 // GET /settings — the copy of this account's client-side Settings.jsx

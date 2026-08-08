@@ -13,12 +13,16 @@ const SESSION_COOKIE = "session";
 
 // Scopes needed to read chat and subscribe to EventSub events on the
 // logged-in user's own channel — see backend/eventsub.js's subscribeAll().
+// channel:manage:broadcast is for the Stream Settings panel (title/category
+// updates via streamSettings.js) — users who logged in before this was added
+// won't have it on their existing token until they log out and back in.
 const TWITCH_LOGIN_SCOPES = [
   "chat:read",
   "channel:read:redemptions",
   "moderator:read:followers",
   "channel:read:subscriptions",
   "bits:read",
+  "channel:manage:broadcast",
 ].join(" ");
 
 // Scopes needed for a separate bot account to post chat messages on the
