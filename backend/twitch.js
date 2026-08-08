@@ -34,7 +34,13 @@ function parseTwitchMessage(raw) {
   const msgMatch = rest.match(/^:(\w+)!\w+@\S+ PRIVMSG #(\S+) :(.+)$/s);
   if (!msgMatch) return null;
 
-  const [, username, channel, text] = msgMatch;
+  const [, username, channel, rawText] = msgMatch;
+  // "/me" messages arrive CTCP-wrapped as \x01ACTION <text>\x01 — strip the
+  // envelope so the control bytes never reach a renderer, and flag it so the
+  // overlay can italicize/colorize the way Twitch does.
+  const actionMatch = rawText.match(/^\x01ACTION (.*)\x01$/s);
+  const isAction = !!actionMatch;
+  const text = actionMatch ? actionMatch[1] : rawText;
   const color = tags["color"] || "#9147ff";
   const rewardId = tags["custom-reward-id"] || null;
   const rewardTitle = rewardId ? (tags["msg-param-reward-title"] || "Canje de puntos de canal") : null;
@@ -56,6 +62,16 @@ function parseTwitchMessage(raw) {
     isRedeem: !!rewardId,
     rewardId,
     rewardTitle,
+    isAction,
+
+    // ── Raw IRC metadata, resolved later by backend/emotes.js ───────────────
+    // Kept as the untouched tag strings so the parser stays synchronous and
+    // free of network calls; enrichment happens once in handleChat.
+    userId: tags["user-id"] || null,
+    roomId: tags["room-id"] || null,
+    badgeTag: tags["badges"] || "", // "broadcaster/1,subscriber/12"
+    emoteTag: tags["emotes"] || "", // "25:0-4,12-16/1902:6-10"
+    emoteOnly: tags["emote-only"] === "1",
   };
 }
 

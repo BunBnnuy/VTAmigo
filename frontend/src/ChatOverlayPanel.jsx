@@ -3,13 +3,46 @@ import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
 const DEFAULTS = {
+  theme: "default",
   max: 25, fade: 0, showEvents: true, showBanner: true, bannerDuration: 6000,
   showRedeems: true, showBotMessages: true, direction: "up", align: "left",
   timestamps: false, userColor: true, animate: true, lang: "en", width: 420,
   maxHeight: 600, fontsize: 16, bg: 0.35, textcolor: "ffffff", fontFamily: "",
   bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
   mirrorH: false, mirrorV: false, hasBgImage: false,
+  // bubbles theme — see backend/chatOverlayConfig.js
+  allCaps: false, showBadges: true, showDecorations: true, ignoreCommands: "",
+  fontSizeUsername: 24, fontWeightUsername: 400,
+  fontSizeMessage: 20, fontWeightMessage: 400,
+  fontSizeAlertUsername: 19, fontWeightAlertUsername: 400,
+  usernameColor: "#F7FBFF", messageBackground: "#F7FBFF", messageBorder: "#EEB09E",
+  messageColor: "#DB867A", alertColor: "#F7FBFF",
+  flowerBorder: "#EEB09E", flowerFill: "#FCFEFF", flowerCenter: "#FBD5B5",
+  flowerLeaf: "#92AF3E", flower2Leaf: "#92AF3E", flower2Fill: "#EEB09E",
+  followAlertMessage: "just followed!",
+  subAlertMessage: "just subscribed!",
+  resubAlertMessage: "resubscribed for [amount] months!",
+  giftedSubAlertMessage: "just gifted x[amount]!",
+  cheerAlertMessage: "just cheered [amount] bits!",
+  raidAlertMessage: "just raided with [amount]!",
+  redeemAlertMessage: "redeemed [amount]!",
 };
+
+// Bubble-theme color pickers, in the order they appear in the panel. The
+// flower group is only shown while the ornaments are enabled.
+const BUBBLE_COLOR_KEYS = [
+  "usernameColor", "messageBackground", "messageBorder", "messageColor", "alertColor",
+];
+const FLOWER_COLOR_KEYS = [
+  "flowerBorder", "flowerFill", "flowerCenter", "flowerLeaf", "flower2Leaf", "flower2Fill",
+];
+
+const ALERT_COPY_KEYS = [
+  "followAlertMessage", "subAlertMessage", "resubAlertMessage", "giftedSubAlertMessage",
+  "cheerAlertMessage", "raidAlertMessage", "redeemAlertMessage",
+];
+
+const FONT_WEIGHTS = [100, 200, 300, 400, 500, 600, 700, 800, 900];
 
 const COMMON_FONTS = [
   "Segoe UI", "Arial", "Verdana", "Tahoma", "Trebuchet MS", "Georgia",
@@ -213,6 +246,17 @@ export default function ChatOverlayPanel({ lang }) {
 
         <div style={styles.divider} />
 
+        <div style={styles.field}>
+          <label style={styles.fieldLabel}>{t("chatOverlayPanel.theme")}</label>
+          <select value={cfg.theme} onChange={(e) => set("theme", e.target.value)} disabled={!loaded}>
+            <option value="default">{t("chatOverlayPanel.themeDefault")}</option>
+            <option value="bubbles">{t("chatOverlayPanel.themeBubbles")}</option>
+          </select>
+          <span style={styles.fieldLabel}>{t("chatOverlayPanel.themeSwitchHint")}</span>
+        </div>
+
+        <div style={styles.divider} />
+
         <div style={styles.sectionLabel}>{t("chatOverlayPanel.feedSection")}</div>
 
         <div style={styles.field}>
@@ -259,10 +303,12 @@ export default function ChatOverlayPanel({ lang }) {
             <option value="right">{t("chatOverlayPanel.alignRight")}</option>
           </select>
         </div>
-        <div style={styles.row}>
-          <span style={styles.rowLabel}>{t("chatOverlayPanel.timestamps")}</span>
-          <Toggle checked={cfg.timestamps} onChange={() => set("timestamps", !cfg.timestamps)} />
-        </div>
+        {cfg.theme === "default" && (
+          <div style={styles.row}>
+            <span style={styles.rowLabel}>{t("chatOverlayPanel.timestamps")}</span>
+            <Toggle checked={cfg.timestamps} onChange={() => set("timestamps", !cfg.timestamps)} />
+          </div>
+        )}
         <div style={styles.row}>
           <span style={styles.rowLabel}>{t("chatOverlayPanel.userColor")}</span>
           <Toggle checked={cfg.userColor} onChange={() => set("userColor", !cfg.userColor)} />
@@ -291,19 +337,23 @@ export default function ChatOverlayPanel({ lang }) {
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.maxHeight")}</label>
           <input type="number" min={100} max={3000} value={cfg.maxHeight} onChange={(e) => set("maxHeight", Number(e.target.value))} disabled={!loaded} />
         </div>
-        <div style={styles.field}>
-          <label style={styles.fieldLabel}>{t("chatOverlayPanel.fontSize")}</label>
-          <input type="number" min={8} max={64} value={cfg.fontsize} onChange={(e) => set("fontsize", Number(e.target.value))} disabled={!loaded} />
-        </div>
-        <div style={styles.field}>
-          <label style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacity", { pct: Math.round(cfg.bg * 100) })}</label>
-          <input type="range" min={0} max={1} step={0.05} value={cfg.bg} onChange={(e) => set("bg", Number(e.target.value))} disabled={!loaded || cfg.hasBgImage} />
-          {cfg.hasBgImage && <span style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacityDisabled")}</span>}
-        </div>
-        <div style={styles.field}>
-          <label style={styles.fieldLabel}>{t("chatOverlayPanel.textColor")}</label>
-          <input type="color" value={"#" + cfg.textcolor} onChange={(e) => set("textcolor", e.target.value.replace(/^#/, ""))} disabled={!loaded} style={styles.colorInput} />
-        </div>
+        {cfg.theme === "default" && (
+          <>
+            <div style={styles.field}>
+              <label style={styles.fieldLabel}>{t("chatOverlayPanel.fontSize")}</label>
+              <input type="number" min={8} max={64} value={cfg.fontsize} onChange={(e) => set("fontsize", Number(e.target.value))} disabled={!loaded} />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacity", { pct: Math.round(cfg.bg * 100) })}</label>
+              <input type="range" min={0} max={1} step={0.05} value={cfg.bg} onChange={(e) => set("bg", Number(e.target.value))} disabled={!loaded || cfg.hasBgImage} />
+              {cfg.hasBgImage && <span style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacityDisabled")}</span>}
+            </div>
+            <div style={styles.field}>
+              <label style={styles.fieldLabel}>{t("chatOverlayPanel.textColor")}</label>
+              <input type="color" value={"#" + cfg.textcolor} onChange={(e) => set("textcolor", e.target.value.replace(/^#/, ""))} disabled={!loaded} style={styles.colorInput} />
+            </div>
+          </>
+        )}
 
         <div style={styles.field}>
           <label style={styles.fieldLabel}>{t("chatOverlayPanel.fontFamily")}</label>
@@ -335,6 +385,76 @@ export default function ChatOverlayPanel({ lang }) {
           )}
         </div>
 
+        {cfg.theme === "bubbles" && (
+          <>
+            <div style={styles.divider} />
+            <div style={styles.sectionLabel}>{t("chatOverlayPanel.bubbleSection")}</div>
+            <span style={styles.fieldLabel}>{t("chatOverlayPanel.bubbleHint")}</span>
+
+            <div style={styles.row}>
+              <span style={styles.rowLabel}>{t("chatOverlayPanel.showBadges")}</span>
+              <Toggle checked={cfg.showBadges} onChange={() => set("showBadges", !cfg.showBadges)} />
+            </div>
+            <div style={styles.row}>
+              <span style={styles.rowLabel}>{t("chatOverlayPanel.showDecorations")}</span>
+              <Toggle checked={cfg.showDecorations} onChange={() => set("showDecorations", !cfg.showDecorations)} />
+            </div>
+            <div style={styles.row}>
+              <span style={styles.rowLabel}>{t("chatOverlayPanel.allCaps")}</span>
+              <Toggle checked={cfg.allCaps} onChange={() => set("allCaps", !cfg.allCaps)} />
+            </div>
+            <div style={styles.field}>
+              <label style={styles.fieldLabel}>{t("chatOverlayPanel.ignoreCommands")}</label>
+              <input value={cfg.ignoreCommands} onChange={(e) => set("ignoreCommands", e.target.value)} disabled={!loaded} />
+            </div>
+
+            <div style={styles.row2}>
+              {[
+                ["fontSizeUsername", "fontWeightUsername"],
+                ["fontSizeMessage", "fontWeightMessage"],
+                ["fontSizeAlertUsername", "fontWeightAlertUsername"],
+              ].map(([sizeKey, weightKey]) => (
+                <React.Fragment key={sizeKey}>
+                  <div style={styles.field}>
+                    <label style={styles.fieldLabel}>{t(`chatOverlayPanel.${sizeKey}`)}</label>
+                    <input type="number" min={8} max={96} value={cfg[sizeKey]} onChange={(e) => set(sizeKey, Number(e.target.value))} disabled={!loaded} />
+                  </div>
+                  <div style={styles.field}>
+                    <label style={styles.fieldLabel}>{t(`chatOverlayPanel.${weightKey}`)}</label>
+                    <select value={cfg[weightKey]} onChange={(e) => set(weightKey, Number(e.target.value))} disabled={!loaded}>
+                      {FONT_WEIGHTS.map((w) => <option key={w} value={w}>{w}</option>)}
+                    </select>
+                  </div>
+                </React.Fragment>
+              ))}
+            </div>
+
+            <div style={styles.sectionLabel}>{t("chatOverlayPanel.bubbleColors")}</div>
+            <div style={styles.row2}>
+              {[...BUBBLE_COLOR_KEYS, ...(cfg.showDecorations ? FLOWER_COLOR_KEYS : [])].map((key) => (
+                <div key={key} style={styles.field}>
+                  <label style={styles.fieldLabel}>{t(`chatOverlayPanel.${key}`)}</label>
+                  <input type="color" value={cfg[key]} onChange={(e) => set(key, e.target.value)} disabled={!loaded} style={styles.colorInput} />
+                </div>
+              ))}
+            </div>
+
+            <div style={styles.divider} />
+            <div style={styles.sectionLabel}>{t("chatOverlayPanel.alertCopySection")}</div>
+            <span style={styles.fieldLabel}>{t("chatOverlayPanel.alertCopyHint")}</span>
+            {ALERT_COPY_KEYS.map((key) => (
+              <div key={key} style={styles.field}>
+                <label style={styles.fieldLabel}>{t(`chatOverlayPanel.${key}`)}</label>
+                <input value={cfg[key]} onChange={(e) => set(key, e.target.value)} disabled={!loaded} />
+              </div>
+            ))}
+          </>
+        )}
+
+        {/* The nine-slice background image is a feature of the classic row
+            renderer only — the bubble theme draws its own bubble art. */}
+        {cfg.theme === "default" && (
+        <>
         <div style={styles.divider} />
 
         <div style={styles.sectionLabel}>{t("chatOverlayPanel.bgImageSection")}</div>
@@ -417,6 +537,8 @@ export default function ChatOverlayPanel({ lang }) {
               <Toggle checked={cfg.mirrorV} onChange={() => set("mirrorV", !cfg.mirrorV)} />
             </div>
           </>
+        )}
+        </>
         )}
       </div>
       <div style={styles.hint}>{t("chatOverlayPanel.hint")}</div>
