@@ -53,6 +53,9 @@ const DEFAULTS = {
   // `fontFamily` names the Google Font to load.
   allCaps: false, // uppercase non-emote words
   showBadges: true, // draw the role badge tag under the bubble
+  // Flower/bud/leaf ornaments around the bubble. Off leaves a plain rounded
+  // bubble; the role badge tag is separate and stays under showBadges.
+  showDecorations: true,
   ignoreCommands: "", // comma-separated command prefixes to hide, e.g. "!bot,!sr"
 
   fontSizeUsername: 24,

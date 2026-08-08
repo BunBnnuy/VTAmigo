@@ -534,6 +534,7 @@ export default {
     bubbleHint: "Estilo de los bocadillos. Los ajustes de Feed de arriba (máx. mensajes, desvanecido, eventos, dirección, alineación) siguen aplicando.",
     allCaps: "Texto del mensaje en mayúsculas",
     showBadges: "Mostrar insignia de rol",
+    showDecorations: "Mostrar decoraciones florales",
     ignoreCommands: "Ocultar comandos (separados por comas, ej. !bot,!sr)",
     fontSizeUsername: "Tamaño del nombre (px)",
     fontWeightUsername: "Grosor del nombre",

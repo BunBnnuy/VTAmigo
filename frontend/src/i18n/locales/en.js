@@ -560,6 +560,7 @@ export default {
     bubbleHint: "Bubble styling. The Feed settings above (max messages, auto-fade, events, direction, alignment) still apply.",
     allCaps: "Uppercase message text",
     showBadges: "Show role badge",
+    showDecorations: "Show flower decorations",
     ignoreCommands: "Hide commands (comma-separated, e.g. !bot,!sr)",
     fontSizeUsername: "Username size (px)",
     fontWeightUsername: "Username weight",

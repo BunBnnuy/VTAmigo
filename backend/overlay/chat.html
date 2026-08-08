@@ -182,6 +182,21 @@
   #feed.theme-bubbles.no-animate .box * {
     animation: none !important;
   }
+  /* Ornaments off: everything decorative around the bubble goes, leaving a
+     plain rounded speech bubble. Done in CSS rather than by skipping the
+     nodes so the toggle applies to rows already on screen. The role badge
+     tag is deliberately excluded — that's its own `showBadges` setting. */
+  #feed.theme-bubbles.no-decorations .flower-t-l,
+  #feed.theme-bubbles.no-decorations .flower-b-r,
+  #feed.theme-bubbles.no-decorations .flower-inset-l,
+  #feed.theme-bubbles.no-decorations .flower-inset-r,
+  #feed.theme-bubbles.no-decorations .vector-t,
+  #feed.theme-bubbles.no-decorations .vector-b,
+  #feed.theme-bubbles.no-decorations .badge-content,
+  #feed.theme-bubbles.no-decorations .alert-svg-1,
+  #feed.theme-bubbles.no-decorations .alert-svg-2 {
+    display: none;
+  }
   @keyframes slide-in-left-2 {
     0%   { transform: translateY(500px) scale(0.3); opacity: 0; }
     90%  { transform: translateY(0) scale(1.03); opacity: 1; }
@@ -397,7 +412,7 @@
     bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
     mirrorH: false, mirrorV: false, hasBgImage: false,
     // bubbles theme (see backend/chatOverlayConfig.js for the authoritative list)
-    allCaps: false, showBadges: true, ignoreCommands: "",
+    allCaps: false, showBadges: true, showDecorations: true, ignoreCommands: "",
     fontSizeUsername: 24, fontWeightUsername: 400,
     fontSizeMessage: 20, fontWeightMessage: 400,
     fontSizeAlertUsername: 19, fontWeightAlertUsername: 400,
@@ -1078,6 +1093,7 @@
     const on = cfg.theme === "bubbles";
     feedEl.classList.toggle("theme-bubbles", on);
     feedEl.classList.toggle("no-animate", on && !cfg.animate);
+    feedEl.classList.toggle("no-decorations", on && !cfg.showDecorations);
     // The two themes render incompatible DOM (.row vs .box) and stack in
     // opposite orders, so a live theme switch starts from an empty feed
     // rather than trying to convert what's already on screen.

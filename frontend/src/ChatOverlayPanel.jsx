@@ -11,7 +11,7 @@ const DEFAULTS = {
   bgImageOpacity: 1, sliceLeft: 24, sliceRight: 24, sliceTop: 24, sliceBottom: 24,
   mirrorH: false, mirrorV: false, hasBgImage: false,
   // bubbles theme — see backend/chatOverlayConfig.js
-  allCaps: false, showBadges: true, ignoreCommands: "",
+  allCaps: false, showBadges: true, showDecorations: true, ignoreCommands: "",
   fontSizeUsername: 24, fontWeightUsername: 400,
   fontSizeMessage: 20, fontWeightMessage: 400,
   fontSizeAlertUsername: 19, fontWeightAlertUsername: 400,
@@ -28,9 +28,12 @@ const DEFAULTS = {
   redeemAlertMessage: "redeemed [amount]!",
 };
 
-// Bubble-theme color pickers, in the order they appear in the panel.
+// Bubble-theme color pickers, in the order they appear in the panel. The
+// flower group is only shown while the ornaments are enabled.
 const BUBBLE_COLOR_KEYS = [
   "usernameColor", "messageBackground", "messageBorder", "messageColor", "alertColor",
+];
+const FLOWER_COLOR_KEYS = [
   "flowerBorder", "flowerFill", "flowerCenter", "flowerLeaf", "flower2Leaf", "flower2Fill",
 ];
 
@@ -393,6 +396,10 @@ export default function ChatOverlayPanel({ lang }) {
               <Toggle checked={cfg.showBadges} onChange={() => set("showBadges", !cfg.showBadges)} />
             </div>
             <div style={styles.row}>
+              <span style={styles.rowLabel}>{t("chatOverlayPanel.showDecorations")}</span>
+              <Toggle checked={cfg.showDecorations} onChange={() => set("showDecorations", !cfg.showDecorations)} />
+            </div>
+            <div style={styles.row}>
               <span style={styles.rowLabel}>{t("chatOverlayPanel.allCaps")}</span>
               <Toggle checked={cfg.allCaps} onChange={() => set("allCaps", !cfg.allCaps)} />
             </div>
@@ -424,7 +431,7 @@ export default function ChatOverlayPanel({ lang }) {
 
             <div style={styles.sectionLabel}>{t("chatOverlayPanel.bubbleColors")}</div>
             <div style={styles.row2}>
-              {BUBBLE_COLOR_KEYS.map((key) => (
+              {[...BUBBLE_COLOR_KEYS, ...(cfg.showDecorations ? FLOWER_COLOR_KEYS : [])].map((key) => (
                 <div key={key} style={styles.field}>
                   <label style={styles.fieldLabel}>{t(`chatOverlayPanel.${key}`)}</label>
                   <input type="color" value={cfg[key]} onChange={(e) => set(key, e.target.value)} disabled={!loaded} style={styles.colorInput} />
