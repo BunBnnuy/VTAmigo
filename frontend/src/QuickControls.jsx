@@ -169,6 +169,15 @@ export default function QuickControls({
   return (
     <>
       <div style={styles.body}>
+        {settings && onUpdateSetting && (
+          <div style={styles.row}>
+            <span style={styles.rowLabel}>{t("quickControls.aiResponses")}</span>
+            <Toggle
+              checked={settings.aiResponsesEnabled !== false}
+              onChange={() => onUpdateSetting("aiResponsesEnabled", !(settings.aiResponsesEnabled !== false))}
+            />
+          </div>
+        )}
         {onToggleAutoSend && (
           <div style={styles.row}>
             <span style={styles.rowLabel}>{t("quickControls.autoSend")}</span>

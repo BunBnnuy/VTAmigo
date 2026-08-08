@@ -370,6 +370,7 @@ export default {
     nowSessionExhausted: "You already used the Now button this session (plan limit)",
     nowAvailableIn: "Available in {time}",
     nowForceResponse: "Force a response now",
+    nowAiResponsesDisabled: "AI responses are disabled (Quick Controls)",
   },
 
   chatFeed: {
@@ -402,6 +403,7 @@ export default {
     expand: "Expand quick controls",
     collapse: "Collapse quick controls",
     title: "Quick Controls",
+    aiResponses: "AI responses",
     autoSend: "Auto-send",
     tts: "Text-to-Speech (TTS)",
     skipTtsTitle: "Skip current TTS",

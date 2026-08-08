@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS = {
   botUsername: "",
   botToken: "",
   autoSendToChat: false,
+  aiResponsesEnabled: true,
   youtubePeekEnabled: false,
   youtubePeekInterval: 5,
   screenWatchEnabled: false,
@@ -422,6 +423,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
 
     const { maxMessages } = clampToTier(tierRef.current, settingsRef.current);
     const batch = bufferRef.current.splice(0, maxMessages);
+
+    if (settingsRef.current.aiResponsesEnabled === false) {
+      // Drop the batch rather than letting it pile up unbounded while
+      // disabled — same throttling as normal, just no /respond call.
+      startCountdown();
+      return;
+    }
+
     if (batch.length === 0) {
       if (settingsRef.current.idleRedditStories !== false) {
         const t = settingsRef.current.idleStoryThreshold || 7;
@@ -1078,8 +1087,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const nowOnCooldown = nowCooldownUntil > Date.now();
   const nowSessionExhausted = nowSessionUsed >= nowLimits.nowLimitPerSession;
   const nowRemainingSec = nowOnCooldown ? Math.ceil((nowCooldownUntil - Date.now()) / 1000) : 0;
-  const nowDisabled = loading || nowOnCooldown || nowSessionExhausted;
-  const nowTitle = nowSessionExhausted
+  const nowDisabled = loading || nowOnCooldown || nowSessionExhausted || !settings.aiResponsesEnabled;
+  const nowTitle = !settings.aiResponsesEnabled
+    ? t("app.nowAiResponsesDisabled")
+    : nowSessionExhausted
     ? t("app.nowSessionExhausted")
     : nowOnCooldown
       ? t("app.nowAvailableIn", { time: `${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")}` })
