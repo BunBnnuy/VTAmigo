@@ -48,13 +48,13 @@ function describeEvent(event, t) {
 
 export default function ActivityPanel({ events = [], lang }) {
   const { t } = useTranslation(lang);
-  const sorted = [...events].reverse();
+  const sorted = [...events].slice(-30).reverse();
 
   return (
     <div style={styles.panel}>
       <div style={styles.header}>
         <span style={styles.title}>{t("activityPanel.title")}</span>
-        <span style={styles.count}>{events.length}</span>
+        <span style={styles.count}>{sorted.length}</span>
       </div>
       <div style={styles.list}>
         {sorted.length === 0 && (
