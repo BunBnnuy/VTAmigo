@@ -115,6 +115,15 @@ db.exec(`
     PRIMARY KEY (twitchId, usernameLower)
   );
 
+  CREATE TABLE IF NOT EXISTS activity_events (
+    id TEXT NOT NULL,
+    twitchId TEXT NOT NULL,
+    timestamp INTEGER NOT NULL,
+    event TEXT NOT NULL,
+    PRIMARY KEY (twitchId, id)
+  );
+  CREATE INDEX IF NOT EXISTS idx_activity_events_twitchId_ts ON activity_events (twitchId, timestamp);
+
   CREATE TABLE IF NOT EXISTS agent_sessions (
     provider TEXT NOT NULL,
     twitchId TEXT NOT NULL,
