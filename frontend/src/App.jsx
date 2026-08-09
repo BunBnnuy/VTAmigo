@@ -330,6 +330,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       .catch(() => {});
   }, []);
 
+  // Activity Panel — same fetch-on-mount reasoning as video state above:
+  // the WS only pushes new events as they happen, so without this a page
+  // refresh always showed "no activity yet" even with real recent history.
+  useEffect(() => {
+    apiFetch("/activity/recent")
+      .then((res) => res.json())
+      .then((data) => setActivityEvents(data.events || []))
+      .catch(() => {});
+  }, []);
+
   // Auto-connect on mount — login always implies a channel now (the user's
   // own), so there's nothing to gate this on.
   useEffect(() => {
