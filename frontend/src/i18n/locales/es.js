@@ -420,6 +420,24 @@ export default {
     hint: "Este panel se puede ocultar en modo compacto",
   },
 
+  activityPanel: {
+    title: "Actividad",
+    empty: "Todavía no hay actividad — follows, subs, raids y más aparecerán aquí.",
+    anonymous: "Anónimo",
+    follow: "empezó a seguirte",
+    sub: "se suscribió",
+    subGift: "se suscribió con un sub de regalo",
+    resubOne: "se resuscribió por {months} mes",
+    resubMany: "se resuscribió por {months} meses",
+    giftSubOne: "regaló 1 sub",
+    giftSubMany: "regaló {count} subs",
+    raidOne: "hizo un raid con {viewers} espectador",
+    raidMany: "hizo un raid con {viewers} espectadores",
+    cheer: "envió {bits} bits",
+    redeem: "canjeó \"{reward}\"",
+    default: "Actividad de Twitch",
+  },
+
   avatarPanel: {
     title: "Avatar",
     speaking: "🗣️ Hablando",

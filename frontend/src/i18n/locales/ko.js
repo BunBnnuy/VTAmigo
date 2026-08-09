@@ -420,6 +420,24 @@ export default {
     hint: "이 패널은 컴팩트 모드에서 숨길 수 있습니다",
   },
 
+  activityPanel: {
+    title: "활동",
+    empty: "아직 활동이 없어요 — 팔로우, 구독, 레이드 등이 여기에 표시됩니다.",
+    anonymous: "익명",
+    follow: "팔로우했습니다",
+    sub: "구독했습니다",
+    subGift: "선물 구독으로 구독했습니다",
+    resubOne: "{months}개월 리섭했습니다",
+    resubMany: "{months}개월 리섭했습니다",
+    giftSubOne: "구독 1개를 선물했습니다",
+    giftSubMany: "구독 {count}개를 선물했습니다",
+    raidOne: "시청자 {viewers}명과 레이드했습니다",
+    raidMany: "시청자 {viewers}명과 레이드했습니다",
+    cheer: "{bits} 비트를 후원했습니다",
+    redeem: "\"{reward}\"을(를) 교환했습니다",
+    default: "Twitch 활동",
+  },
+
   avatarPanel: {
     title: "아바타",
     speaking: "🗣️ 말하는 중",
