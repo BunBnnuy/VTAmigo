@@ -13,6 +13,8 @@ const MANIFEST_PATH = path.join(ASSETS_DIR, "manifest.json");
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
 const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+// Total disk quota across every asset kind combined, per account.
+const QUOTA_BYTES = 100 * 1024 * 1024;
 const IMAGE_MIME_EXT = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -47,6 +49,13 @@ function filePathFor(twitchId, assetId, ext) {
   return path.join(ASSETS_DIR, `${twitchId}-${assetId}.${ext}`);
 }
 
+// Sum of every asset's sizeBytes for one account, across all kinds — the
+// number QUOTA_BYTES is measured against.
+function getUsageBytes(twitchId) {
+  const account = readManifest()[twitchId] || {};
+  return Object.values(account).reduce((sum, entry) => sum + (entry.sizeBytes || 0), 0);
+}
+
 // dataUrl: "data:image/png;base64,AAAA..." — as produced by FileReader.readAsDataURL
 function saveImage(twitchId, dataUrl) {
   const match = /^data:([^;]+);base64,(.+)$/.exec(dataUrl || "");
@@ -57,6 +66,7 @@ function saveImage(twitchId, dataUrl) {
 
   const buffer = Buffer.from(base64, "base64");
   if (buffer.length > MAX_IMAGE_BYTES) throw new Error("TOO_LARGE");
+  if (getUsageBytes(twitchId) + buffer.length > QUOTA_BYTES) throw new Error("QUOTA_EXCEEDED");
 
   const assetId = randomUUID();
   fs.writeFileSync(filePathFor(twitchId, assetId, ext), buffer);
@@ -81,6 +91,10 @@ function saveVideo(twitchId, tmpFilePath, mime, sizeBytes) {
     fs.unlink(tmpFilePath, () => {});
     throw new Error("TOO_LARGE");
   }
+  if (getUsageBytes(twitchId) + sizeBytes > QUOTA_BYTES) {
+    fs.unlink(tmpFilePath, () => {});
+    throw new Error("QUOTA_EXCEEDED");
+  }
 
   const assetId = randomUUID();
   fs.renameSync(tmpFilePath, filePathFor(twitchId, assetId, ext));
@@ -103,6 +117,10 @@ function saveAudio(twitchId, tmpFilePath, mime, sizeBytes) {
   if (sizeBytes > MAX_AUDIO_BYTES) {
     fs.unlink(tmpFilePath, () => {});
     throw new Error("TOO_LARGE");
+  }
+  if (getUsageBytes(twitchId) + sizeBytes > QUOTA_BYTES) {
+    fs.unlink(tmpFilePath, () => {});
+    throw new Error("QUOTA_EXCEEDED");
   }
 
   const assetId = randomUUID();
@@ -151,4 +169,7 @@ function deleteAsset(twitchId, assetId, removeAssetEverywhere) {
   return true;
 }
 
-module.exports = { saveImage, saveVideo, saveAudio, getAsset, listAssets, deleteAsset, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES };
+module.exports = {
+  saveImage, saveVideo, saveAudio, getAsset, listAssets, deleteAsset, getUsageBytes,
+  MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES, QUOTA_BYTES,
+};

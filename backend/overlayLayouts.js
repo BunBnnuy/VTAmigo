@@ -81,8 +81,18 @@ function sanitizeLayer(raw) {
     if (layer.triggerEnabled) layer.playMode = "once";
   }
   if (type === "video") {
-    layer.muted = raw.muted !== false;
+    // Default unmuted — a freshly-uploaded video (no `muted` field yet)
+    // should have sound by default; only an explicit `true` mutes it.
+    layer.muted = raw.muted === true;
     layer.randomPosition = !!raw.randomPosition;
+    // "Random position" needs the whole box to actually fit on the 1920x1080
+    // canvas to guarantee it never spawns partially off-canvas — clamp size
+    // down to canvas dimensions when the toggle is on (fixed-position video
+    // layers keep the more permissive general w/h range above).
+    if (layer.randomPosition) {
+      layer.w = clampNum(layer.w, 1, CANVAS_W, layer.w);
+      layer.h = clampNum(layer.h, 1, CANVAS_H, layer.h);
+    }
   }
   if (type === "sound") {
     layer.volume = clampNum(raw.volume, 0, 100, 100);
