@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Rnd } from "react-rnd";
-import { apiFetch, apiUrl } from "./api.js";
+import { apiFetch, apiUrl, wsUrl } from "./api.js";
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -87,6 +87,33 @@ export default function OverlayCanvas({ layoutId }) {
       .then((r) => r.json())
       .then((data) => setLatestByKind(data.latestByKind || {}));
   }, [layoutId, refreshLayout, refreshAssets]);
+
+  // Live-updates {token} previews as events happen — both real ones
+  // (twitch_event / a "chat" message with isRedeem) and the Chat Overlay
+  // panel's "Test event"/"Test redemption" buttons (chat_overlay_test_event /
+  // chat_overlay_test_chat), which broadcast under separate WS types
+  // specifically so they don't touch XP/AI-response/activity history (see
+  // index.js's /chat-overlay/test-event) — without listening for those too,
+  // the builder preview looked "broken" for every kind that hadn't happened
+  // for real yet, since only real events reach getLatestByKind normally.
+  // Mirrors backend/overlay/custom.html's identical WS handling.
+  useEffect(() => {
+    const applyEvent = (event) => {
+      if (!event?.kind) return;
+      setLatestByKind((prev) => ({ ...prev, [event.kind]: event }));
+    };
+    const ws = new WebSocket(wsUrl("/chat"));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "twitch_event" || data.type === "chat_overlay_test_event") {
+        applyEvent(data.event);
+      } else if ((data.type === "chat" || data.type === "chat_overlay_test_chat") && data.msg?.isRedeem) {
+        applyEvent({ kind: "redeem", username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp });
+      }
+    };
+    return () => ws.close();
+  }, []);
 
   // Scale the canvas to fit whatever space the viewport has, preserving the
   // 16:9 aspect ratio — react-rnd's `scale` prop keeps drag/resize math

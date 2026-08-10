@@ -122,11 +122,21 @@
   loadInitial();
 
   // ── WebSocket: live layout edits + live {token} data ──────────────────────
-  // Two independent triggers re-render: the builder saving this layout
-  // (custom_overlay_update), and a new Twitch event arriving that a text
-  // layer's {namespace.field} token might reference — re-rendering on every
-  // event is cheap (stage.innerHTML rebuild of a handful of layers) so this
-  // doesn't bother filtering by which kinds are actually used in the layout.
+  // Three trigger types re-render: the builder saving this layout
+  // (custom_overlay_update), a real Twitch event, or the Chat Overlay panel's
+  // "Test event"/"Test redemption" buttons — those broadcast under separate
+  // chat_overlay_test_* types specifically so they don't touch XP/AI-response/
+  // activity history (see index.js's /chat-overlay/test-event), but they
+  // should still preview here so a streamer can check {follower.username}
+  // etc. render correctly without waiting for the real thing to happen.
+  // Re-rendering on every event is cheap (stage.innerHTML rebuild of a
+  // handful of layers) so this doesn't bother filtering by which kinds are
+  // actually referenced by the current layout's text layers.
+  function applyEvent(event) {
+    if (!event || !event.kind) return;
+    latestByKind[event.kind] = event;
+    render();
+  }
   function connect() {
     const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
     const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
@@ -136,12 +146,10 @@
       if (data.type === "custom_overlay_update" && data.layoutId === layoutId) {
         currentLayers = data.layers || [];
         render();
-      } else if (data.type === "twitch_event" && data.event?.kind) {
-        latestByKind[data.event.kind] = data.event;
-        render();
-      } else if (data.type === "chat" && data.msg?.isRedeem) {
-        latestByKind.redeem = { username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp };
-        render();
+      } else if (data.type === "twitch_event" || data.type === "chat_overlay_test_event") {
+        applyEvent(data.event);
+      } else if ((data.type === "chat" || data.type === "chat_overlay_test_chat") && data.msg && data.msg.isRedeem) {
+        applyEvent({ kind: "redeem", username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp });
       }
     };
     ws.onclose = () => setTimeout(connect, 2000);
