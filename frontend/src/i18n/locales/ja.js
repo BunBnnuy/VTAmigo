@@ -420,6 +420,24 @@ export default {
     hint: "このパネルはコンパクトモードで非表示にできます",
   },
 
+  activityPanel: {
+    title: "アクティビティ",
+    empty: "まだアクティビティがありません — フォロー、サブスク、レイドなどがここに表示されます。",
+    anonymous: "匿名",
+    follow: "フォローしました",
+    sub: "サブスクしました",
+    subGift: "ギフトサブスクでサブスクしました",
+    resubOne: "{months}ヶ月リサブしました",
+    resubMany: "{months}ヶ月リサブしました",
+    giftSubOne: "1件のサブをギフトしました",
+    giftSubMany: "{count}件のサブをギフトしました",
+    raidOne: "{viewers}人の視聴者とレイドしました",
+    raidMany: "{viewers}人の視聴者とレイドしました",
+    cheer: "{bits}ビットをチアーしました",
+    redeem: "「{reward}」と交換しました",
+    default: "Twitchアクティビティ",
+  },
+
   avatarPanel: {
     title: "アバター",
     speaking: "🗣️ 話している",

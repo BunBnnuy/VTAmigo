@@ -254,6 +254,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [tiktokStatus, setTiktokStatus] = useState("disconnected");
   const [messages, setMessages] = useState([]);
   const [responses, setResponses] = useState([]);
+  const [activityEvents, setActivityEvents] = useState([]);
   const [loading, setLoading] = useState(false);
   const [muted, setMuted] = useState(false);
   const [ttsPlaying, setTtsPlaying] = useState(false);
@@ -326,6 +327,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     apiFetch("/video/state")
       .then((res) => res.json())
       .then((data) => setVideoState(data))
+      .catch(() => {});
+  }, []);
+
+  // Activity Panel — same fetch-on-mount reasoning as video state above:
+  // the WS only pushes new events as they happen, so without this a page
+  // refresh always showed "no activity yet" even with real recent history.
+  useEffect(() => {
+    apiFetch("/activity/recent")
+      .then((res) => res.json())
+      .then((data) => setActivityEvents(data.events || []))
       .catch(() => {});
   }, []);
 
@@ -915,6 +926,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             isRedeem: msg.isRedeem || false,
             rewardTitle: msg.rewardTitle || null,
           });
+          if (msg.isRedeem) {
+            setActivityEvents((prev) => [...prev.slice(-99), {
+              id: msg.id,
+              timestamp: msg.timestamp || Date.now(),
+              kind: "redeem",
+              username: msg.username,
+              rewardTitle: msg.rewardTitle,
+              text: msg.text,
+            }]);
+          }
 
           // While a screen question is open, also collect messages for it
           if (screenCollectRef.current) {
@@ -966,6 +987,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             isEvent: true,
             eventKind: event.kind,
           }]);
+          setActivityEvents((prev) => [...prev.slice(-99), event]);
           // Immediately trigger a Claude response for this event
           triggerEventResponse(event);
         }
@@ -1274,6 +1296,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         }}
         avatarPanelProps={{ ttsSpeaking }}
         videoQueueProps={{ videoState }}
+        activityPanelProps={{ events: activityEvents, lang: settings.language }}
       />
 
       {/* ── Bottom bar ── */}

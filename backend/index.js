@@ -22,6 +22,7 @@ const { TikTokChatClient } = require("./tiktok");
 const { fetchRandomStory } = require("./reddit");
 const vtubeManager = require("./vtubeManager");
 const xp = require("./xp");
+const activity = require("./activity");
 const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
 const avatarOverlay = require("./avatarOverlay");
@@ -104,6 +105,7 @@ const PROTECTED_PREFIXES = [
   "/respond", "/memory", "/connect", "/disconnect", "/say",
   "/reddit-story", "/reddit-thoughts", "/event-response", "/youtube-narrate",
   "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts", "/video",
+  "/activity",
 ];
 app.use((req, res, next) => {
   // /xp/ranking and /video/state, /video/ended are excluded even though they
@@ -428,6 +430,11 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     if (prev.eventSubClient) prev.eventSubClient.disconnect();
   }
 
+  // Fire-and-forget: first-ever connect for this account seeds the Activity
+  // Panel with whatever history Twitch's API can still provide (follows,
+  // redemptions — see activity.js for why subs/raids/cheers can't be).
+  activity.backfillIfEmpty(twitchId, token).catch(() => {});
+
   // Priority: manually-pasted creds (legacy) > the user's own linked bot
   // account (OAuth, see /bot-link/* in auth.js) > the site-wide fallback bot.
   let linkedBot = null;
@@ -484,8 +491,21 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     channel,
     clientId: process.env.TWITCH_CLIENT_ID,
     token,
-    onRedeem: (redeem) => broadcastToAccount(twitchId, { type: "chat", msg: redeem }),
-    onEvent: (event) => broadcastToAccount(twitchId, { type: "twitch_event", event }),
+    onRedeem: (redeem) => {
+      activity.record(twitchId, {
+        id: redeem.id,
+        timestamp: redeem.timestamp,
+        kind: "redeem",
+        username: redeem.username,
+        rewardTitle: redeem.rewardTitle,
+        text: redeem.text,
+      });
+      broadcastToAccount(twitchId, { type: "chat", msg: redeem });
+    },
+    onEvent: (event) => {
+      activity.record(twitchId, event);
+      broadcastToAccount(twitchId, { type: "twitch_event", event });
+    },
     onStatus: (status) => {
       console.log("[eventsub]", status);
       broadcastToAccount(twitchId, { type: "status", status });
@@ -799,6 +819,14 @@ app.get("/overlay/xp", (req, res) => {
 app.get("/xp/overlay-url", (req, res) => {
   const token = getOverlayToken(req.user.twitchId);
   res.json({ url: `${req.protocol}://${req.get("host")}/overlay/xp?token=${token}` });
+});
+
+// GET /activity/recent — last 30 Twitch activity events (follows, subs,
+// raids, cheers, redeems) for the logged-in account, so the Activity Panel
+// has something to show right after a page load/reconnect instead of
+// waiting for new live events.
+app.get("/activity/recent", (req, res) => {
+  res.json({ events: activity.getRecent(req.user.twitchId, 30) });
 });
 
 // ── Avatar-swap overlay (OBS alternative to VTube Studio) ────────────────────
