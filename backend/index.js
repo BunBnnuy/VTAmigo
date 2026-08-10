@@ -430,6 +430,11 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     if (prev.eventSubClient) prev.eventSubClient.disconnect();
   }
 
+  // Fire-and-forget: first-ever connect for this account seeds the Activity
+  // Panel with whatever history Twitch's API can still provide (follows,
+  // redemptions — see activity.js for why subs/raids/cheers can't be).
+  activity.backfillIfEmpty(twitchId, token).catch(() => {});
+
   // Priority: manually-pasted creds (legacy) > the user's own linked bot
   // account (OAuth, see /bot-link/* in auth.js) > the site-wide fallback bot.
   let linkedBot = null;
