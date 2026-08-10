@@ -76,23 +76,34 @@ export default function WindowManager({
 
   return (
     <div style={styles.canvas}>
-      {PANEL_META.map(({ id, titleKey, dataTour }) => {
-        const layout = panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id];
-        if (layout.closed) return null;
-        return (
-          <Window
-            key={id}
-            id={id}
-            title={t(titleKey)}
-            dataTour={dataTour}
-            layout={layout}
-            onChange={(patch) => onUpdateWindow(id, patch)}
-            onFocus={() => onFocusWindow(id)}
-          >
-            {contentFor(id, layout)}
-          </Window>
-        );
-      })}
+      {/* Window.jsx's <Rnd bounds="parent"> clamps drag/resize to this
+          element's box, not `.canvas`'s — a fixed, generously oversized
+          surface so windows have room to be dragged out past whatever's
+          currently visible. `.canvas` itself stays exactly the size of its
+          flex slot (viewport minus the top/bottom bars) and scrolls to
+          reveal the rest of the surface; see WindowManager's git history
+          for why `.canvas` can't just be big itself (it used to be, via
+          minWidth/minHeight, until that let the whole page grow past the
+          viewport and clip the top/bottom bars). */}
+      <div style={styles.surface}>
+        {PANEL_META.map(({ id, titleKey, dataTour }) => {
+          const layout = panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id];
+          if (layout.closed) return null;
+          return (
+            <Window
+              key={id}
+              id={id}
+              title={t(titleKey)}
+              dataTour={dataTour}
+              layout={layout}
+              onChange={(patch) => onUpdateWindow(id, patch)}
+              onFocus={() => onFocusWindow(id)}
+            >
+              {contentFor(id, layout)}
+            </Window>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -105,5 +116,10 @@ const styles = {
     position: "relative",
     overflow: "auto",
     background: "var(--bg)",
+  },
+  surface: {
+    position: "relative",
+    width: 2000,
+    height: 1200,
   },
 };
