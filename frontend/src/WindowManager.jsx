@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useRef } from "react";
 import Window from "./Window.jsx";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
@@ -59,6 +59,19 @@ export default function WindowManager({
   // `layout` is handed to panels that need to know whether they're actually on
   // screen — <Window> keeps collapsed children mounted (hidden with CSS) so
   // their state survives, which is the wrong trade for the overlay preview.
+  const canvasRef = useRef(null);
+
+  // `.canvas` is a scrollable viewport onto the larger `.surface` below (see
+  // its comment) — browsers don't guarantee a fresh scrollable element
+  // starts at (0,0) on mount (e.g. scroll anchoring can settle wherever a
+  // focused/anchored descendant happens to sit), so pin it explicitly.
+  useEffect(() => {
+    if (canvasRef.current) {
+      canvasRef.current.scrollLeft = 0;
+      canvasRef.current.scrollTop = 0;
+    }
+  }, []);
+
   const contentFor = (id, layout) => {
     switch (id) {
       case "chat": return <ChatFeed {...chatFeedProps} />;
@@ -75,7 +88,7 @@ export default function WindowManager({
   };
 
   return (
-    <div style={styles.canvas}>
+    <div ref={canvasRef} style={styles.canvas}>
       {/* Window.jsx's <Rnd bounds="parent"> clamps drag/resize to this
           element's box, not `.canvas`'s — a fixed, generously oversized
           surface so windows have room to be dragged out past whatever's

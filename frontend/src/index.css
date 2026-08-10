@@ -71,7 +71,7 @@ button {
 button:hover { opacity: 0.85; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 
-input, select {
+input:not([type="checkbox"]):not([type="radio"]), select {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
@@ -82,6 +82,11 @@ input, select {
   width: 100%;
 }
 input:focus, select:focus { outline: 2px solid var(--purple); }
+/* Without the exclusion above, checkboxes/radios inherit width: 100% too —
+   the native checkbox glyph stays small but its layout box fills the row,
+   shoving any following label text (e.g. "Muted", "Autoplay") off to the
+   far right instead of sitting next to the box. */
+input[type="checkbox"], input[type="radio"] { width: auto; flex-shrink: 0; }
 
 label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
 

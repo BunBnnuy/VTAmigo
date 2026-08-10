@@ -65,6 +65,8 @@ function hsbFilter(layer) {
 export default function OverlayCanvas({ layoutId, latestByKind }) {
   const [layers, setLayers] = useState([]);
   const [assets, setAssets] = useState([]);
+  const [usageBytes, setUsageBytes] = useState(0);
+  const [quotaBytes, setQuotaBytes] = useState(100 * 1024 * 1024);
   const [token, setToken] = useState("");
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [fitScale, setFitScale] = useState(0.25);
@@ -79,7 +81,11 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   layersRef.current = layers;
 
   const refreshAssets = useCallback(() => {
-    apiFetch("/overlay-builder/assets").then((r) => r.json()).then((data) => setAssets(data.assets || []));
+    apiFetch("/overlay-builder/assets").then((r) => r.json()).then((data) => {
+      setAssets(data.assets || []);
+      setUsageBytes(data.usageBytes || 0);
+      if (data.quotaBytes) setQuotaBytes(data.quotaBytes);
+    });
   }, []);
 
   const refreshLayout = useCallback(() => {
@@ -195,7 +201,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
       if (!res.ok) return setErrorMsg(data.error || "Upload failed");
       refreshAssets();
       addLayer({
-        id: uid(), type: "video", assetId: data.asset.id, muted: true, x: 100, y: 100, w: 640, h: 360,
+        id: uid(), type: "video", assetId: data.asset.id, muted: false, x: 100, y: 100, w: 640, h: 360,
         autoplay: false, playMode: "loop", randomPosition: false,
         triggerEnabled: false, triggerType: "command", triggerValue: "", minRole: "everyone",
       });
@@ -297,7 +303,14 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
             onDelete={() => selectedLayer && removeLayer(selectedLayer.id)}
             onReorder={(dir) => selectedLayer && reorderLayer(selectedLayer.id, dir)}
           />
-          <AssetsSidebar assets={assets} assetUrl={assetUrl} onDelete={deleteAsset} deleteArmedAssetId={deleteArmedAssetId} />
+          <AssetsSidebar
+            assets={assets}
+            assetUrl={assetUrl}
+            onDelete={deleteAsset}
+            deleteArmedAssetId={deleteArmedAssetId}
+            usageBytes={usageBytes}
+            quotaBytes={quotaBytes}
+          />
         </div>
       </div>
     </div>
@@ -624,10 +637,17 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
   );
 }
 
-function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId }) {
+function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBytes, quotaBytes }) {
+  const pct = quotaBytes ? Math.min(100, (usageBytes / quotaBytes) * 100) : 0;
   return (
     <div style={styles.panel}>
       <div style={styles.panelTitle}>Media Library</div>
+      <div style={styles.quotaRow}>
+        <div style={styles.quotaLabel}>{formatBytes(usageBytes)} / {formatBytes(quotaBytes)} used</div>
+        <div style={styles.quotaTrack}>
+          <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--purple)" }} />
+        </div>
+      </div>
       {assets.length === 0 && <div style={styles.panelEmpty}>No uploads yet.</div>}
       <div style={styles.assetGrid}>
         {assets.map((a) => {
@@ -837,6 +857,26 @@ const styles = {
     background: "var(--red)",
     color: "#fff",
     border: "none",
+  },
+  quotaRow: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 4,
+    marginBottom: 4,
+  },
+  quotaLabel: {
+    fontSize: 11,
+    color: "var(--text-muted)",
+  },
+  quotaTrack: {
+    height: 6,
+    borderRadius: 3,
+    background: "var(--border)",
+    overflow: "hidden",
+  },
+  quotaFill: {
+    height: "100%",
+    transition: "width 0.3s ease",
   },
   assetGrid: {
     display: "grid",
