@@ -186,33 +186,41 @@ export default function OverlayCanvas({ layoutId }) {
       {errorMsg && <div style={styles.errorBanner}>{errorMsg}</div>}
       <div style={styles.editorArea}>
         <div ref={viewportRef} style={styles.viewport}>
-          <div
-            style={{
-              width: CANVAS_W,
-              height: CANVAS_H,
-              flexShrink: 0,
-              transform: `scale(${fitScale})`,
-              transformOrigin: "top left",
-              position: "relative",
-              ...styles.checkerboard,
-            }}
-            onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedLayerId(null); }}
-          >
-            {layers.map((layer) => (
-              <Rnd
-                key={layer.id}
-                size={{ width: layer.w, height: layer.h }}
-                position={{ x: layer.x, y: layer.y }}
-                scale={fitScale}
-                bounds="parent"
-                onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
-                onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
-                onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
-                style={{ outline: layer.id === selectedLayerId ? "2px solid #9147ff" : "1px dashed rgba(255,255,255,0.35)" }}
-              >
-                <LayerContent layer={layer} assetUrl={assetUrl} />
-              </Rnd>
-            ))}
+          {/* Flexbox centers based on the UNSCALED layout box (CSS transform
+              only affects paint, not layout) — so this wrapper is sized to
+              the already-scaled dimensions for centering to land correctly,
+              and the actual 1920x1080 canvas below fills it exactly via
+              scale + absolute positioning. */}
+          <div style={{ width: CANVAS_W * fitScale, height: CANVAS_H * fitScale, position: "relative", flexShrink: 0 }}>
+            <div
+              style={{
+                width: CANVAS_W,
+                height: CANVAS_H,
+                position: "absolute",
+                top: 0,
+                left: 0,
+                transform: `scale(${fitScale})`,
+                transformOrigin: "top left",
+                ...styles.checkerboard,
+              }}
+              onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedLayerId(null); }}
+            >
+              {layers.map((layer) => (
+                <Rnd
+                  key={layer.id}
+                  size={{ width: layer.w, height: layer.h }}
+                  position={{ x: layer.x, y: layer.y }}
+                  scale={fitScale}
+                  bounds="parent"
+                  onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
+                  onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
+                  onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
+                  style={{ outline: layer.id === selectedLayerId ? "2px solid #9147ff" : "1px dashed rgba(255,255,255,0.35)" }}
+                >
+                  <LayerContent layer={layer} assetUrl={assetUrl} />
+                </Rnd>
+              ))}
+            </div>
           </div>
         </div>
 
