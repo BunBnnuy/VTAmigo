@@ -46,17 +46,61 @@ function hasAny(twitchId) {
   return countStmt.get(twitchId).n > 0;
 }
 
+// ── Manual per-kind pre-fills ─────────────────────────────────────────────
+// Twitch has no historical API at all for sub/resub/giftsub/raid/cheer (only
+// follows and redemptions are backfillable — see backfillFollows/Redemptions
+// below), so those kinds would otherwise show a raw {sub.username}-style
+// token until the first real one happens live. This lets the streamer type
+// in a name to pre-fill it — but only as a fallback: getLatestByKind below
+// always prefers a real recorded event over a manual one, so a manual value
+// gets superseded automatically the moment the real thing happens, and never
+// touches activity_events (so it can't pollute the real Activity Panel feed).
+const KNOWN_KINDS = ["follow", "sub", "resub", "giftsub", "raid", "cheer", "redeem"];
+const upsertManualStmt = db.prepare(`
+  INSERT INTO overlay_manual_activity (twitchId, kind, username, updatedAt)
+  VALUES (@twitchId, @kind, @username, @updatedAt)
+  ON CONFLICT(twitchId, kind) DO UPDATE SET username = excluded.username, updatedAt = excluded.updatedAt
+`);
+const deleteManualStmt = db.prepare(`DELETE FROM overlay_manual_activity WHERE twitchId = ? AND kind = ?`);
+const selectManualStmt = db.prepare(`SELECT kind, username FROM overlay_manual_activity WHERE twitchId = ?`);
+
+// Empty/blank username clears the pre-fill (returns null) rather than
+// storing an empty row.
+function setManualLatest(twitchId, kind, username) {
+  if (!KNOWN_KINDS.includes(kind)) throw new Error("BAD_KIND");
+  const trimmed = String(username || "").trim().slice(0, 100);
+  if (!trimmed) {
+    deleteManualStmt.run(twitchId, kind);
+    return null;
+  }
+  const row = { twitchId, kind, username: trimmed, updatedAt: new Date().toISOString() };
+  upsertManualStmt.run(row);
+  return row;
+}
+
+function getManualLatest(twitchId) {
+  const map = {};
+  for (const row of selectManualStmt.all(twitchId)) {
+    map[row.kind] = { kind: row.kind, username: row.username, manual: true };
+  }
+  return map;
+}
+
 // { follow: <event>, sub: <event>, ... } — most recent event per kind, for
 // the Overlay Builder's {follower.username}-style template tokens (see
 // overlayLayouts.js / OverlayCanvas.jsx / overlay/custom.html). Scans the
 // same recent-events window rather than a dedicated indexed query since it's
 // only ever 100 rows and called on overlay page load / builder mount, not
-// per-request-hot-path.
+// per-request-hot-path. Real events always win over a manual pre-fill.
 function getLatestByKind(twitchId) {
   const newestFirst = getRecent(twitchId, KEEP_PER_ACCOUNT).slice().reverse();
   const latest = {};
   for (const event of newestFirst) {
     if (!(event.kind in latest)) latest[event.kind] = event;
+  }
+  const manual = getManualLatest(twitchId);
+  for (const kind of Object.keys(manual)) {
+    if (!(kind in latest)) latest[kind] = manual[kind];
   }
   return latest;
 }
@@ -145,4 +189,4 @@ async function backfillIfEmpty(twitchId, token) {
   }
 }
 
-module.exports = { record, getRecent, getLatestByKind, backfillIfEmpty };
+module.exports = { record, getRecent, getLatestByKind, setManualLatest, backfillIfEmpty };
