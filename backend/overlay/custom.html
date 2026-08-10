@@ -69,6 +69,15 @@
     });
   }
 
+  // Keep in sync with frontend/src/OverlayCanvas.jsx's identical helper.
+  function hsbFilter(layer) {
+    const hue = layer.hue || 0;
+    const saturation = layer.saturation != null ? layer.saturation : 100;
+    const brightness = layer.brightness != null ? layer.brightness : 100;
+    if (hue === 0 && saturation === 100 && brightness === 100) return "";
+    return "hue-rotate(" + hue + "deg) saturate(" + saturation + "%) brightness(" + brightness + "%)";
+  }
+
   function buildLayerEl(layer) {
     const el = document.createElement("div");
     el.className = "layer";
@@ -80,6 +89,8 @@
     if (layer.type === "image") {
       const img = document.createElement("img");
       img.src = layer.assetUrl;
+      img.style.filter = hsbFilter(layer);
+      img.style.opacity = (layer.opacity != null ? layer.opacity : 100) / 100;
       el.appendChild(img);
     } else if (layer.type === "video") {
       const video = document.createElement("video");
