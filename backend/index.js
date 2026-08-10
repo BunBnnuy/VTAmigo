@@ -369,6 +369,24 @@ app.post("/say", (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /say-as-streamer — send a message to chat as the logged-in streamer's
+// own Twitch account, from the Live Chat panel's typed input (frontend/src/
+// ChatFeed.jsx). Uses session.twitchClient, which is otherwise read-only
+// (listens for chat via handleChat) — this is the only place it sends.
+// Deliberately not wired up for voice-to-text transcripts (see
+// VoiceTranscription.js's onTranscript in App.jsx): those stay local/AI-buffer
+// only, never posted to chat.
+app.post("/say-as-streamer", (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: "text is required" });
+
+  const session = twitchSessions.get(req.user.twitchId);
+  if (!session || !session.twitchClient) return res.status(503).json({ error: "Not connected to Twitch chat" });
+  const sent = session.twitchClient.say(text);
+  if (!sent) return res.status(503).json({ error: "Twitch chat WebSocket not open" });
+  res.json({ ok: true });
+});
+
 // Guards against overlapping refresh attempts when the bot IRC client fires
 // several auth_error events back-to-back (it reconnects and re-fails every
 // ~10s until we intervene) — see handleBotAuthError below.

@@ -84,6 +84,18 @@ export default function ChatFeed({
         })}
         <div ref={bottomRef} />
       </div>
+      {micSupported && micActive && !micError && (
+        // Voice-to-text output — display only, deliberately separate from the
+        // typed-message input below. It's never sent to Twitch chat, only fed
+        // into the AI context buffer (see voice.onTranscript in App.jsx), so
+        // it must never share a field with the input that IS sent.
+        <div style={styles.voiceOutRow}>
+          <span style={styles.voiceOutIcon}>🎙</span>
+          <span style={styles.voiceOutText}>
+            {micSpeaking ? t("chatFeed.listening") : micLastText || t("chatFeed.waitingForSpeech")}
+          </span>
+        </div>
+      )}
       {(micSupported || onSend) && (
         <div style={styles.inputRow}>
           {micSupported && (
@@ -115,11 +127,7 @@ export default function ChatFeed({
                 type="text"
                 value={draft}
                 onChange={(e) => setDraft(e.target.value)}
-                placeholder={
-                  micActive && !micError
-                    ? (micSpeaking ? t("chatFeed.listening") : micLastText || t("chatFeed.waitingForSpeech"))
-                    : t("chatFeed.inputPlaceholder")
-                }
+                placeholder={t("chatFeed.inputPlaceholder")}
               />
               <button style={styles.sendBtn} type="submit" disabled={!draft.trim()}>
                 {t("chatFeed.send")}
@@ -146,6 +154,28 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     gap: 2,
+  },
+  voiceOutRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "6px 10px",
+    borderTop: "1px solid var(--border)",
+    background: "rgba(0, 212, 255, 0.07)",
+    flexShrink: 0,
+  },
+  voiceOutIcon: {
+    fontSize: 12,
+    flexShrink: 0,
+    opacity: 0.8,
+  },
+  voiceOutText: {
+    fontSize: 12,
+    fontStyle: "italic",
+    color: "#00d4ff",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   inputRow: {
     display: "flex",
