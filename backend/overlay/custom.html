@@ -121,7 +121,21 @@
       el.style.top = pos.y + "px";
     }
     try { mediaEl.currentTime = 0; } catch {}
-    mediaEl.play().catch(() => {});
+    // Browsers block programmatic autoplay *with sound* unless it follows a
+    // real user gesture — which a chat command/redeem firing over a
+    // WebSocket never counts as. Muted autoplay is always allowed, and
+    // un-muting an element that's already playing is NOT subject to that
+    // restriction, so: start muted, then flip it back once playback has
+    // actually begun. Without this, a layer configured with sound plays
+    // silently (play() either resolves anyway with audio suppressed, or the
+    // promise rejects and nothing plays at all, depending on browser).
+    const wantsSound = layer.type === "sound" ? true : layer.muted !== true;
+    if (wantsSound) mediaEl.muted = true;
+    mediaEl.play().then(() => {
+      if (wantsSound) mediaEl.muted = false;
+    }).catch((err) => {
+      console.warn("[overlay] playback failed for layer", layer.id, err && err.name, err && err.message);
+    });
   }
 
   function buildMediaEntry(layer) {
@@ -141,12 +155,20 @@
       img.style.opacity = (layer.opacity != null ? layer.opacity : 100) / 100;
       el.appendChild(img);
     } else if (layer.type === "video") {
+      // Visible only while actually playing — a "play once" video that has
+      // finished (or hasn't been triggered yet) would otherwise sit frozen
+      // on the last/first frame forever. The builder editor still always
+      // shows it (see frontend/src/OverlayCanvas.jsx's LayerContent) since
+      // that's a design surface, not the live stream output.
+      el.style.visibility = "hidden";
       const video = document.createElement("video");
       video.src = layer.assetUrl;
       video.loop = false; // manual looping — see the "ended" listener below
       video.muted = layer.muted !== false;
       video.playsInline = true;
+      video.addEventListener("playing", () => { el.style.visibility = "visible"; });
       video.addEventListener("ended", () => {
+        el.style.visibility = "hidden";
         if (entry.layer.playMode === "loop") startPlayback(entry);
       });
       entry.mediaEl = video;
