@@ -29,6 +29,8 @@ export default function OverlayCanvas({ layoutId }) {
   const [fitScale, setFitScale] = useState(0.25);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [uploading, setUploading] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
+  const [deleteArmedAssetId, setDeleteArmedAssetId] = useState(null);
 
   const viewportRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -85,6 +87,12 @@ export default function OverlayCanvas({ layoutId }) {
 
   useEffect(() => () => clearTimeout(saveTimerRef.current), []);
 
+  useEffect(() => {
+    if (!errorMsg) return;
+    const timer = setTimeout(() => setErrorMsg(""), 4000);
+    return () => clearTimeout(timer);
+  }, [errorMsg]);
+
   const updateLayer = (id, patch) => {
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
     scheduleSave();
@@ -126,7 +134,7 @@ export default function OverlayCanvas({ layoutId }) {
           body: JSON.stringify({ dataUrl: reader.result }),
         });
         const data = await res.json();
-        if (!res.ok) return window.alert(data.error || "Upload failed");
+        if (!res.ok) return setErrorMsg(data.error || "Upload failed");
         refreshAssets();
         addLayer({ id: uid(), type: "image", assetId: data.asset.id, x: 100, y: 100, w: 480, h: 320 });
       } finally {
@@ -143,7 +151,7 @@ export default function OverlayCanvas({ layoutId }) {
       formData.append("video", file);
       const res = await apiFetch("/overlay-builder/assets/video", { method: "POST", body: formData });
       const data = await res.json();
-      if (!res.ok) return window.alert(data.error || "Upload failed");
+      if (!res.ok) return setErrorMsg(data.error || "Upload failed");
       refreshAssets();
       addLayer({ id: uid(), type: "video", assetId: data.asset.id, loop: true, muted: true, x: 100, y: 100, w: 640, h: 360 });
     } finally {
@@ -156,7 +164,8 @@ export default function OverlayCanvas({ layoutId }) {
   };
 
   const deleteAsset = async (assetId) => {
-    if (!window.confirm("Delete this asset? Any layers using it will be removed too.")) return;
+    if (deleteArmedAssetId !== assetId) { setDeleteArmedAssetId(assetId); return; }
+    setDeleteArmedAssetId(null);
     await apiFetch(`/overlay-builder/assets/${assetId}`, { method: "DELETE" });
     refreshAssets();
     refreshLayout();
@@ -174,6 +183,7 @@ export default function OverlayCanvas({ layoutId }) {
         uploading={uploading}
         saveState={saveState}
       />
+      {errorMsg && <div style={styles.errorBanner}>{errorMsg}</div>}
       <div style={styles.editorArea}>
         <div ref={viewportRef} style={styles.viewport}>
           <div
@@ -212,7 +222,7 @@ export default function OverlayCanvas({ layoutId }) {
             onDelete={() => selectedLayer && removeLayer(selectedLayer.id)}
             onReorder={(dir) => selectedLayer && reorderLayer(selectedLayer.id, dir)}
           />
-          <AssetsSidebar assets={assets} assetUrl={assetUrl} onDelete={deleteAsset} />
+          <AssetsSidebar assets={assets} assetUrl={assetUrl} onDelete={deleteAsset} deleteArmedAssetId={deleteArmedAssetId} />
         </div>
       </div>
     </div>
@@ -364,23 +374,33 @@ function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
   );
 }
 
-function AssetsSidebar({ assets, assetUrl, onDelete }) {
+function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId }) {
   return (
     <div style={styles.panel}>
       <div style={styles.panelTitle}>Media Library</div>
       {assets.length === 0 && <div style={styles.panelEmpty}>No uploads yet.</div>}
       <div style={styles.assetGrid}>
-        {assets.map((a) => (
-          <div key={a.id} style={styles.assetCard}>
-            {a.kind === "image" ? (
-              <img src={assetUrl(a.id)} alt="" style={styles.assetThumb} />
-            ) : (
-              <div style={styles.assetThumbVideo}>🎬</div>
-            )}
-            <div style={styles.assetMeta}>{formatBytes(a.sizeBytes)}</div>
-            <button style={styles.assetDeleteBtn} onClick={() => onDelete(a.id)} title="Delete">✕</button>
-          </div>
-        ))}
+        {assets.map((a) => {
+          const armed = deleteArmedAssetId === a.id;
+          return (
+            <div key={a.id} style={styles.assetCard}>
+              {a.kind === "image" ? (
+                <img src={assetUrl(a.id)} alt="" style={styles.assetThumb} />
+              ) : (
+                <div style={styles.assetThumbVideo}>🎬</div>
+              )}
+              <div style={styles.assetMeta}>{formatBytes(a.sizeBytes)}</div>
+              <button
+                style={armed ? styles.assetDeleteBtnArmed : styles.assetDeleteBtn}
+                onClick={() => onDelete(a.id)}
+                onBlur={() => armed && onDelete(null)}
+                title={armed ? "Click again to confirm" : "Delete"}
+              >
+                {armed ? "✓" : "✕"}
+              </button>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -582,5 +602,26 @@ const styles = {
     fontSize: 10,
     lineHeight: "18px",
     padding: 0,
+  },
+  assetDeleteBtnArmed: {
+    position: "absolute",
+    top: 2,
+    right: 2,
+    background: "var(--red)",
+    color: "#fff",
+    border: "none",
+    borderRadius: 4,
+    width: 18,
+    height: 18,
+    fontSize: 10,
+    lineHeight: "18px",
+    padding: 0,
+  },
+  errorBanner: {
+    background: "var(--red)",
+    color: "#fff",
+    fontSize: 13,
+    padding: "6px 12px",
+    flexShrink: 0,
   },
 };
