@@ -437,7 +437,13 @@ function formatUptime(sec) {
 
 const styles = {
   root: {
-    minHeight: "100vh", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
+    // height (not minHeight) + overflow hidden so this becomes the fixed
+    // viewport-sized shell — matches index.css's html/body/#root overflow:
+    // hidden rule (needed so the Overlay Studio's own canvas doesn't scroll
+    // the page). Admin's actual scrolling happens in `page` below; without
+    // a bounded height here there's nothing for the wheel to scroll — this
+    // page's content just got silently clipped by #root's overflow: hidden.
+    height: "100vh", overflow: "hidden", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
     display: "flex",
   },
   wrap: {
@@ -469,15 +475,17 @@ const styles = {
   },
 
   /* Main */
-  main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column" },
+  main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" },
   topBar: {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
     padding: "16px 32px", borderBottom: "1px solid var(--border, #2a2a2e)",
-    position: "sticky", top: 0, zIndex: 10, background: "var(--bg, #0e0e10)",
+    flexShrink: 0, zIndex: 10, background: "var(--bg, #0e0e10)",
   },
   topBarTitle: { fontWeight: 700, fontSize: 18 },
   miniStats: { fontSize: 12, color: "var(--text-muted, #adadb8)", fontWeight: 500 },
-  page: { padding: "24px 32px 48px" },
+  // The actual scroll region — `main` is capped to the viewport (overflow
+  // hidden), so this is what the mouse wheel scrolls.
+  page: { padding: "24px 32px 48px", flex: 1, overflowY: "auto" },
 
   /* Stat cards */
   statGrid: {
