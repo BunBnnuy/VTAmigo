@@ -121,19 +121,17 @@
       el.style.top = pos.y + "px";
     }
     try { mediaEl.currentTime = 0; } catch {}
-    // Browsers block programmatic autoplay *with sound* unless it follows a
-    // real user gesture — which a chat command/redeem firing over a
-    // WebSocket never counts as. Muted autoplay is always allowed, and
-    // un-muting an element that's already playing is NOT subject to that
-    // restriction, so: start muted, then flip it back once playback has
-    // actually begun. Without this, a layer configured with sound plays
-    // silently (play() either resolves anyway with audio suppressed, or the
-    // promise rejects and nothing plays at all, depending on browser).
-    const wantsSound = layer.type === "sound" ? true : layer.muted !== true;
-    if (wantsSound) mediaEl.muted = true;
-    mediaEl.play().then(() => {
-      if (wantsSound) mediaEl.muted = false;
-    }).catch((err) => {
+    // Play at whatever mute state was actually configured (buildMediaEntry/
+    // updateEntryInPlace keep mediaEl.muted in sync with the layer already).
+    // An earlier version of this forced muted=true here and un-muted after
+    // play() resolved, as a workaround for browsers blocking unmuted
+    // autoplay without a user gesture — but OBS Browser Sources (and,
+    // apparently, this app's target browsers generally) don't enforce that
+    // restriction, and the forced-mute-then-unmute round trip was the actual
+    // cause of silent playback: some browsers don't cleanly re-engage the
+    // audio output once a video started muted, even after flipping the
+    // property back. Playing directly avoids that.
+    mediaEl.play().catch((err) => {
       console.warn("[overlay] playback failed for layer", layer.id, err && err.name, err && err.message);
     });
   }
@@ -344,4 +342,3 @@
 </script>
 </body>
 </html>
-</content>
