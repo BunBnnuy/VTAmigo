@@ -117,7 +117,13 @@ app.use((req, res, next) => {
   // needs, and OBS's Browser Source has no access to the streamer's session
   // cookie. They do their own auth inline (cookie session OR ?token= overlay
   // token) instead of the blanket check.
-  if (req.path === "/xp/ranking" || req.path === "/video/state" || req.path === "/video/ended") return next();
+  // "/overlay-builder" bare (no trailing segment) is the Overlay Studio SPA
+  // page itself, not an API call — like /admin and /device, it does its own
+  // client-side /auth/me check (see OverlayBuilder.jsx), so it must fall
+  // through to the SPA catch-all unauthenticated. Everything under
+  // "/overlay-builder/..." (the actual API routes) still matches the prefix
+  // check below and gets gated normally.
+  if (req.path === "/xp/ranking" || req.path === "/video/state" || req.path === "/video/ended" || req.path === "/overlay-builder") return next();
   // Match hyphenated variants too (e.g. "/connect-bot", "/connect-tiktok"),
   // not just "/connect" itself or "/connect/..." — a plain "/" boundary
   // check let those slip through unauthenticated, which crashed /connect-bot
