@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Custom Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 1920px;
+    height: 1080px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+  #stage {
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+  }
+  .layer {
+    position: absolute;
+    overflow: hidden;
+  }
+  .layer img, .layer video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .layer .text-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+  // /overlay/custom/:layoutId — layoutId is the last path segment.
+  const layoutId = location.pathname.split("/").filter(Boolean).pop();
+
+  const stage = document.getElementById("stage");
+
+  // { follow: <event>, sub: <event>, ... } — most recent event per kind, for
+  // {follower.username}-style tokens in text layers. Seeded from the initial
+  // data fetch, then kept current from live WS events (see connect() below)
+  // without needing a full re-fetch of the layout.
+  let latestByKind = {};
+  let currentLayers = [];
+
+  // Keep in sync with frontend/src/OverlayCanvas.jsx's TOKEN_TO_KIND/fillTemplate —
+  // this is a separate static-HTML bundle, not React, so it's duplicated by hand.
+  const TOKEN_TO_KIND = { follower: "follow", sub: "sub", resub: "resub", giftsub: "giftsub", raid: "raid", cheer: "cheer", redeem: "redeem" };
+  function fillTemplate(template) {
+    return template.replace(/\{(\w+)\.(\w+)\}/g, (match, ns, field) => {
+      const kind = TOKEN_TO_KIND[ns];
+      const event = kind && latestByKind[kind];
+      return event && event[field] !== undefined ? String(event[field]) : match;
+    });
+  }
+
+  // Keep in sync with frontend/src/OverlayCanvas.jsx's identical helper.
+  function hsbFilter(layer) {
+    const hue = layer.hue || 0;
+    const saturation = layer.saturation != null ? layer.saturation : 100;
+    const brightness = layer.brightness != null ? layer.brightness : 100;
+    if (hue === 0 && saturation === 100 && brightness === 100) return "";
+    return "hue-rotate(" + hue + "deg) saturate(" + saturation + "%) brightness(" + brightness + "%)";
+  }
+
+  function buildLayerEl(layer) {
+    const el = document.createElement("div");
+    el.className = "layer";
+    el.style.left = layer.x + "px";
+    el.style.top = layer.y + "px";
+    el.style.width = layer.w + "px";
+    el.style.height = layer.h + "px";
+
+    if (layer.type === "image") {
+      const img = document.createElement("img");
+      img.src = layer.assetUrl;
+      img.style.filter = hsbFilter(layer);
+      img.style.opacity = (layer.opacity != null ? layer.opacity : 100) / 100;
+      el.appendChild(img);
+    } else if (layer.type === "video") {
+      const video = document.createElement("video");
+      video.src = layer.assetUrl;
+      video.autoplay = true;
+      video.loop = layer.loop !== false;
+      video.muted = layer.muted !== false;
+      video.playsInline = true;
+      el.appendChild(video);
+    } else if (layer.type === "text") {
+      const text = document.createElement("div");
+      text.className = "text-content";
+      text.textContent = fillTemplate(layer.text || "");
+      text.style.fontSize = (layer.fontSize || 32) + "px";
+      text.style.color = layer.color || "#ffffff";
+      text.style.fontWeight = layer.bold ? "700" : "400";
+      text.style.justifyContent = layer.align === "center" ? "center" : layer.align === "right" ? "flex-end" : "flex-start";
+      text.style.textAlign = layer.align || "left";
+      if (layer.fontFamily) text.style.fontFamily = layer.fontFamily;
+      el.appendChild(text);
+    }
+    return el;
+  }
+
+  function render() {
+    stage.innerHTML = "";
+    currentLayers.forEach((layer) => stage.appendChild(buildLayerEl(layer)));
+  }
+
+  async function loadInitial() {
+    try {
+      const res = await fetch(`/overlay/custom/${encodeURIComponent(layoutId)}/data?token=${encodeURIComponent(token)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      currentLayers = data.layers || [];
+      latestByKind = data.latestByKind || {};
+      render();
+    } catch { /* backend not ready yet */ }
+  }
+  loadInitial();
+
+  // ── WebSocket: live layout edits + live {token} data ──────────────────────
+  // Two trigger types re-render: the builder saving this layout
+  // (custom_overlay_update), and a REAL Twitch event arriving (twitch_event,
+  // or a "chat" message with isRedeem) — deliberately real data only, no
+  // test/simulated events, so the overlay always reflects the actual latest
+  // follower/sub/cheer/etc. Re-rendering on every event is cheap
+  // (stage.innerHTML rebuild of a handful of layers) so this doesn't bother
+  // filtering by which kinds are actually referenced by the layout's layers.
+  function applyEvent(event) {
+    if (!event || !event.kind) return;
+    latestByKind[event.kind] = event;
+    render();
+  }
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "custom_overlay_update" && data.layoutId === layoutId) {
+        currentLayers = data.layers || [];
+        render();
+      } else if (data.type === "twitch_event") {
+        applyEvent(data.event);
+      } else if (data.type === "chat" && data.msg && data.msg.isRedeem) {
+        applyEvent({ kind: "redeem", username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp });
+      }
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>
