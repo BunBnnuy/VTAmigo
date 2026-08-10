@@ -59,7 +59,6 @@ export default function OverlayCanvas({ layoutId }) {
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
-  const [testMsg, setTestMsg] = useState("");
   const [deleteArmedAssetId, setDeleteArmedAssetId] = useState(null);
   const [latestByKind, setLatestByKind] = useState({});
 
@@ -89,15 +88,11 @@ export default function OverlayCanvas({ layoutId }) {
       .then((data) => setLatestByKind(data.latestByKind || {}));
   }, [layoutId, refreshLayout, refreshAssets]);
 
-  // Live-updates {token} previews as events happen — both real ones
-  // (twitch_event / a "chat" message with isRedeem) and the Chat Overlay
-  // panel's "Test event"/"Test redemption" buttons (chat_overlay_test_event /
-  // chat_overlay_test_chat), which broadcast under separate WS types
-  // specifically so they don't touch XP/AI-response/activity history (see
-  // index.js's /chat-overlay/test-event) — without listening for those too,
-  // the builder preview looked "broken" for every kind that hadn't happened
-  // for real yet, since only real events reach getLatestByKind normally.
-  // Mirrors backend/overlay/custom.html's identical WS handling.
+  // Live-updates {token} previews the moment a REAL Twitch event happens
+  // (twitch_event, or a "chat" message with isRedeem) — deliberately real
+  // data only, no test/simulated events, so what's shown here always
+  // matches what the actual OBS overlay would show. Mirrors
+  // backend/overlay/custom.html's identical WS handling.
   useEffect(() => {
     const applyEvent = (event) => {
       if (!event?.kind) return;
@@ -107,9 +102,9 @@ export default function OverlayCanvas({ layoutId }) {
     ws.onmessage = (e) => {
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
-      if (data.type === "twitch_event" || data.type === "chat_overlay_test_event") {
+      if (data.type === "twitch_event") {
         applyEvent(data.event);
-      } else if ((data.type === "chat" || data.type === "chat_overlay_test_chat") && data.msg?.isRedeem) {
+      } else if (data.type === "chat" && data.msg?.isRedeem) {
         applyEvent({ kind: "redeem", username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp });
       }
     };
@@ -153,12 +148,6 @@ export default function OverlayCanvas({ layoutId }) {
     const timer = setTimeout(() => setErrorMsg(""), 4000);
     return () => clearTimeout(timer);
   }, [errorMsg]);
-
-  useEffect(() => {
-    if (!testMsg) return;
-    const timer = setTimeout(() => setTestMsg(""), 3000);
-    return () => clearTimeout(timer);
-  }, [testMsg]);
 
   const updateLayer = (id, patch) => {
     setLayers((prev) => prev.map((l) => (l.id === id ? { ...l, ...patch } : l)));
@@ -230,20 +219,6 @@ export default function OverlayCanvas({ layoutId }) {
     addLayer({ id: uid(), type: "text", text: "New Text", fontSize: 48, color: "#ffffff", bold: false, align: "left", x: 100, y: 100, w: 500, h: 100 });
   };
 
-  // Fires the same fake follow/sub/raid/cheer/etc. (or channel-point redeem)
-  // used by the Chat Overlay panel's own Test buttons, so a {token} can be
-  // previewed here without needing a second tab open to trigger it — the
-  // live WS effect above picks these up the same way it does real events.
-  const testEvent = async () => {
-    const res = await apiFetch("/chat-overlay/test-event", { method: "POST" });
-    const data = await res.json().catch(() => null);
-    if (data?.event) setTestMsg(`Fired: {${data.event.kind}.username} → ${data.event.username}`);
-  };
-  const testRedeem = async () => {
-    await apiFetch("/chat-overlay/test-redeem", { method: "POST" });
-    setTestMsg("Fired a test redemption — check {redeem.*}");
-  };
-
   const deleteAsset = async (assetId) => {
     if (deleteArmedAssetId !== assetId) { setDeleteArmedAssetId(assetId); return; }
     setDeleteArmedAssetId(null);
@@ -261,13 +236,10 @@ export default function OverlayCanvas({ layoutId }) {
         onAddImage={uploadImage}
         onAddVideo={uploadVideo}
         onAddText={addText}
-        onTestEvent={testEvent}
-        onTestRedeem={testRedeem}
         uploading={uploading}
         saveState={saveState}
       />
       {errorMsg && <div style={styles.errorBanner}>{errorMsg}</div>}
-      {testMsg && <div style={styles.testBanner}>{testMsg}</div>}
       <div style={styles.editorArea}>
         <div ref={viewportRef} style={styles.viewport}>
           {/* Flexbox centers based on the UNSCALED layout box (CSS transform
@@ -360,7 +332,7 @@ function LayerContent({ layer, assetUrl, latestByKind }) {
   );
 }
 
-function Toolbar({ onAddImage, onAddVideo, onAddText, onTestEvent, onTestRedeem, uploading, saveState }) {
+function Toolbar({ onAddImage, onAddVideo, onAddText, uploading, saveState }) {
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
 
@@ -383,9 +355,6 @@ function Toolbar({ onAddImage, onAddVideo, onAddText, onTestEvent, onTestRedeem,
         onChange={(e) => { if (e.target.files[0]) onAddVideo(e.target.files[0]); e.target.value = ""; }}
       />
       <button style={styles.toolBtn} onClick={onAddText}>🔤 Add Text</button>
-      <span style={styles.toolbarDivider} />
-      <button style={styles.toolBtn} onClick={onTestEvent} title="Fire a fake follow/sub/raid/cheer/etc. to preview {token} text">🎲 Test Event</button>
-      <button style={styles.toolBtn} onClick={onTestRedeem} title="Fire a fake channel-point redemption to preview {redeem.*} text">🎁 Test Redeem</button>
       <div style={styles.saveIndicator}>
         {uploading ? "Uploading…" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
       </div>
@@ -547,12 +516,6 @@ const styles = {
     background: "var(--surface2)",
     color: "var(--text)",
     border: "1px solid var(--border)",
-  },
-  toolbarDivider: {
-    width: 1,
-    alignSelf: "stretch",
-    background: "var(--border)",
-    margin: "0 2px",
   },
   saveIndicator: {
     marginLeft: "auto",
@@ -765,13 +728,6 @@ const styles = {
   },
   errorBanner: {
     background: "var(--red)",
-    color: "#fff",
-    fontSize: 13,
-    padding: "6px 12px",
-    flexShrink: 0,
-  },
-  testBanner: {
-    background: "var(--purple)",
     color: "#fff",
     fontSize: 13,
     padding: "6px 12px",
