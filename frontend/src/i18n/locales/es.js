@@ -312,6 +312,8 @@ export default {
     themeLight: "claro",
     themeDark: "oscuro",
     themeSystem: "sistema",
+    overlayStudioBtn: "🎨 Estudio de overlay",
+    overlayStudioTitle: "Diseña un overlay personalizado para OBS",
     settingsBtn: "⚙ Configuración",
     connect: "Conectar",
     disconnect: "Desconectar",

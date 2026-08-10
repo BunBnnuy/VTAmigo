@@ -312,6 +312,8 @@ export default {
     themeLight: "라이트",
     themeDark: "다크",
     themeSystem: "시스템",
+    overlayStudioBtn: "🎨 오버레이 스튜디오",
+    overlayStudioTitle: "OBS용 커스텀 오버레이 만들기",
     settingsBtn: "⚙ 설정",
     connect: "연결",
     disconnect: "연결 해제",

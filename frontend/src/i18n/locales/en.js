@@ -314,6 +314,8 @@ export default {
     themeSystem: "system",
     panelsTitle: "Show/hide panels",
     ttsVolumeTitle: "TTS volume: {pct}%",
+    overlayStudioBtn: "🎨 Overlay Studio",
+    overlayStudioTitle: "Design a custom OBS overlay",
     settingsBtn: "⚙ Settings",
     connect: "Connect",
     disconnect: "Disconnect",

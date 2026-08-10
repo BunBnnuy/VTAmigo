@@ -115,6 +115,18 @@ db.exec(`
     PRIMARY KEY (twitchId, usernameLower)
   );
 
+  -- Named layer lists for the custom Overlay Builder (backend/overlayLayouts.js).
+  -- Multiple rows per account, one per named layout — unlike the single-row
+  -- tables above (chat_overlay_config etc.), so twitchId isn't the PK here.
+  CREATE TABLE IF NOT EXISTS overlay_layouts (
+    id TEXT PRIMARY KEY,
+    twitchId TEXT NOT NULL,
+    name TEXT NOT NULL,
+    layers TEXT NOT NULL,
+    updatedAt TEXT NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_overlay_layouts_twitchId ON overlay_layouts (twitchId);
+
   CREATE TABLE IF NOT EXISTS activity_events (
     id TEXT NOT NULL,
     twitchId TEXT NOT NULL,
