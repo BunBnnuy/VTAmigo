@@ -1384,7 +1384,11 @@ app.get("/overlay-builder/overlay-url/:layoutId", (req, res) => {
 });
 
 app.get("/overlay-builder/assets", (req, res) => {
-  res.json({ assets: overlayAssets.listAssets(req.user.twitchId) });
+  res.json({
+    assets: overlayAssets.listAssets(req.user.twitchId),
+    usageBytes: overlayAssets.getUsageBytes(req.user.twitchId),
+    quotaBytes: overlayAssets.QUOTA_BYTES,
+  });
 });
 
 // GET /overlay-builder/latest-activity — most recent event per kind (follow,
@@ -1421,6 +1425,7 @@ app.post("/overlay-builder/assets", (req, res) => {
     if (err.message === "BAD_DATA_URL") return res.status(400).json({ error: "dataUrl is required" });
     if (err.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Image must be JPEG, PNG, GIF, or WebP" });
     if (err.message === "TOO_LARGE") return res.status(413).json({ error: `Image must be under ${overlayAssets.MAX_IMAGE_BYTES / (1024 * 1024)}MB` });
+    if (err.message === "QUOTA_EXCEEDED") return res.status(413).json({ error: `Storage quota exceeded — you get ${overlayAssets.QUOTA_BYTES / (1024 * 1024)}MB total across all media. Delete some uploads to free up space.` });
     console.error("[overlay-builder/assets]", err.message);
     res.status(500).json({ error: err.message });
   }
@@ -1443,6 +1448,7 @@ app.post("/overlay-builder/assets/video", (req, res) => {
     } catch (saveErr) {
       if (saveErr.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Video must be MP4 or WebM" });
       if (saveErr.message === "TOO_LARGE") return res.status(413).json({ error: `Video must be under ${overlayAssets.MAX_VIDEO_BYTES / (1024 * 1024)}MB` });
+      if (saveErr.message === "QUOTA_EXCEEDED") return res.status(413).json({ error: `Storage quota exceeded — you get ${overlayAssets.QUOTA_BYTES / (1024 * 1024)}MB total across all media. Delete some uploads to free up space.` });
       console.error("[overlay-builder/assets/video]", saveErr.message);
       res.status(500).json({ error: saveErr.message });
     }
@@ -1465,6 +1471,7 @@ app.post("/overlay-builder/assets/audio", (req, res) => {
     } catch (saveErr) {
       if (saveErr.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Audio must be MP3, WAV, or OGG" });
       if (saveErr.message === "TOO_LARGE") return res.status(413).json({ error: `Audio must be under ${overlayAssets.MAX_AUDIO_BYTES / (1024 * 1024)}MB` });
+      if (saveErr.message === "QUOTA_EXCEEDED") return res.status(413).json({ error: `Storage quota exceeded — you get ${overlayAssets.QUOTA_BYTES / (1024 * 1024)}MB total across all media. Delete some uploads to free up space.` });
       console.error("[overlay-builder/assets/audio]", saveErr.message);
       res.status(500).json({ error: saveErr.message });
     }
