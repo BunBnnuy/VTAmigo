@@ -30,6 +30,9 @@
     object-fit: contain;
     display: block;
   }
+  .layer.sound {
+    display: none;
+  }
   .layer .text-content {
     width: 100%;
     height: 100%;
@@ -44,6 +47,9 @@
   <div id="stage"></div>
 
 <script>
+  const CANVAS_W = 1920;
+  const CANVAS_H = 1080;
+
   const params = new URLSearchParams(location.search);
   const token = params.get("token") || "";
   // /overlay/custom/:layoutId — layoutId is the last path segment.
@@ -78,13 +84,55 @@
     return "hue-rotate(" + hue + "deg) saturate(" + saturation + "%) brightness(" + brightness + "%)";
   }
 
-  function buildLayerEl(layer) {
+  // ── Layer DOM: keyed reconciliation instead of full rebuild ────────────────
+  // Twitch events (follows/subs/etc.) and layout autosaves both re-render —
+  // previously that meant `stage.innerHTML = ""` + rebuild-everything on every
+  // single one, which would restart any in-progress video/sound playback on a
+  // totally unrelated event. Layers are now tracked by id in `layerEls`; a
+  // layer whose type+assetId hasn't changed gets its DOM patched in place
+  // (position, filters, volume, text) instead of being torn down, so
+  // long-running/triggered media survives unrelated re-renders.
+  const layerEls = new Map(); // id -> { el, layer, mediaEl, sig }
+
+  function signature(layer) {
+    return layer.type + "|" + (layer.assetId || "");
+  }
+
+  // Random on-canvas position for a video's "random position on each play" —
+  // computed at play time only (never persisted back to the layout), keeping
+  // w/h fixed at whatever was configured in the editor.
+  function randomPos(layer) {
+    const maxX = Math.max(0, CANVAS_W - layer.w);
+    const maxY = Math.max(0, CANVAS_H - layer.h);
+    return { x: Math.random() * maxX, y: Math.random() * maxY };
+  }
+
+  // (Re)starts a video/sound layer's playback from the top — used for
+  // autoplay, trigger firing, and re-triggering an already-playing layer.
+  // Looping is handled manually (see buildMediaEntry's "ended" listener,
+  // never the native `loop` attribute) so a looped video can also
+  // re-randomize its position on every iteration, not just the first play.
+  function startPlayback(entry) {
+    const { mediaEl, layer, el } = entry;
+    if (!mediaEl) return;
+    if (layer.type === "video" && layer.randomPosition) {
+      const pos = randomPos(layer);
+      el.style.left = pos.x + "px";
+      el.style.top = pos.y + "px";
+    }
+    try { mediaEl.currentTime = 0; } catch {}
+    mediaEl.play().catch(() => {});
+  }
+
+  function buildMediaEntry(layer) {
     const el = document.createElement("div");
-    el.className = "layer";
+    el.className = "layer" + (layer.type === "sound" ? " sound" : "");
     el.style.left = layer.x + "px";
     el.style.top = layer.y + "px";
     el.style.width = layer.w + "px";
     el.style.height = layer.h + "px";
+
+    const entry = { el, layer, mediaEl: null };
 
     if (layer.type === "image") {
       const img = document.createElement("img");
@@ -95,11 +143,24 @@
     } else if (layer.type === "video") {
       const video = document.createElement("video");
       video.src = layer.assetUrl;
-      video.autoplay = true;
-      video.loop = layer.loop !== false;
+      video.loop = false; // manual looping — see the "ended" listener below
       video.muted = layer.muted !== false;
       video.playsInline = true;
+      video.addEventListener("ended", () => {
+        if (entry.layer.playMode === "loop") startPlayback(entry);
+      });
+      entry.mediaEl = video;
       el.appendChild(video);
+    } else if (layer.type === "sound") {
+      const audio = document.createElement("audio");
+      audio.src = layer.assetUrl;
+      audio.loop = false; // manual looping, same as video
+      audio.volume = (layer.volume != null ? layer.volume : 100) / 100;
+      audio.addEventListener("ended", () => {
+        if (entry.layer.playMode === "loop") startPlayback(entry);
+      });
+      entry.mediaEl = audio;
+      el.appendChild(audio);
     } else if (layer.type === "text") {
       const text = document.createElement("div");
       text.className = "text-content";
@@ -112,12 +173,109 @@
       if (layer.fontFamily) text.style.fontFamily = layer.fontFamily;
       el.appendChild(text);
     }
-    return el;
+
+    // Autoplay only applies when there's no trigger configured — a triggered
+    // layer stays silent/hidden until its command/redeem actually fires.
+    if (entry.mediaEl && !layer.triggerEnabled && layer.autoplay) {
+      startPlayback(entry);
+    }
+
+    return entry;
+  }
+
+  function updateEntryInPlace(entry, layer) {
+    entry.layer = layer;
+    entry.el.style.left = layer.x + "px";
+    entry.el.style.top = layer.y + "px";
+    entry.el.style.width = layer.w + "px";
+    entry.el.style.height = layer.h + "px";
+
+    if (layer.type === "image") {
+      const img = entry.el.firstChild;
+      img.style.filter = hsbFilter(layer);
+      img.style.opacity = (layer.opacity != null ? layer.opacity : 100) / 100;
+    } else if (layer.type === "video") {
+      entry.mediaEl.muted = layer.muted !== false;
+    } else if (layer.type === "sound") {
+      entry.mediaEl.volume = (layer.volume != null ? layer.volume : 100) / 100;
+    } else if (layer.type === "text") {
+      const text = entry.el.firstChild;
+      text.textContent = fillTemplate(layer.text || "");
+      text.style.fontSize = (layer.fontSize || 32) + "px";
+      text.style.color = layer.color || "#ffffff";
+      text.style.fontWeight = layer.bold ? "700" : "400";
+      text.style.justifyContent = layer.align === "center" ? "center" : layer.align === "right" ? "flex-end" : "flex-start";
+      text.style.textAlign = layer.align || "left";
+      text.style.fontFamily = layer.fontFamily || "";
+    }
   }
 
   function render() {
-    stage.innerHTML = "";
-    currentLayers.forEach((layer) => stage.appendChild(buildLayerEl(layer)));
+    const seen = new Set();
+    currentLayers.forEach((layer) => {
+      seen.add(layer.id);
+      const existing = layerEls.get(layer.id);
+      if (existing && existing.sig === signature(layer)) {
+        updateEntryInPlace(existing, layer);
+        stage.appendChild(existing.el); // reorders for z-index; preserves playback state
+      } else {
+        if (existing) {
+          if (existing.mediaEl) existing.mediaEl.pause();
+          existing.el.remove();
+          layerEls.delete(layer.id);
+        }
+        const entry = buildMediaEntry(layer);
+        entry.sig = signature(layer);
+        layerEls.set(layer.id, entry);
+        stage.appendChild(entry.el);
+      }
+    });
+    for (const [id, entry] of layerEls) {
+      if (!seen.has(id)) {
+        if (entry.mediaEl) entry.mediaEl.pause();
+        entry.el.remove();
+        layerEls.delete(id);
+      }
+    }
+  }
+
+  // ── Chat-command / channel-point-redeem triggers ───────────────────────────
+  const ROLE_RANK = { everyone: 0, vip: 1, moderator: 2, broadcaster: 3 };
+  function chatterRole(msg) {
+    const badges = (msg && msg.badges) || [];
+    if (badges.some((b) => b.type === "broadcaster")) return "broadcaster";
+    if (badges.some((b) => b.type === "moderator")) return "moderator";
+    if (badges.some((b) => b.type === "vip")) return "vip";
+    return "everyone";
+  }
+  function roleMeets(role, min) {
+    return (ROLE_RANK[role] ?? 0) >= (ROLE_RANK[min] ?? 0);
+  }
+  // Bare command match, e.g. trigger "!balazo" matches "!balazo" or
+  // "!balazo " but not "!balazo2" — same spirit as the app's !sr handling,
+  // just without a required payload.
+  function matchesCommand(text, cmd) {
+    if (!text || !cmd) return false;
+    const t = text.trim().toLowerCase();
+    const c = cmd.trim().toLowerCase();
+    if (!c || !t.startsWith(c)) return false;
+    const rest = t.slice(c.length);
+    return rest === "" || /^\s/.test(rest);
+  }
+  function checkTriggers(kind, payload) {
+    for (const entry of layerEls.values()) {
+      const layer = entry.layer;
+      if (!entry.mediaEl || !layer.triggerEnabled || layer.triggerType !== kind) continue;
+      if (kind === "command") {
+        if (matchesCommand(payload.text, layer.triggerValue) && roleMeets(chatterRole(payload.msg), layer.minRole || "everyone")) {
+          startPlayback(entry);
+        }
+      } else if (kind === "redeem") {
+        const a = (payload.rewardTitle || "").trim().toLowerCase();
+        const b = (layer.triggerValue || "").trim().toLowerCase();
+        if (a && b && a === b) startPlayback(entry);
+      }
+    }
   }
 
   async function loadInitial() {
@@ -132,14 +290,7 @@
   }
   loadInitial();
 
-  // ── WebSocket: live layout edits + live {token} data ──────────────────────
-  // Two trigger types re-render: the builder saving this layout
-  // (custom_overlay_update), and a REAL Twitch event arriving (twitch_event,
-  // or a "chat" message with isRedeem) — deliberately real data only, no
-  // test/simulated events, so the overlay always reflects the actual latest
-  // follower/sub/cheer/etc. Re-rendering on every event is cheap
-  // (stage.innerHTML rebuild of a handful of layers) so this doesn't bother
-  // filtering by which kinds are actually referenced by the layout's layers.
+  // ── WebSocket: live layout edits + live {token} data + triggers ────────────
   function applyEvent(event) {
     if (!event || !event.kind) return;
     latestByKind[event.kind] = event;
@@ -156,8 +307,13 @@
         render();
       } else if (data.type === "twitch_event") {
         applyEvent(data.event);
-      } else if (data.type === "chat" && data.msg && data.msg.isRedeem) {
-        applyEvent({ kind: "redeem", username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp });
+      } else if (data.type === "chat" && data.msg) {
+        if (data.msg.isRedeem) {
+          applyEvent({ kind: "redeem", username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp });
+          checkTriggers("redeem", { rewardTitle: data.msg.rewardTitle });
+        } else {
+          checkTriggers("command", { text: data.msg.text, msg: data.msg });
+        }
       }
     };
     ws.onclose = () => setTimeout(connect, 2000);
@@ -166,3 +322,4 @@
 </script>
 </body>
 </html>
+</content>

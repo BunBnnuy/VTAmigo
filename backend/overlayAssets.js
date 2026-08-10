@@ -12,6 +12,7 @@ const ASSETS_DIR = path.join(__dirname, "data", "overlayAssets");
 const MANIFEST_PATH = path.join(ASSETS_DIR, "manifest.json");
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
 const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
 const IMAGE_MIME_EXT = {
   "image/jpeg": "jpg",
   "image/png": "png",
@@ -21,6 +22,11 @@ const IMAGE_MIME_EXT = {
 const VIDEO_MIME_EXT = {
   "video/mp4": "mp4",
   "video/webm": "webm",
+};
+const AUDIO_MIME_EXT = {
+  "audio/mpeg": "mp3",
+  "audio/wav": "wav",
+  "audio/ogg": "ogg",
 };
 
 fs.mkdirSync(ASSETS_DIR, { recursive: true });
@@ -87,6 +93,29 @@ function saveVideo(twitchId, tmpFilePath, mime, sizeBytes) {
   return { id: assetId, kind: "video", mime, sizeBytes };
 }
 
+// Same shape as saveVideo — a multer temp file moved into place.
+function saveAudio(twitchId, tmpFilePath, mime, sizeBytes) {
+  const ext = AUDIO_MIME_EXT[mime];
+  if (!ext) {
+    fs.unlink(tmpFilePath, () => {});
+    throw new Error("UNSUPPORTED_TYPE");
+  }
+  if (sizeBytes > MAX_AUDIO_BYTES) {
+    fs.unlink(tmpFilePath, () => {});
+    throw new Error("TOO_LARGE");
+  }
+
+  const assetId = randomUUID();
+  fs.renameSync(tmpFilePath, filePathFor(twitchId, assetId, ext));
+
+  const manifest = readManifest();
+  const account = manifest[twitchId] || (manifest[twitchId] = {});
+  account[assetId] = { kind: "audio", ext, mime, sizeBytes, createdAt: new Date().toISOString() };
+  writeManifest(manifest);
+
+  return { id: assetId, kind: "audio", mime, sizeBytes };
+}
+
 // Returns { filePath, mime, kind, sizeBytes } or null.
 function getAsset(twitchId, assetId) {
   const entry = readManifest()[twitchId]?.[assetId];
@@ -122,4 +151,4 @@ function deleteAsset(twitchId, assetId, removeAssetEverywhere) {
   return true;
 }
 
-module.exports = { saveImage, saveVideo, getAsset, listAssets, deleteAsset, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES };
+module.exports = { saveImage, saveVideo, saveAudio, getAsset, listAssets, deleteAsset, MAX_IMAGE_BYTES, MAX_VIDEO_BYTES, MAX_AUDIO_BYTES };

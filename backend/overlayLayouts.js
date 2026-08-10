@@ -32,10 +32,12 @@ function clampNum(val, min, max, fallback) {
   return Math.min(max, Math.max(min, n));
 }
 
+const TRIGGER_ROLES = ["everyone", "vip", "moderator", "broadcaster"];
+
 function sanitizeLayer(raw) {
   if (!raw || typeof raw !== "object") return null;
   const type = raw.type;
-  if (type !== "image" && type !== "text" && type !== "video") return null;
+  if (type !== "image" && type !== "text" && type !== "video" && type !== "sound") return null;
 
   const layer = {
     id: typeof raw.id === "string" && raw.id ? raw.id.slice(0, 64) : randomUUID(),
@@ -46,7 +48,7 @@ function sanitizeLayer(raw) {
     h: clampNum(raw.h, 1, CANVAS_H * 2, 200),
   };
 
-  if (type === "image" || type === "video") {
+  if (type === "image" || type === "video" || type === "sound") {
     if (typeof raw.assetId !== "string" || !raw.assetId) return null;
     layer.assetId = raw.assetId.slice(0, 64);
   }
@@ -60,9 +62,30 @@ function sanitizeLayer(raw) {
     layer.brightness = clampNum(raw.brightness, 0, 200, 100);
     layer.opacity = clampNum(raw.opacity, 0, 100, 100);
   }
+  // Shared playback/trigger fields for video + sound — see overlay/custom.html's
+  // startPlayback/checkTriggers. autoplay defaults false (uploads shouldn't
+  // blast immediately); playMode defaults "loop" (matches old video behavior
+  // for anyone who already had layers before this existed); a trigger forces
+  // playMode to "once" — replaying forever off one chat command/redeem makes
+  // no sense.
+  if (type === "video" || type === "sound") {
+    layer.autoplay = !!raw.autoplay;
+    layer.playMode = raw.playMode === "once" ? "once" : "loop";
+    layer.triggerEnabled = !!raw.triggerEnabled;
+    layer.triggerType = raw.triggerType === "redeem" ? "redeem" : "command";
+    layer.triggerValue = String(raw.triggerValue || "").slice(0, 100);
+    // Only meaningful for triggerType "command" (redeem eligibility is
+    // already governed by the reward's own Twitch dashboard settings) but
+    // harmless to store either way.
+    layer.minRole = TRIGGER_ROLES.includes(raw.minRole) ? raw.minRole : "everyone";
+    if (layer.triggerEnabled) layer.playMode = "once";
+  }
   if (type === "video") {
-    layer.loop = raw.loop !== false;
     layer.muted = raw.muted !== false;
+    layer.randomPosition = !!raw.randomPosition;
+  }
+  if (type === "sound") {
+    layer.volume = clampNum(raw.volume, 0, 100, 100);
   }
   if (type === "text") {
     layer.text = String(raw.text ?? "").slice(0, 500);
