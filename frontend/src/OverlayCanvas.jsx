@@ -15,6 +15,35 @@ function formatBytes(n) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
+// Template tokens usable in any text layer's content, e.g. "{follower.username}
+// just followed!" — filled live from the most recent event of that kind (see
+// backend/activity.js's getLatestByKind), both here for the editor preview
+// and in overlay/custom.html (same TOKEN_TO_KIND map, kept in sync by hand
+// since the OBS-facing page is a separate static-HTML bundle, not React).
+const TOKEN_TO_KIND = { follower: "follow", sub: "sub", resub: "resub", giftsub: "giftsub", raid: "raid", cheer: "cheer", redeem: "redeem" };
+const TOKEN_INSERT_BUTTONS = [
+  { label: "Follower", token: "{follower.username}" },
+  { label: "Sub", token: "{sub.username}" },
+  { label: "Resub", token: "{resub.username}" },
+  { label: "Gift Sub", token: "{giftsub.username}" },
+  { label: "Raid", token: "{raid.username}" },
+  { label: "Cheer", token: "{cheer.username}" },
+  { label: "Redeem", token: "{redeem.username}" },
+];
+const TOKEN_HINT = "Other fields: {sub.tier} {resub.months} {giftsub.count} {raid.viewers} {cheer.bits} {redeem.rewardTitle}";
+
+// Replaces every {namespace.field} token with the matching field off the
+// latest event of that kind — e.g. {cheer.bits} -> latestByKind.cheer.bits.
+// Left as-is (still showing the raw token) when there's no event yet, so an
+// unconfigured/empty overlay reads as "waiting for data" rather than blank.
+function fillTemplate(template, latestByKind) {
+  return template.replace(/\{(\w+)\.(\w+)\}/g, (match, ns, field) => {
+    const kind = TOKEN_TO_KIND[ns];
+    const event = kind && latestByKind && latestByKind[kind];
+    return event && event[field] !== undefined ? String(event[field]) : match;
+  });
+}
+
 // The editor for one layout: a 1920x1080 transparent canvas (react-rnd
 // layers, scaled to fit the viewport), a toolbar to add image/text/video
 // layers, a property panel for the selected layer, and a media-library
@@ -31,6 +60,7 @@ export default function OverlayCanvas({ layoutId }) {
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [deleteArmedAssetId, setDeleteArmedAssetId] = useState(null);
+  const [latestByKind, setLatestByKind] = useState({});
 
   const viewportRef = useRef(null);
   const saveTimerRef = useRef(null);
@@ -53,6 +83,9 @@ export default function OverlayCanvas({ layoutId }) {
     apiFetch(`/overlay-builder/overlay-url/${layoutId}`)
       .then((r) => r.json())
       .then((data) => setToken(data.token || ""));
+    apiFetch("/overlay-builder/latest-activity")
+      .then((r) => r.json())
+      .then((data) => setLatestByKind(data.latestByKind || {}));
   }, [layoutId, refreshLayout, refreshAssets]);
 
   // Scale the canvas to fit whatever space the viewport has, preserving the
@@ -217,7 +250,7 @@ export default function OverlayCanvas({ layoutId }) {
                   onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
                   style={{ outline: layer.id === selectedLayerId ? "2px solid #9147ff" : "1px dashed rgba(255,255,255,0.35)" }}
                 >
-                  <LayerContent layer={layer} assetUrl={assetUrl} />
+                  <LayerContent layer={layer} assetUrl={assetUrl} latestByKind={latestByKind} />
                 </Rnd>
               ))}
             </div>
@@ -238,7 +271,7 @@ export default function OverlayCanvas({ layoutId }) {
   );
 }
 
-function LayerContent({ layer, assetUrl }) {
+function LayerContent({ layer, assetUrl, latestByKind }) {
   if (layer.type === "image") {
     return <img src={assetUrl(layer.assetId)} alt="" style={styles.layerMedia} draggable={false} />;
   }
@@ -271,7 +304,7 @@ function LayerContent({ layer, assetUrl }) {
         overflow: "hidden",
       }}
     >
-      {layer.text}
+      {fillTemplate(layer.text, latestByKind)}
     </div>
   );
 }
@@ -307,6 +340,8 @@ function Toolbar({ onAddImage, onAddVideo, onAddText, uploading, saveState }) {
 }
 
 function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
+  const textareaRef = useRef(null);
+
   if (!layer) {
     return (
       <div style={styles.panel}>
@@ -316,6 +351,21 @@ function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
     );
   }
 
+  // Inserts a {namespace.field} token at the cursor (or replaces the current
+  // selection), so streamers don't have to memorize/hand-type the syntax.
+  const insertToken = (token) => {
+    const el = textareaRef.current;
+    const start = el?.selectionStart ?? layer.text.length;
+    const end = el?.selectionEnd ?? layer.text.length;
+    const next = layer.text.slice(0, start) + token + layer.text.slice(end);
+    onChange({ text: next });
+    requestAnimationFrame(() => {
+      if (!el) return;
+      el.focus();
+      el.setSelectionRange(start + token.length, start + token.length);
+    });
+  };
+
   return (
     <div style={styles.panel}>
       <div style={styles.panelTitle}>Properties — {layer.type}</div>
@@ -324,12 +374,21 @@ function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
         <>
           <label style={styles.label}>Text
             <textarea
+              ref={textareaRef}
               style={styles.textarea}
               value={layer.text}
               onChange={(e) => onChange({ text: e.target.value })}
               rows={3}
             />
           </label>
+          <div style={styles.tokenRow}>
+            {TOKEN_INSERT_BUTTONS.map((b) => (
+              <button key={b.token} type="button" style={styles.tokenBtn} onClick={() => insertToken(b.token)} title={`Insert ${b.token}`}>
+                {b.label}
+              </button>
+            ))}
+          </div>
+          <div style={styles.tokenHint}>{TOKEN_HINT}</div>
           <label style={styles.label}>Font size
             <input type="number" style={styles.input} value={layer.fontSize} min={8} max={300}
               onChange={(e) => onChange({ fontSize: Number(e.target.value) || 32 })} />
@@ -539,6 +598,24 @@ const styles = {
     padding: "6px 8px",
     resize: "vertical",
     fontFamily: "inherit",
+  },
+  tokenRow: {
+    display: "flex",
+    flexWrap: "wrap",
+    gap: 4,
+  },
+  tokenBtn: {
+    background: "var(--surface2)",
+    color: "var(--text-muted)",
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    fontSize: 11,
+    padding: "3px 6px",
+  },
+  tokenHint: {
+    fontSize: 10,
+    color: "var(--text-muted)",
+    lineHeight: 1.4,
   },
   colorInput: {
     width: 60,

@@ -51,6 +51,24 @@
 
   const stage = document.getElementById("stage");
 
+  // { follow: <event>, sub: <event>, ... } — most recent event per kind, for
+  // {follower.username}-style tokens in text layers. Seeded from the initial
+  // data fetch, then kept current from live WS events (see connect() below)
+  // without needing a full re-fetch of the layout.
+  let latestByKind = {};
+  let currentLayers = [];
+
+  // Keep in sync with frontend/src/OverlayCanvas.jsx's TOKEN_TO_KIND/fillTemplate —
+  // this is a separate static-HTML bundle, not React, so it's duplicated by hand.
+  const TOKEN_TO_KIND = { follower: "follow", sub: "sub", resub: "resub", giftsub: "giftsub", raid: "raid", cheer: "cheer", redeem: "redeem" };
+  function fillTemplate(template) {
+    return template.replace(/\{(\w+)\.(\w+)\}/g, (match, ns, field) => {
+      const kind = TOKEN_TO_KIND[ns];
+      const event = kind && latestByKind[kind];
+      return event && event[field] !== undefined ? String(event[field]) : match;
+    });
+  }
+
   function buildLayerEl(layer) {
     const el = document.createElement("div");
     el.className = "layer";
@@ -74,7 +92,7 @@
     } else if (layer.type === "text") {
       const text = document.createElement("div");
       text.className = "text-content";
-      text.textContent = layer.text || "";
+      text.textContent = fillTemplate(layer.text || "");
       text.style.fontSize = (layer.fontSize || 32) + "px";
       text.style.color = layer.color || "#ffffff";
       text.style.fontWeight = layer.bold ? "700" : "400";
@@ -86,9 +104,9 @@
     return el;
   }
 
-  function render(layers) {
+  function render() {
     stage.innerHTML = "";
-    (layers || []).forEach((layer) => stage.appendChild(buildLayerEl(layer)));
+    currentLayers.forEach((layer) => stage.appendChild(buildLayerEl(layer)));
   }
 
   async function loadInitial() {
@@ -96,12 +114,19 @@
       const res = await fetch(`/overlay/custom/${encodeURIComponent(layoutId)}/data?token=${encodeURIComponent(token)}`);
       if (!res.ok) return;
       const data = await res.json();
-      render(data.layers);
+      currentLayers = data.layers || [];
+      latestByKind = data.latestByKind || {};
+      render();
     } catch { /* backend not ready yet */ }
   }
   loadInitial();
 
-  // ── WebSocket: live updates whenever the builder saves this layout ────────
+  // ── WebSocket: live layout edits + live {token} data ──────────────────────
+  // Two independent triggers re-render: the builder saving this layout
+  // (custom_overlay_update), and a new Twitch event arriving that a text
+  // layer's {namespace.field} token might reference — re-rendering on every
+  // event is cheap (stage.innerHTML rebuild of a handful of layers) so this
+  // doesn't bother filtering by which kinds are actually used in the layout.
   function connect() {
     const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
     const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
@@ -109,7 +134,14 @@
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
       if (data.type === "custom_overlay_update" && data.layoutId === layoutId) {
-        render(data.layers);
+        currentLayers = data.layers || [];
+        render();
+      } else if (data.type === "twitch_event" && data.event?.kind) {
+        latestByKind[data.event.kind] = data.event;
+        render();
+      } else if (data.type === "chat" && data.msg?.isRedeem) {
+        latestByKind.redeem = { username: data.msg.username, rewardTitle: data.msg.rewardTitle, text: data.msg.text, timestamp: data.msg.timestamp };
+        render();
       }
     };
     ws.onclose = () => setTimeout(connect, 2000);

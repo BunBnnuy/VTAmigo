@@ -46,6 +46,21 @@ function hasAny(twitchId) {
   return countStmt.get(twitchId).n > 0;
 }
 
+// { follow: <event>, sub: <event>, ... } — most recent event per kind, for
+// the Overlay Builder's {follower.username}-style template tokens (see
+// overlayLayouts.js / OverlayCanvas.jsx / overlay/custom.html). Scans the
+// same recent-events window rather than a dedicated indexed query since it's
+// only ever 100 rows and called on overlay page load / builder mount, not
+// per-request-hot-path.
+function getLatestByKind(twitchId) {
+  const newestFirst = getRecent(twitchId, KEEP_PER_ACCOUNT).slice().reverse();
+  const latest = {};
+  for (const event of newestFirst) {
+    if (!(event.kind in latest)) latest[event.kind] = event;
+  }
+  return latest;
+}
+
 function httpsGet(url, headers) {
   return new Promise((resolve, reject) => {
     const req = https.get(url, { headers }, (res) => {
@@ -130,4 +145,4 @@ async function backfillIfEmpty(twitchId, token) {
   }
 }
 
-module.exports = { record, getRecent, backfillIfEmpty };
+module.exports = { record, getRecent, getLatestByKind, backfillIfEmpty };

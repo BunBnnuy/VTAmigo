@@ -1344,6 +1344,14 @@ app.get("/overlay-builder/assets", (req, res) => {
   res.json({ assets: overlayAssets.listAssets(req.user.twitchId) });
 });
 
+// GET /overlay-builder/latest-activity — most recent event per kind (follow,
+// sub, resub, giftsub, raid, cheer, redeem), so the builder can preview
+// {follower.username}-style template tokens with real data instead of
+// showing the raw placeholder while editing.
+app.get("/overlay-builder/latest-activity", (req, res) => {
+  res.json({ latestByKind: activity.getLatestByKind(req.user.twitchId) });
+});
+
 // POST /overlay-builder/assets — { dataUrl } — image upload, same base64
 // pattern as /overlay/avatar/upload.
 app.post("/overlay-builder/assets", (req, res) => {
@@ -1410,6 +1418,10 @@ app.get("/overlay/custom/:layoutId/data", (req, res) => {
     layers: layout.layers.map((l) => (
       l.assetId ? { ...l, assetUrl: `/overlay/custom/asset/${l.assetId}?token=${req.query.token || ""}` } : l
     )),
+    // For text layers using {follower.username}-style tokens (see
+    // overlay/custom.html's fillTemplate) — the initial snapshot; live
+    // updates arrive over the /chat WS as new events happen.
+    latestByKind: activity.getLatestByKind(user.twitchId),
   });
 });
 
