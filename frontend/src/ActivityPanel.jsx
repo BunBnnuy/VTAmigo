@@ -22,7 +22,10 @@ const KIND_COLOR = {
 };
 
 function formatTime(ts) {
-  return new Date(ts).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  const date = new Date(ts);
+  const datePart = date.toLocaleDateString([], { month: "short", day: "numeric" });
+  const timePart = date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+  return `${datePart}, ${timePart}`;
 }
 
 function describeEvent(event, t) {
