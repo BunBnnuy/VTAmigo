@@ -382,6 +382,18 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       isTyped: true,
     }]);
     pushToBuffer({ username: label, text });
+    // Only typed Live Chat messages reach real Twitch chat — voice-to-text
+    // transcripts (see voice.onTranscript above) stay local/AI-buffer only.
+    apiFetch("/say-as-streamer", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    }).then(async (r) => {
+      if (!r.ok) {
+        const d = await r.json().catch(() => ({}));
+        console.warn("[chat] failed to send typed message to Twitch chat:", d.error || r.status);
+      }
+    }).catch((e) => console.warn("[chat] failed to send typed message to Twitch chat:", e.message));
   }, [twitchLogin, pushToBuffer]);
 
   // Apply mic settings whenever they change

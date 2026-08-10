@@ -369,6 +369,45 @@ app.post("/say", (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /say-as-streamer — send a message to chat as the logged-in streamer's
+// own Twitch account, from the Live Chat panel's typed input (frontend/src/
+// ChatFeed.jsx). Uses session.twitchClient, which is otherwise read-only
+// (listens for chat via handleChat) — this is the only place it sends.
+// Deliberately not wired up for voice-to-text transcripts (see
+// VoiceTranscription.js's onTranscript in App.jsx): those stay local/AI-buffer
+// only, never posted to chat.
+app.post("/say-as-streamer", (req, res) => {
+  const { text } = req.body;
+  if (!text) return res.status(400).json({ error: "text is required" });
+
+  const session = twitchSessions.get(req.user.twitchId);
+  if (!session || !session.twitchClient) return res.status(503).json({ error: "Not connected to Twitch chat" });
+  const sent = session.twitchClient.say(text);
+  if (!sent) return res.status(503).json({ error: "Twitch chat WebSocket not open" });
+
+  // Twitch doesn't echo a connection's own PRIVMSG back to itself, so this
+  // message would otherwise never reach handleChat/broadcastToAccount — which
+  // is what overlay/custom.html listens on for chat-command triggers (see
+  // its checkTriggers). Broadcast a synthetic equivalent so the streamer's
+  // own typed Live Chat messages can fire broadcaster-tier triggers too.
+  broadcastToAccount(req.user.twitchId, {
+    type: "chat",
+    msg: {
+      id: `say-as-streamer-${Date.now()}`,
+      username: req.user.login,
+      login: req.user.login,
+      text,
+      color: "#9147ff",
+      timestamp: Date.now(),
+      badges: [{ type: "broadcaster", version: "1", url: null, description: "broadcaster" }],
+      isHype: false,
+      isRedeem: false,
+    },
+  });
+
+  res.json({ ok: true });
+});
+
 // Guards against overlapping refresh attempts when the bot IRC client fires
 // several auth_error events back-to-back (it reconnects and re-fails every
 // ~10s until we intervene) — see handleBotAuthError below.
@@ -1294,6 +1333,10 @@ const overlayVideoUpload = multer({
   dest: overlayVideoTmpDir,
   limits: { fileSize: overlayAssets.MAX_VIDEO_BYTES },
 });
+const overlayAudioUpload = multer({
+  dest: overlayVideoTmpDir,
+  limits: { fileSize: overlayAssets.MAX_AUDIO_BYTES },
+});
 
 // ── Authed builder API (requireApprovedUser via PROTECTED_PREFIXES) ─────────
 
@@ -1406,6 +1449,28 @@ app.post("/overlay-builder/assets/video", (req, res) => {
   });
 });
 
+// POST /overlay-builder/assets/audio — multipart upload (field name "audio"),
+// same reasoning as the video route above.
+app.post("/overlay-builder/assets/audio", (req, res) => {
+  overlayAudioUpload.single("audio")(req, res, (err) => {
+    if (err) {
+      if (err.code === "LIMIT_FILE_SIZE") return res.status(413).json({ error: `Audio must be under ${overlayAssets.MAX_AUDIO_BYTES / (1024 * 1024)}MB` });
+      console.error("[overlay-builder/assets/audio]", err.message);
+      return res.status(400).json({ error: "Upload failed" });
+    }
+    if (!req.file) return res.status(400).json({ error: "audio file is required" });
+    try {
+      const asset = overlayAssets.saveAudio(req.user.twitchId, req.file.path, req.file.mimetype, req.file.size);
+      res.json({ asset });
+    } catch (saveErr) {
+      if (saveErr.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Audio must be MP3, WAV, or OGG" });
+      if (saveErr.message === "TOO_LARGE") return res.status(413).json({ error: `Audio must be under ${overlayAssets.MAX_AUDIO_BYTES / (1024 * 1024)}MB` });
+      console.error("[overlay-builder/assets/audio]", saveErr.message);
+      res.status(500).json({ error: saveErr.message });
+    }
+  });
+});
+
 app.delete("/overlay-builder/assets/:id", (req, res) => {
   overlayAssets.deleteAsset(req.user.twitchId, req.params.id, overlayLayouts.removeAssetEverywhere);
   res.json({ ok: true });
@@ -1442,10 +1507,11 @@ app.get("/overlay/custom/:layoutId/data", (req, res) => {
 });
 
 // GET /overlay/custom/asset/:assetId?token=... — serves an uploaded
-// image/video binary. Dual auth like /overlay/avatar/image. Video responses
-// support Range requests (206 Partial Content) so <video> playback/seeking
-// in OBS doesn't require downloading the whole file up front — none of the
-// other overlays need this since their images are small and never streamed.
+// image/video/audio binary. Dual auth like /overlay/avatar/image. Video and
+// audio responses support Range requests (206 Partial Content) so
+// <video>/<audio> playback/seeking in OBS doesn't require downloading the
+// whole file up front — none of the other overlays need this since their
+// images are small and never streamed.
 app.get("/overlay/custom/asset/:assetId", (req, res) => {
   const user = (req.query.token && findUserByOverlayToken(req.query.token)) || getApprovedUserFromCookieHeader(req.headers.cookie);
   if (!user) return res.status(401).json({ error: "Not authorized" });
@@ -1453,7 +1519,7 @@ app.get("/overlay/custom/asset/:assetId", (req, res) => {
   if (!asset) return res.status(404).end();
   res.set("Cache-Control", "no-store");
 
-  if (asset.kind !== "video") {
+  if (asset.kind !== "video" && asset.kind !== "audio") {
     res.set("Content-Type", asset.mime);
     return res.sendFile(asset.filePath);
   }

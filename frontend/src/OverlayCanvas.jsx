@@ -194,7 +194,30 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
       const data = await res.json();
       if (!res.ok) return setErrorMsg(data.error || "Upload failed");
       refreshAssets();
-      addLayer({ id: uid(), type: "video", assetId: data.asset.id, loop: true, muted: true, x: 100, y: 100, w: 640, h: 360 });
+      addLayer({
+        id: uid(), type: "video", assetId: data.asset.id, muted: true, x: 100, y: 100, w: 640, h: 360,
+        autoplay: false, playMode: "loop", randomPosition: false,
+        triggerEnabled: false, triggerType: "command", triggerValue: "", minRole: "everyone",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const uploadAudio = async (file) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("audio", file);
+      const res = await apiFetch("/overlay-builder/assets/audio", { method: "POST", body: formData });
+      const data = await res.json();
+      if (!res.ok) return setErrorMsg(data.error || "Upload failed");
+      refreshAssets();
+      addLayer({
+        id: uid(), type: "sound", assetId: data.asset.id, volume: 100, x: 100, y: 100, w: 120, h: 120,
+        autoplay: false, playMode: "loop",
+        triggerEnabled: false, triggerType: "command", triggerValue: "", minRole: "everyone",
+      });
     } finally {
       setUploading(false);
     }
@@ -220,6 +243,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
       <Toolbar
         onAddImage={uploadImage}
         onAddVideo={uploadVideo}
+        onAddAudio={uploadAudio}
         onAddText={addText}
         uploading={uploading}
         saveState={saveState}
@@ -268,6 +292,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
         <div style={styles.sidebar}>
           <PropertyPanel
             layer={selectedLayer}
+            assetUrl={assetUrl}
             onChange={(patch) => selectedLayer && updateLayer(selectedLayer.id, patch)}
             onDelete={() => selectedLayer && removeLayer(selectedLayer.id)}
             onReorder={(dir) => selectedLayer && reorderLayer(selectedLayer.id, dir)}
@@ -295,11 +320,19 @@ function LayerContent({ layer, assetUrl, latestByKind }) {
       <video
         src={assetUrl(layer.assetId)}
         style={styles.layerMedia}
-        autoPlay
-        loop={layer.loop !== false}
+        autoPlay={layer.autoplay === true}
+        loop={layer.playMode !== "once"}
         muted={layer.muted !== false}
         playsInline
       />
+    );
+  }
+  if (layer.type === "sound") {
+    return (
+      <div style={styles.soundPlaceholder}>
+        <div style={{ fontSize: 28 }}>🔊</div>
+        <div style={{ fontSize: 10, opacity: 0.8 }}>Sound</div>
+      </div>
     );
   }
   return (
@@ -324,9 +357,10 @@ function LayerContent({ layer, assetUrl, latestByKind }) {
   );
 }
 
-function Toolbar({ onAddImage, onAddVideo, onAddText, uploading, saveState }) {
+function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, saveState }) {
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
+  const audioInputRef = useRef(null);
 
   return (
     <div style={styles.toolbar}>
@@ -346,6 +380,14 @@ function Toolbar({ onAddImage, onAddVideo, onAddText, uploading, saveState }) {
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddVideo(e.target.files[0]); e.target.value = ""; }}
       />
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => audioInputRef.current?.click()}>🔊 Add Sound</button>
+      <input
+        ref={audioInputRef}
+        type="file"
+        accept="audio/mpeg,audio/wav,audio/ogg"
+        style={{ display: "none" }}
+        onChange={(e) => { if (e.target.files[0]) onAddAudio(e.target.files[0]); e.target.value = ""; }}
+      />
       <button style={styles.toolBtn} onClick={onAddText}>🔤 Add Text</button>
       <div style={styles.saveIndicator}>
         {uploading ? "Uploading…" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
@@ -354,7 +396,56 @@ function Toolbar({ onAddImage, onAddVideo, onAddText, uploading, saveState }) {
   );
 }
 
-function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
+// Chat-command / channel-point-redeem trigger config, shared by video and
+// sound layers — see overlay/custom.html's checkTriggers/matchesCommand for
+// how these fields are actually matched live. Enabling the trigger forces
+// playMode to "once" in the same call (looping forever off one command makes
+// no sense), matching backend/overlayLayouts.js's server-side enforcement.
+function TriggerFields({ layer, onChange }) {
+  return (
+    <>
+      <label style={styles.checkboxLabel}>
+        <input
+          type="checkbox"
+          checked={!!layer.triggerEnabled}
+          onChange={(e) => onChange({ triggerEnabled: e.target.checked, playMode: e.target.checked ? "once" : layer.playMode })}
+        />
+        Enable chat/redeem trigger
+      </label>
+      {layer.triggerEnabled && (
+        <>
+          <label style={styles.label}>Trigger type
+            <select style={styles.input} value={layer.triggerType || "command"} onChange={(e) => onChange({ triggerType: e.target.value })}>
+              <option value="command">Chat command</option>
+              <option value="redeem">Channel point redeem</option>
+            </select>
+          </label>
+          <label style={styles.label}>{layer.triggerType === "redeem" ? "Reward title" : "Chat command"}
+            <input
+              type="text"
+              style={styles.input}
+              value={layer.triggerValue || ""}
+              placeholder={layer.triggerType === "redeem" ? "Hydrate" : "!balazo"}
+              onChange={(e) => onChange({ triggerValue: e.target.value })}
+            />
+          </label>
+          {layer.triggerType !== "redeem" && (
+            <label style={styles.label}>Minimum role
+              <select style={styles.input} value={layer.minRole || "everyone"} onChange={(e) => onChange({ minRole: e.target.value })}>
+                <option value="everyone">Everyone</option>
+                <option value="vip">VIP</option>
+                <option value="moderator">Moderator</option>
+                <option value="broadcaster">Broadcaster</option>
+              </select>
+            </label>
+          )}
+        </>
+      )}
+    </>
+  );
+}
+
+function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
   const textareaRef = useRef(null);
 
   if (!layer) {
@@ -453,13 +544,65 @@ function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
       {layer.type === "video" && (
         <>
           <label style={styles.checkboxLabel}>
-            <input type="checkbox" checked={layer.loop !== false} onChange={(e) => onChange({ loop: e.target.checked })} />
-            Loop
+            <input
+              type="checkbox"
+              checked={layer.autoplay === true}
+              disabled={layer.triggerEnabled}
+              onChange={(e) => onChange({ autoplay: e.target.checked })}
+            />
+            Autoplay
+          </label>
+          <label style={styles.label}>Playback
+            <select
+              style={styles.input}
+              value={layer.triggerEnabled ? "once" : (layer.playMode || "loop")}
+              disabled={layer.triggerEnabled}
+              onChange={(e) => onChange({ playMode: e.target.value })}
+            >
+              <option value="loop">Loop</option>
+              <option value="once">Play once</option>
+            </select>
           </label>
           <label style={styles.checkboxLabel}>
             <input type="checkbox" checked={layer.muted !== false} onChange={(e) => onChange({ muted: e.target.checked })} />
             Muted
           </label>
+          <label style={styles.checkboxLabel}>
+            <input type="checkbox" checked={!!layer.randomPosition} onChange={(e) => onChange({ randomPosition: e.target.checked })} />
+            Random position on each play
+          </label>
+          <TriggerFields layer={layer} onChange={onChange} />
+        </>
+      )}
+
+      {layer.type === "sound" && (
+        <>
+          <label style={styles.label}>Volume ({Math.round(layer.volume ?? 100)}%)
+            <input type="range" style={styles.slider} min={0} max={100} value={layer.volume ?? 100}
+              onChange={(e) => onChange({ volume: Number(e.target.value) })} />
+          </label>
+          <audio controls src={assetUrl(layer.assetId)} style={{ width: "100%" }} />
+          <label style={styles.checkboxLabel}>
+            <input
+              type="checkbox"
+              checked={layer.autoplay === true}
+              disabled={layer.triggerEnabled}
+              onChange={(e) => onChange({ autoplay: e.target.checked })}
+            />
+            Autoplay
+          </label>
+          <label style={styles.label}>Playback
+            <select
+              style={styles.input}
+              value={layer.triggerEnabled ? "once" : (layer.playMode || "loop")}
+              disabled={layer.triggerEnabled}
+              onChange={(e) => onChange({ playMode: e.target.value })}
+            >
+              <option value="loop">Loop</option>
+              <option value="once">Play once</option>
+            </select>
+          </label>
+          <TriggerFields layer={layer} onChange={onChange} />
         </>
       )}
 
@@ -494,7 +637,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId }) {
               {a.kind === "image" ? (
                 <img src={assetUrl(a.id)} alt="" style={styles.assetThumb} />
               ) : (
-                <div style={styles.assetThumbVideo}>🎬</div>
+                <div style={styles.assetThumbVideo}>{a.kind === "video" ? "🎬" : "🔊"}</div>
               )}
               <div style={styles.assetMeta}>{formatBytes(a.sizeBytes)}</div>
               <button
@@ -564,6 +707,20 @@ const styles = {
     width: "100%",
     height: "100%",
     objectFit: "contain",
+    pointerEvents: "none",
+  },
+  soundPlaceholder: {
+    width: "100%",
+    height: "100%",
+    display: "flex",
+    flexDirection: "column",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 2,
+    color: "#fff",
+    background: "rgba(145, 71, 255, 0.25)",
+    border: "1px dashed rgba(255,255,255,0.4)",
+    borderRadius: 6,
     pointerEvents: "none",
   },
   sidebar: {
