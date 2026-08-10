@@ -16,8 +16,13 @@ const SESSION_COOKIE = "session";
 // channel:manage:broadcast is for the Stream Settings panel (title/category
 // updates via streamSettings.js) — users who logged in before this was added
 // won't have it on their existing token until they log out and back in.
+// chat:edit lets the streamer's own token post to their chat over IRC (see
+// POST /say-as-streamer in index.js, used by the Live Chat panel's typed
+// input) — users who logged in before this was added won't have it on their
+// existing token until they log out and back in.
 const TWITCH_LOGIN_SCOPES = [
   "chat:read",
+  "chat:edit",
   "channel:read:redemptions",
   "moderator:read:followers",
   "channel:read:subscriptions",
