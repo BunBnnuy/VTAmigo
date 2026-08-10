@@ -190,6 +190,7 @@ export default function OverlayCanvas({ layoutId }) {
             style={{
               width: CANVAS_W,
               height: CANVAS_H,
+              flexShrink: 0,
               transform: `scale(${fitScale})`,
               transformOrigin: "top left",
               position: "relative",
