@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Custom Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 1920px;
+    height: 1080px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    user-select: none;
+  }
+  #stage {
+    position: relative;
+    width: 1920px;
+    height: 1080px;
+    overflow: hidden;
+  }
+  .layer {
+    position: absolute;
+    overflow: hidden;
+  }
+  .layer img, .layer video {
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    display: block;
+  }
+  .layer .text-content {
+    width: 100%;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+</style>
+</head>
+<body>
+  <div id="stage"></div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+  // /overlay/custom/:layoutId — layoutId is the last path segment.
+  const layoutId = location.pathname.split("/").filter(Boolean).pop();
+
+  const stage = document.getElementById("stage");
+
+  function buildLayerEl(layer) {
+    const el = document.createElement("div");
+    el.className = "layer";
+    el.style.left = layer.x + "px";
+    el.style.top = layer.y + "px";
+    el.style.width = layer.w + "px";
+    el.style.height = layer.h + "px";
+
+    if (layer.type === "image") {
+      const img = document.createElement("img");
+      img.src = layer.assetUrl;
+      el.appendChild(img);
+    } else if (layer.type === "video") {
+      const video = document.createElement("video");
+      video.src = layer.assetUrl;
+      video.autoplay = true;
+      video.loop = layer.loop !== false;
+      video.muted = layer.muted !== false;
+      video.playsInline = true;
+      el.appendChild(video);
+    } else if (layer.type === "text") {
+      const text = document.createElement("div");
+      text.className = "text-content";
+      text.textContent = layer.text || "";
+      text.style.fontSize = (layer.fontSize || 32) + "px";
+      text.style.color = layer.color || "#ffffff";
+      text.style.fontWeight = layer.bold ? "700" : "400";
+      text.style.justifyContent = layer.align === "center" ? "center" : layer.align === "right" ? "flex-end" : "flex-start";
+      text.style.textAlign = layer.align || "left";
+      if (layer.fontFamily) text.style.fontFamily = layer.fontFamily;
+      el.appendChild(text);
+    }
+    return el;
+  }
+
+  function render(layers) {
+    stage.innerHTML = "";
+    (layers || []).forEach((layer) => stage.appendChild(buildLayerEl(layer)));
+  }
+
+  async function loadInitial() {
+    try {
+      const res = await fetch(`/overlay/custom/${encodeURIComponent(layoutId)}/data?token=${encodeURIComponent(token)}`);
+      if (!res.ok) return;
+      const data = await res.json();
+      render(data.layers);
+    } catch { /* backend not ready yet */ }
+  }
+  loadInitial();
+
+  // ── WebSocket: live updates whenever the builder saves this layout ────────
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "custom_overlay_update" && data.layoutId === layoutId) {
+        render(data.layers);
+      }
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

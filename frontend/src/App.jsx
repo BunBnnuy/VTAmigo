@@ -1199,6 +1199,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} />
           <button
             style={styles.settingsBtn}
+            onClick={() => window.open("/overlay-builder", "_blank")}
+            title={t("app.overlayStudioTitle")}
+          >
+            {t("app.overlayStudioBtn")}
+          </button>
+          <button
+            style={styles.settingsBtn}
             onClick={cycleTheme}
             title={t("app.themeTitle", { theme: t(`app.theme${theme[0].toUpperCase()}${theme.slice(1)}`) })}
           >
