@@ -136,6 +136,19 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_activity_events_twitchId_ts ON activity_events (twitchId, timestamp);
 
+  -- Manual per-kind pre-fills for the Overlay Builder's {kind.username}
+  -- tokens (backend/activity.js's getLatestByKind), for kinds Twitch's API
+  -- has no history for at all (sub/resub/giftsub/raid/cheer — only follows
+  -- and redemptions are backfillable). Only used as a fallback when no real
+  -- event of that kind has been recorded yet; a real one always takes over.
+  CREATE TABLE IF NOT EXISTS overlay_manual_activity (
+    twitchId TEXT NOT NULL,
+    kind TEXT NOT NULL,
+    username TEXT NOT NULL,
+    updatedAt TEXT NOT NULL,
+    PRIMARY KEY (twitchId, kind)
+  );
+
   CREATE TABLE IF NOT EXISTS agent_sessions (
     provider TEXT NOT NULL,
     twitchId TEXT NOT NULL,

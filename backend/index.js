@@ -1352,6 +1352,22 @@ app.get("/overlay-builder/latest-activity", (req, res) => {
   res.json({ latestByKind: activity.getLatestByKind(req.user.twitchId) });
 });
 
+// PUT /overlay-builder/latest-activity/:kind — { username } — manually
+// pre-fills {<namespace>.username} for a kind Twitch's API has no history
+// for at all (sub/resub/giftsub/raid/cheer — see activity.js). A real live
+// event of that kind always takes over once one happens; an empty username
+// clears the pre-fill.
+app.put("/overlay-builder/latest-activity/:kind", (req, res) => {
+  try {
+    activity.setManualLatest(req.user.twitchId, req.params.kind, req.body?.username);
+    res.json({ latestByKind: activity.getLatestByKind(req.user.twitchId) });
+  } catch (err) {
+    if (err.message === "BAD_KIND") return res.status(400).json({ error: "Unknown kind" });
+    console.error("[overlay-builder/latest-activity]", err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // POST /overlay-builder/assets — { dataUrl } — image upload, same base64
 // pattern as /overlay/avatar/upload.
 app.post("/overlay-builder/assets", (req, res) => {

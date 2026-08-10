@@ -32,6 +32,12 @@ const TOKEN_INSERT_BUTTONS = [
 ];
 const TOKEN_HINT = "Other fields: {sub.tier} {resub.months} {giftsub.count} {raid.viewers} {cheer.bits} {redeem.rewardTitle}";
 
+// Kinds in backend.activity.js's KNOWN_KINDS, for the "Latest Activity"
+// pre-fill panel below (distinct from TOKEN_TO_KIND's namespaces — the
+// backend route/table use "follow", the token syntax uses "follower").
+const KIND_ORDER = ["follow", "sub", "resub", "giftsub", "raid", "cheer", "redeem"];
+const KIND_LABELS = { follow: "Follower", sub: "Sub", resub: "Resub", giftsub: "Gift Sub", raid: "Raid", cheer: "Cheer", redeem: "Redeem" };
+
 // Replaces every {namespace.field} token with the matching field off the
 // latest event of that kind — e.g. {cheer.bits} -> latestByKind.cheer.bits.
 // Left as-is (still showing the raw token) when there's no event yet, so an
@@ -227,6 +233,19 @@ export default function OverlayCanvas({ layoutId }) {
     refreshLayout();
   };
 
+  // Manually pre-fills {<ns>.username} for a kind Twitch's API has no
+  // history for (sub/resub/giftsub/raid/cheer) — see activity.js. A real
+  // live event of that kind always supersedes it automatically.
+  const saveManualLatest = async (kind, username) => {
+    const res = await apiFetch(`/overlay-builder/latest-activity/${kind}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username }),
+    });
+    const data = await res.json();
+    if (data.latestByKind) setLatestByKind(data.latestByKind);
+  };
+
   const assetUrl = (assetId) => apiUrl(`/overlay/custom/asset/${assetId}?token=${token}`);
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
@@ -287,6 +306,7 @@ export default function OverlayCanvas({ layoutId }) {
             onDelete={() => selectedLayer && removeLayer(selectedLayer.id)}
             onReorder={(dir) => selectedLayer && reorderLayer(selectedLayer.id, dir)}
           />
+          <LatestActivityPanel latestByKind={latestByKind} onSave={saveManualLatest} />
           <AssetsSidebar assets={assets} assetUrl={assetUrl} onDelete={deleteAsset} deleteArmedAssetId={deleteArmedAssetId} />
         </div>
       </div>
@@ -465,6 +485,46 @@ function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
   );
 }
 
+// Twitch has no historical API at all for sub/resub/giftsub/raid/cheer (only
+// follows and redemptions can be backfilled), so those {token}s would
+// otherwise sit unfilled until the first real one happens live. This lets
+// the streamer type in a name to pre-fill it — disabled once real ("live")
+// data exists for that kind, since a real event always wins over a manual
+// one and editing further would have no visible effect.
+function LatestActivityPanel({ latestByKind, onSave }) {
+  return (
+    <div style={styles.panel}>
+      <div style={styles.panelTitle}>Latest Activity</div>
+      <div style={styles.panelHint}>
+        Twitch has no history for sub/resub/gift sub/raid/cheer — pre-fill a name here until a real one happens live. Follower/redeem come from Twitch automatically.
+      </div>
+      {KIND_ORDER.map((kind) => (
+        <LatestActivityRow key={kind} kind={kind} entry={latestByKind[kind]} onSave={onSave} />
+      ))}
+    </div>
+  );
+}
+
+function LatestActivityRow({ kind, entry, onSave }) {
+  const [value, setValue] = useState(entry?.username || "");
+  useEffect(() => { setValue(entry?.username || ""); }, [entry?.username]);
+  const isLive = !!entry && !entry.manual;
+
+  return (
+    <label style={styles.label}>
+      {KIND_LABELS[kind]} {isLive && <span style={styles.liveBadge}>live</span>}
+      <input
+        style={styles.input}
+        value={value}
+        placeholder="—"
+        disabled={isLive}
+        onChange={(e) => setValue(e.target.value)}
+        onBlur={() => !isLive && onSave(kind, value)}
+      />
+    </label>
+  );
+}
+
 function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId }) {
   return (
     <div style={styles.panel}>
@@ -575,6 +635,21 @@ const styles = {
   panelEmpty: {
     color: "var(--text-muted)",
     fontSize: 12,
+  },
+  panelHint: {
+    fontSize: 10,
+    color: "var(--text-muted)",
+    lineHeight: 1.4,
+  },
+  liveBadge: {
+    fontSize: 9,
+    fontWeight: 700,
+    color: "var(--green)",
+    border: "1px solid var(--green)",
+    borderRadius: 3,
+    padding: "0 4px",
+    marginLeft: 4,
+    textTransform: "uppercase",
   },
   label: {
     display: "flex",
