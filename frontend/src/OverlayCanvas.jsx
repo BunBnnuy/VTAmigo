@@ -50,6 +50,18 @@ function fillTemplate(template, latestByKind) {
   });
 }
 
+// CSS filter() HSB adjustment for image layers — hue-rotate is a full circle
+// (-180..180deg both mean the same as 180), saturate/brightness are percent
+// multipliers where 100 = unchanged. Kept in sync by hand with the identical
+// helper in overlay/custom.html (separate static-HTML bundle, not React).
+function hsbFilter(layer) {
+  const hue = layer.hue || 0;
+  const saturation = layer.saturation ?? 100;
+  const brightness = layer.brightness ?? 100;
+  if (hue === 0 && saturation === 100 && brightness === 100) return undefined;
+  return `hue-rotate(${hue}deg) saturate(${saturation}%) brightness(${brightness}%)`;
+}
+
 // The editor for one layout: a 1920x1080 transparent canvas (react-rnd
 // layers, scaled to fit the viewport), a toolbar to add image/text/video
 // layers, a property panel for the selected layer, and a media-library
@@ -316,7 +328,14 @@ export default function OverlayCanvas({ layoutId }) {
 
 function LayerContent({ layer, assetUrl, latestByKind }) {
   if (layer.type === "image") {
-    return <img src={assetUrl(layer.assetId)} alt="" style={styles.layerMedia} draggable={false} />;
+    return (
+      <img
+        src={assetUrl(layer.assetId)}
+        alt=""
+        style={{ ...styles.layerMedia, filter: hsbFilter(layer), opacity: (layer.opacity ?? 100) / 100 }}
+        draggable={false}
+      />
+    );
   }
   if (layer.type === "video") {
     return (
@@ -451,6 +470,30 @@ function PropertyPanel({ layer, onChange, onDelete, onReorder }) {
               <option value="right">Right</option>
             </select>
           </label>
+        </>
+      )}
+
+      {layer.type === "image" && (
+        <>
+          <label style={styles.label}>Hue ({Math.round(layer.hue || 0)}°)
+            <input type="range" style={styles.slider} min={-180} max={180} value={layer.hue || 0}
+              onChange={(e) => onChange({ hue: Number(e.target.value) })} />
+          </label>
+          <label style={styles.label}>Saturation ({Math.round(layer.saturation ?? 100)}%)
+            <input type="range" style={styles.slider} min={0} max={200} value={layer.saturation ?? 100}
+              onChange={(e) => onChange({ saturation: Number(e.target.value) })} />
+          </label>
+          <label style={styles.label}>Brightness ({Math.round(layer.brightness ?? 100)}%)
+            <input type="range" style={styles.slider} min={0} max={200} value={layer.brightness ?? 100}
+              onChange={(e) => onChange({ brightness: Number(e.target.value) })} />
+          </label>
+          <label style={styles.label}>Opacity ({Math.round(layer.opacity ?? 100)}%)
+            <input type="range" style={styles.slider} min={0} max={100} value={layer.opacity ?? 100}
+              onChange={(e) => onChange({ opacity: Number(e.target.value) })} />
+          </label>
+          <button style={styles.toolBtn} onClick={() => onChange({ hue: 0, saturation: 100, brightness: 100, opacity: 100 })}>
+            Reset adjustments
+          </button>
         </>
       )}
 
@@ -679,6 +722,9 @@ const styles = {
     border: "1px solid var(--border)",
     borderRadius: 4,
     padding: "4px 6px",
+  },
+  slider: {
+    width: "100%",
   },
   inputSmall: {
     background: "var(--surface2)",

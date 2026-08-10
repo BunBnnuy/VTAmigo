@@ -50,6 +50,16 @@ function sanitizeLayer(raw) {
     if (typeof raw.assetId !== "string" || !raw.assetId) return null;
     layer.assetId = raw.assetId.slice(0, 64);
   }
+  if (type === "image") {
+    // CSS filter() HSB adjustment (see OverlayCanvas.jsx/overlay/custom.html)
+    // — hue-rotate is a full circle, saturate/brightness are multipliers
+    // where 100 = unchanged, 0 = grayscale/black. Opacity is separate (CSS
+    // opacity, not a filter), 0-100 where 100 = fully opaque.
+    layer.hue = clampNum(raw.hue, -180, 180, 0);
+    layer.saturation = clampNum(raw.saturation, 0, 200, 100);
+    layer.brightness = clampNum(raw.brightness, 0, 200, 100);
+    layer.opacity = clampNum(raw.opacity, 0, 100, 100);
+  }
   if (type === "video") {
     layer.loop = raw.loop !== false;
     layer.muted = raw.muted !== false;
