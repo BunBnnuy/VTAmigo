@@ -14,7 +14,9 @@ backend/usage.json
 backend/error-log.json
 backend/chatOverlayConfig.json
 backend/piper/
-backend/data/avatars/
-backend/data/chatOverlayBg/
-backend/data/db/
+# All runtime user data — the SQLite DB, uploaded avatars, chat overlay
+# backgrounds and overlay assets. Ignore the whole directory rather than
+# listing subdirectories: overlayAssets/ was added later and was NOT covered,
+# so user uploads were one `git add -A` away from being committed.
+backend/data/
 frontend/public/downloads/*.exe
