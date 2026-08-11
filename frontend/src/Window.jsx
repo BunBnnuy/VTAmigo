@@ -1,5 +1,6 @@
 import React from "react";
 import { Rnd } from "react-rnd";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 
 const GRID = 20;
 const HEADER_HEIGHT = 36;
@@ -54,10 +55,10 @@ export default function Window({
           <span style={styles.title}>{title}</span>
           <div style={styles.headerBtns}>
             <button style={styles.headerBtn} onClick={toggleCollapsed} title={title}>
-              {collapsed ? "▾" : "▴"}
+              {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
             </button>
             <button style={styles.headerBtn} onClick={close} title={title}>
-              ✕
+              <X size={13} />
             </button>
           </div>
         </div>

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { CheckCircle2 } from "lucide-react";
 import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { apiFetch } from "./api.js";
@@ -100,7 +101,12 @@ function ApproveDevice({ userCode, setUserCode }) {
           </>
         )}
         {status === "approving" && <p>Approving…</p>}
-        {status === "done" && <p style={styles.success}>✅ Device approved — it should connect automatically within a few seconds.</p>}
+        {status === "done" && (
+          <p style={styles.success}>
+            <CheckCircle2 size={16} color="var(--green)" style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Device approved — it should connect automatically within a few seconds.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -125,5 +131,5 @@ const styles = {
   hint: { fontSize: 12, opacity: 0.6 },
   btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--accent, #e11d76)", color: "var(--on-accent, #ffffff)", fontWeight: 600 },
   error: { color: "var(--red, #ef4444)", fontSize: 13 },
-  success: { color: "#3fb950", fontSize: 14 },
+  success: { color: "#3fb950", fontSize: 14, display: "flex", alignItems: "center" },
 };

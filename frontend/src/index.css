@@ -81,7 +81,12 @@ button {
   font-weight: 600;
   padding: 6px 14px;
   transition: opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
+button svg { flex-shrink: 0; }
 button:hover { opacity: 0.85; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -106,7 +111,7 @@ label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom
 
 /* ── Admin dashboard ── */
 .admin-nav-link {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
   padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
   color: var(--text-muted); text-decoration: none; cursor: pointer;
   transition: background 0.15s, color 0.15s;

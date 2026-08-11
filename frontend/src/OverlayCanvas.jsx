@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Rnd } from "react-rnd";
 import { apiFetch, apiUrl } from "./api.js";
+import {
+  Volume2,
+  Image as ImageIcon,
+  Film,
+  Type,
+  ArrowDown,
+  ArrowUp,
+  Trash2,
+  Check,
+  X,
+} from "lucide-react";
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -343,7 +354,7 @@ function LayerContent({ layer, assetUrl, latestByKind }) {
   if (layer.type === "sound") {
     return (
       <div style={styles.soundPlaceholder}>
-        <div style={{ fontSize: 28 }}>🔊</div>
+        <Volume2 size={28} />
         <div style={{ fontSize: 10, opacity: 0.8 }}>Sound</div>
       </div>
     );
@@ -377,7 +388,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
 
   return (
     <div style={styles.toolbar}>
-      <button style={styles.toolBtn} disabled={uploading} onClick={() => imageInputRef.current?.click()}>🖼️ Add Image</button>
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => imageInputRef.current?.click()}><ImageIcon size={14} color="var(--accent)" /> Add Image</button>
       <input
         ref={imageInputRef}
         type="file"
@@ -385,7 +396,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddImage(e.target.files[0]); e.target.value = ""; }}
       />
-      <button style={styles.toolBtn} disabled={uploading} onClick={() => videoInputRef.current?.click()}>🎬 Add Video</button>
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => videoInputRef.current?.click()}><Film size={14} color="var(--accent)" /> Add Video</button>
       <input
         ref={videoInputRef}
         type="file"
@@ -393,7 +404,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddVideo(e.target.files[0]); e.target.value = ""; }}
       />
-      <button style={styles.toolBtn} disabled={uploading} onClick={() => audioInputRef.current?.click()}>🔊 Add Sound</button>
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => audioInputRef.current?.click()}><Volume2 size={14} color="var(--accent)" /> Add Sound</button>
       <input
         ref={audioInputRef}
         type="file"
@@ -401,7 +412,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddAudio(e.target.files[0]); e.target.value = ""; }}
       />
-      <button style={styles.toolBtn} onClick={onAddText}>🔤 Add Text</button>
+      <button style={styles.toolBtn} onClick={onAddText}><Type size={14} color="var(--accent)" /> Add Text</button>
       <div style={styles.saveIndicator}>
         {uploading ? "Uploading…" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
       </div>
@@ -629,10 +640,10 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
       </div>
 
       <div style={styles.panelActions}>
-        <button style={styles.toolBtn} onClick={() => onReorder("back")}>⬇️ Send back</button>
-        <button style={styles.toolBtn} onClick={() => onReorder("front")}>⬆️ Bring front</button>
+        <button style={styles.toolBtn} onClick={() => onReorder("back")}><ArrowDown size={14} color="var(--accent)" /> Send back</button>
+        <button style={styles.toolBtn} onClick={() => onReorder("front")}><ArrowUp size={14} color="var(--accent)" /> Bring front</button>
       </div>
-      <button style={styles.deleteBtn} onClick={onDelete}>🗑️ Delete layer</button>
+      <button style={styles.deleteBtn} onClick={onDelete}><Trash2 size={14} /> Delete layer</button>
     </div>
   );
 }
@@ -657,7 +668,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBy
               {a.kind === "image" ? (
                 <img src={assetUrl(a.id)} alt="" style={styles.assetThumb} />
               ) : (
-                <div style={styles.assetThumbVideo}>{a.kind === "video" ? "🎬" : "🔊"}</div>
+                <div style={styles.assetThumbVideo}>{a.kind === "video" ? <Film size={24} /> : <Volume2 size={24} />}</div>
               )}
               <div style={styles.assetMeta}>{formatBytes(a.sizeBytes)}</div>
               <button
@@ -666,7 +677,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBy
                 onBlur={() => armed && onDelete(null)}
                 title={armed ? "Click again to confirm" : "Delete"}
               >
-                {armed ? "✓" : "✕"}
+                {armed ? <Check size={14} color="var(--accent)" /> : <X size={14} color="var(--accent)" />}
               </button>
             </div>
           );

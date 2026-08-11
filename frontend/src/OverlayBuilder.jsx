@@ -4,6 +4,7 @@ import Pending from "./Pending.jsx";
 import OverlayCanvas from "./OverlayCanvas.jsx";
 import { apiFetch, wsUrl } from "./api.js";
 import logo from "./img/logo.png";
+import { Clipboard, ArrowLeft } from "lucide-react";
 
 // Kinds in backend/activity.js's KNOWN_KINDS, for the "Latest Activity"
 // pre-fill modal (distinct from OverlayCanvas.jsx's TOKEN_TO_KIND namespaces
@@ -184,8 +185,8 @@ function BuilderInner() {
             </button>
           )}
           {selectedId && <button style={styles.primaryBtn} onClick={copyOverlayUrl}>Copy OBS URL</button>}
-          <button style={styles.btn} onClick={() => setShowLatestActivity(true)}>📋 Latest Activity</button>
-          <a style={styles.backLink} href="/">← Back to app</a>
+          <button style={styles.btn} onClick={() => setShowLatestActivity(true)}><Clipboard size={14} color="var(--accent)" /> Latest Activity</button>
+          <a style={styles.backLink} href="/"><ArrowLeft size={14} color="var(--accent)" /> Back to app</a>
         </div>
       </div>
 
@@ -362,6 +363,9 @@ const styles = {
     fontSize: 13,
     textDecoration: "none",
     marginLeft: 8,
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
   },
   toast: {
     position: "fixed",

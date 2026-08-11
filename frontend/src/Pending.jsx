@@ -1,4 +1,5 @@
 import React from "react";
+import { Hourglass } from "lucide-react";
 import { apiFetch } from "./api.js";
 
 export default function Pending({ displayName, onLoggedOut }) {
@@ -10,7 +11,7 @@ export default function Pending({ displayName, onLoggedOut }) {
   return (
     <div style={styles.wrap}>
       <div style={styles.card}>
-        <span style={styles.icon}>⏳</span>
+        <span style={styles.icon}><Hourglass size={40} /></span>
         <h1 style={styles.title}>Awaiting approval</h1>
         <p style={styles.subtitle}>
           Hey {displayName}, your account is waiting for an admin to approve access.

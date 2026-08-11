@@ -2,6 +2,7 @@ import React, { useState, useEffect } from "react";
 import { apiFetch } from "./api.js";
 import { tts } from "./TTSController.js";
 import { useTranslation } from "./i18n/index.js";
+import { RefreshCw, AlertTriangle, SkipForward, Play } from "lucide-react";
 
 function Toggle({ checked, onChange }) {
   return (
@@ -127,7 +128,7 @@ export default function QuickControls({
         )}
         {ttsPlaying && onSkipTts && (
           <button style={styles.actionBtn} onClick={onSkipTts} title={t("quickControls.skipTtsTitle")}>
-            {t("quickControls.skipTts")}
+            <SkipForward size={14} color="var(--accent)" /> {t("quickControls.skipTts")}
           </button>
         )}
         {onNowClick && (
@@ -137,7 +138,7 @@ export default function QuickControls({
             disabled={nowDisabled}
             title={nowTitle}
           >
-            {t("quickControls.now", {
+            <Play size={14} color="var(--accent)" /> {t("quickControls.now", {
               cooldownSuffix: nowOnCooldown
                 ? t("quickControls.nowCooldownSuffix", { time: `${Math.floor(nowRemainingSec / 60)}:${String(nowRemainingSec % 60).padStart(2, "0")}` })
                 : "",
@@ -210,11 +211,11 @@ export default function QuickControls({
                     onClick={() => loadElevenVoices(settings.elevenLabsKey)}
                     disabled={!settings.elevenLabsKey || elevenVoicesStatus === "loading"}
                   >
-                    ↻
+                    <RefreshCw size={14} color="var(--accent)" />
                   </button>
                 </div>
                 {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
-                  <span style={styles.errorText}>⚠ {elevenVoicesStatus}</span>
+                  <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {elevenVoicesStatus}</span>
                 )}
               </div>
             )}
@@ -239,14 +240,14 @@ export default function QuickControls({
                     onClick={loadPiperVoices}
                     disabled={piperStatus === "loading"}
                   >
-                    ↻
+                    <RefreshCw size={14} color="var(--accent)" />
                   </button>
                 </div>
                 {piperStatus === "missing" && (
                   <span style={styles.errorText}>{t("quickControls.piperMissing")}</span>
                 )}
                 {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
-                  <span style={styles.errorText}>⚠ {piperStatus}</span>
+                  <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {piperStatus}</span>
                 )}
               </div>
             )}
@@ -316,6 +317,9 @@ const styles = {
   errorText: {
     fontSize: 10,
     color: "var(--red)",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
   },
   field: {
     display: "flex",

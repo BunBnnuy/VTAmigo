@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { MessageCircle } from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
 
 function formatTime(ts) {
@@ -42,7 +43,7 @@ export default function ResponsePanel({
                   title={botConnected ? t("responsePanel.sendTitle") : t("responsePanel.botNotConnected")}
                   onClick={() => botConnected && onSendToChat(r.text)}
                 >
-                  {t("responsePanel.send")}
+                  <MessageCircle size={14} color="var(--accent)" /> {t("responsePanel.send")}
                 </button>
               )}
             </div>

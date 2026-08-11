@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { RefreshCw, MessageCircle, Gift, PartyPopper } from "lucide-react";
 import { apiFetch } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
@@ -110,20 +111,20 @@ export default function ChatOverlayPreview({ lang, visible }) {
             {t("chatOverlayPreview.sizeCaption", { width: contentW, height: contentH })}
           </span>
           <button type="button" style={styles.smallBtn} onClick={() => setReloadKey((k) => k + 1)}>
-            {t("chatOverlayPreview.reload")}
+            <RefreshCw size={14} color="var(--accent)" /> {t("chatOverlayPreview.reload")}
           </button>
           <span style={styles.scaleLabel}>{Math.round(scale * 100)}%</span>
         </div>
 
         <div style={styles.row3}>
           <button type="button" style={styles.smallBtn} onClick={() => sendTest("message")}>
-            {t("chatOverlayPreview.testMessage")}
+            <MessageCircle size={14} color="var(--accent)" /> {t("chatOverlayPreview.testMessage")}
           </button>
           <button type="button" style={styles.smallBtn} onClick={() => sendTest("redeem")}>
-            {t("chatOverlayPreview.testRedeem")}
+            <Gift size={14} color="var(--accent)" /> {t("chatOverlayPreview.testRedeem")}
           </button>
           <button type="button" style={styles.smallBtn} onClick={() => sendTest("event")}>
-            {t("chatOverlayPreview.testEvent")}
+            <PartyPopper size={14} color="var(--accent)" /> {t("chatOverlayPreview.testEvent")}
           </button>
         </div>
 

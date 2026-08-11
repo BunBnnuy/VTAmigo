@@ -1,8 +1,9 @@
 import React, { useState, useRef, useEffect } from "react";
+import { LayoutGrid } from "lucide-react";
 import { PANEL_META, DEFAULT_PANEL_LAYOUT } from "./WindowManager.jsx";
 
 // Top-bar button + dropdown listing every dashboard window with a checkbox
-// to show/hide it — the only way to bring back a window closed via its ✕.
+// to show/hide it — the only way to bring back a window closed via its X.
 export default function PanelsMenu({ panelLayout, onUpdateWindow, t }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
@@ -21,7 +22,7 @@ export default function PanelsMenu({ panelLayout, onUpdateWindow, t }) {
   return (
     <div style={styles.wrap} ref={ref}>
       <button style={styles.settingsBtn} onClick={() => setOpen((o) => !o)} title={t("app.panelsTitle")}>
-        🗔
+        <LayoutGrid size={14} color="var(--accent)" />
       </button>
       {open && (
         <div style={styles.dropdown}>

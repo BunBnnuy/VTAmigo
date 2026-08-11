@@ -1,9 +1,20 @@
 import React, { useState } from "react";
+import {
+  MessageCircle, Volume2, Mic, Image as ImageIcon, Trophy, SlidersHorizontal, PartyPopper,
+} from "lucide-react";
 import { apiUrl } from "./api.js";
 import { detectLanguage, SUPPORTED_LANGUAGES, useTranslation } from "./i18n/index.js";
 import logo from "./img/logo.png";
 
-const FEATURE_ICONS = { chat: "💬", tts: "🗣️", overlay: "🖼️", leveling: "🏆", customize: "🎛️", events: "🎉", voice: "🎙️" };
+const FEATURE_ICONS = {
+  chat: MessageCircle,
+  tts: Volume2,
+  voice: Mic,
+  overlay: ImageIcon,
+  leveling: Trophy,
+  customize: SlidersHorizontal,
+  events: PartyPopper,
+};
 const FEATURE_KEYS = ["chat", "tts", "voice", "overlay", "leveling", "customize", "events"];
 const LANDING_LANG_KEY = "landingLang";
 
@@ -53,13 +64,16 @@ export default function Login() {
       </main>
 
       <section style={styles.features}>
-        {FEATURE_KEYS.map((key) => (
-          <div key={key} style={styles.card}>
-            <div style={styles.cardIcon}>{FEATURE_ICONS[key]}</div>
-            <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
-            <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
-          </div>
-        ))}
+        {FEATURE_KEYS.map((key) => {
+          const IconComp = FEATURE_ICONS[key];
+          return (
+            <div key={key} style={styles.card}>
+              <div style={styles.cardIcon}><IconComp size={26} /></div>
+              <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
+              <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
+            </div>
+          );
+        })}
       </section>
 
       <footer style={styles.footer}>

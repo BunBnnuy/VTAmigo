@@ -67,6 +67,32 @@ happen in one place.
 ## Toggles
 - Off: track `var(--border)`; On: track `var(--accent)`; thumb white, 16px circle
 
+## Icons
+- No emoji anywhere in the UI — use flat line-icon glyphs from
+  [`lucide-react`](https://lucide.dev) instead (`import { X } from
+  "lucide-react"`).
+- Default size `14` for inline button/control icons, `18–20` for larger
+  decorative icons (feed rows, feature cards). Default `strokeWidth` is
+  fine (2) — don't fill shapes, keep the flat/line look.
+- **Actionable elements** (inside a `<button>`, `<a>`, or a `<label>`
+  wrapping a file `<input>`) — pass `color="var(--accent)"` explicitly.
+- **Decorative/status icons** (feed rows, static feature cards, inline
+  status text) — don't set `color`; let it inherit `currentColor` from
+  the parent, *except* icons standing in for a semantic status (success/
+  error/warning), which should carry that meaning explicitly:
+  `color="var(--green)"` / `var(--red)` / `var(--yellow)`.
+- Plain typographic characters in prose (e.g. a `→` inside a sentence
+  explaining a multi-step flow) are not icons — leave those as text,
+  don't turn them into SVGs.
+- `<option>` elements can't render SVG children — icon-ify the label
+  text next to the `<select>` if needed, not the option text itself.
+- The global `button` rule in `index.css` is `display: inline-flex;
+  align-items: center; gap: 6px`, so `<button><Icon size={14}/> {label}</button>`
+  aligns on its own — no wrapper span needed inside a `<button>`. `<a>`
+  and non-button decorative wrappers don't get this for free; add
+  `display: "inline-flex", alignItems: "center", gap: 6` (or 4 for tight
+  status text) to that element's own style when pairing icon + text.
+
 ## Notes for future visual changes
 - Prefer adding/adjusting a CSS var in `index.css` over hardcoding a hex
   value in a component — every themed color should flow through a token.

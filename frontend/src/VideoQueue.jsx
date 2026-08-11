@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
+import { Check, Link2, SkipBack, Play, Pause, SkipForward, AlertTriangle, X, Plus, Save } from "lucide-react";
 
 function Toggle({ checked, onChange }) {
   return (
@@ -156,7 +157,11 @@ export default function VideoQueue({ videoState, lang }) {
     <>
       <div style={styles.body}>
         <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title={t("videoQueue.copyOverlayTitle")}>
-          {overlayCopied ? t("videoQueue.copied") : t("videoQueue.copyOverlay")}
+          {overlayCopied ? (
+            <><Check size={14} color="var(--accent)" /> {t("videoQueue.copied")}</>
+          ) : (
+            <><Link2 size={14} color="var(--accent)" /> {t("videoQueue.copyOverlay")}</>
+          )}
         </button>
 
         <div style={styles.divider} />
@@ -188,7 +193,7 @@ export default function VideoQueue({ videoState, lang }) {
               onClick={() => copyVideoUrl(nowPlaying.videoId)}
               title={t("videoQueue.copyVideoTitle")}
             >
-              {copiedVideoId === nowPlaying.videoId ? "✓" : "🔗"}
+              {copiedVideoId === nowPlaying.videoId ? <Check size={14} color="var(--accent)" /> : <Link2 size={14} color="var(--accent)" />}
             </button>
           </div>
         ) : (
@@ -196,13 +201,13 @@ export default function VideoQueue({ videoState, lang }) {
         )}
         <div style={styles.mediaControls}>
           <button style={styles.mediaBtn} onClick={previous} title={t("videoQueue.previousTitle")}>
-            ⏮
+            <SkipBack size={14} color="var(--accent)" />
           </button>
           <button style={styles.mediaBtn} onClick={togglePlayPause} disabled={!nowPlaying} title={nowPlaying?.paused ? t("videoQueue.resumeTitle") : t("videoQueue.pauseTitle")}>
-            {nowPlaying?.paused ? "▶" : "⏸"}
+            {nowPlaying?.paused ? <Play size={14} color="var(--accent)" /> : <Pause size={14} color="var(--accent)" />}
           </button>
           <button style={styles.mediaBtn} onClick={skip} disabled={!nowPlaying} title={t("videoQueue.nextTitle")}>
-            ⏭
+            <SkipForward size={14} color="var(--accent)" />
           </button>
         </div>
 
@@ -218,9 +223,9 @@ export default function VideoQueue({ videoState, lang }) {
             style={styles.input}
           />
           <button type="submit" style={styles.actionBtn} disabled={adding || !addInput.trim()}>
-            {adding ? t("videoQueue.searching") : t("videoQueue.addButton")}
+            {adding ? t("videoQueue.searching") : <><Plus size={14} color="var(--accent)" /> {t("videoQueue.addButton")}</>}
           </button>
-          {addError && <span style={styles.errorText}>⚠ {addError}</span>}
+          {addError && <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {addError}</span>}
         </form>
 
         {queue.length > 0 && (
@@ -234,10 +239,10 @@ export default function VideoQueue({ videoState, lang }) {
                   onClick={() => copyVideoUrl(item.videoId)}
                   title={t("videoQueue.copyVideoTitle")}
                 >
-                  {copiedVideoId === item.videoId ? "✓" : "🔗"}
+                  {copiedVideoId === item.videoId ? <Check size={14} color="var(--accent)" /> : <Link2 size={14} color="var(--accent)" />}
                 </button>
                 <button style={styles.smallBtn} onClick={() => removeItem(item.id)} title={t("videoQueue.removeTitle")}>
-                  ✕
+                  <X size={14} color="var(--accent)" />
                 </button>
               </div>
             ))}
@@ -262,9 +267,9 @@ export default function VideoQueue({ videoState, lang }) {
               href={`https://www.youtube.com/playlist?list=${defaultPlaylistId}`}
               target="_blank"
               rel="noreferrer"
-              style={{ ...styles.actionBtn, display: "block", textDecoration: "none", boxSizing: "border-box" }}
+              style={{ ...styles.actionBtn, display: "inline-flex", alignItems: "center", gap: 6, textDecoration: "none", boxSizing: "border-box" }}
             >
-              {t("videoQueue.viewOnYoutube")}
+              <Play size={14} color="var(--accent)" /> {t("videoQueue.viewOnYoutube")}
             </a>
             {nextDefaultItem && (
               <span style={styles.hint2} title={nextDefaultItem.title}>
@@ -283,9 +288,9 @@ export default function VideoQueue({ videoState, lang }) {
             style={styles.input}
           />
           <button type="submit" style={styles.actionBtn} disabled={playlistSaving || !playlistInput.trim()}>
-            {playlistSaving ? t("videoQueue.saving") : t("videoQueue.saveButton")}
+            {playlistSaving ? t("videoQueue.saving") : <><Save size={14} color="var(--accent)" /> {t("videoQueue.saveButton")}</>}
           </button>
-          {playlistError && <span style={styles.errorText}>⚠ {playlistError}</span>}
+          {playlistError && <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {playlistError}</span>}
         </form>
 
         <div style={styles.divider} />
@@ -301,7 +306,7 @@ export default function VideoQueue({ videoState, lang }) {
                   onClick={() => copyVideoUrl(item.videoId)}
                   title={t("videoQueue.copyVideoTitle")}
                 >
-                  {copiedVideoId === item.videoId ? "✓" : "🔗"}
+                  {copiedVideoId === item.videoId ? <Check size={14} color="var(--accent)" /> : <Link2 size={14} color="var(--accent)" />}
                 </button>
               </div>
             ))}
@@ -422,6 +427,9 @@ const styles = {
   errorText: {
     fontSize: 10,
     color: "var(--red)",
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 4,
   },
   queueList: {
     display: "flex",
