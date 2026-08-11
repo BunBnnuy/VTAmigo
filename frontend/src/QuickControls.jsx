@@ -17,6 +17,7 @@ function Toggle({ checked, onChange }) {
       <span
         style={{
           ...styles.toggleKnob,
+          background: checked ? "var(--on-accent)" : "#fff",
           transform: checked ? "translateX(16px)" : "translateX(0)",
         }}
       />

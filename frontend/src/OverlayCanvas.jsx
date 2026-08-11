@@ -286,7 +286,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
                   onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
                   onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
                   onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
-                  style={{ outline: layer.id === selectedLayerId ? "2px solid #9147ff" : "1px dashed rgba(255,255,255,0.35)" }}
+                  style={{ outline: layer.id === selectedLayerId ? "2px solid var(--purple, #ffde4d)" : "1px dashed rgba(255,255,255,0.35)" }}
                 >
                   <LayerContent layer={layer} assetUrl={assetUrl} latestByKind={latestByKind} />
                 </Rnd>
@@ -738,7 +738,7 @@ const styles = {
     justifyContent: "center",
     gap: 2,
     color: "#fff",
-    background: "rgba(145, 71, 255, 0.25)",
+    background: "rgba(255, 222, 77, 0.25)",
     border: "1px dashed rgba(255,255,255,0.4)",
     borderRadius: 6,
     pointerEvents: "none",

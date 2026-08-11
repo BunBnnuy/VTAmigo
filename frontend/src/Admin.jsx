@@ -361,7 +361,7 @@ export default function Admin() {
                                 Revoke
                               </button>
                             ) : (
-                              <button style={{ ...styles.smallBtn, background: "var(--purple, #9147ff)" }} onClick={() => setApproved(u.twitchId, true)}>
+                              <button style={{ ...styles.smallBtn, background: "var(--purple, #ffde4d)", color: "var(--on-accent, #2e3256)" }} onClick={() => setApproved(u.twitchId, true)}>
                                 Approve
                               </button>
                             )}
@@ -443,46 +443,46 @@ const styles = {
     // the page). Admin's actual scrolling happens in `page` below; without
     // a bounded height here there's nothing for the wheel to scroll — this
     // page's content just got silently clipped by #root's overflow: hidden.
-    height: "100vh", overflow: "hidden", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
+    height: "100vh", overflow: "hidden", background: "var(--bg, #171826)", color: "var(--text, #edeef7)",
     display: "flex",
   },
   wrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
-    height: "100vh", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
+    height: "100vh", background: "var(--bg, #171826)", color: "var(--text, #edeef7)",
   },
   card: {
     display: "flex", flexDirection: "column", gap: 12,
-    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #18181b)",
-    border: "1px solid var(--border, #2a2a2e)", minWidth: 280,
+    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #1f2033)",
+    border: "1px solid var(--border, #393d60)", minWidth: 280,
   },
 
   /* Sidebar */
   sidebar: {
     width: 220, flexShrink: 0, minHeight: "100vh",
-    background: "var(--surface, #18181b)", borderRight: "1px solid var(--border, #2a2a2e)",
+    background: "var(--surface, #1f2033)", borderRight: "1px solid var(--border, #393d60)",
     display: "flex", flexDirection: "column", padding: "20px 14px",
     position: "sticky", top: 0, alignSelf: "flex-start",
   },
   brand: { display: "flex", alignItems: "center", gap: 8, padding: "0 6px", marginBottom: 24 },
   brandIcon: { width: 26, height: 26, objectFit: "contain" },
   brandName: {
-    fontWeight: 800, fontSize: 16, color: "var(--purple-light, #bf94ff)", letterSpacing: "-0.01em",
+    fontWeight: 800, fontSize: 16, color: "var(--purple-light, #ffec99)", letterSpacing: "-0.01em",
   },
   nav: { display: "flex", flexDirection: "column", gap: 2, flex: 1 },
   logoutBtn: {
     padding: "9px 14px", borderRadius: 8, cursor: "pointer", fontWeight: 600, fontSize: 13,
-    background: "var(--surface2, #202024)", color: "var(--text, #efeff1)", border: "1px solid var(--border, #2a2a2e)",
+    background: "var(--surface2, #2a2d46)", color: "var(--text, #edeef7)", border: "1px solid var(--border, #393d60)",
   },
 
   /* Main */
   main: { flex: 1, minWidth: 0, display: "flex", flexDirection: "column", overflow: "hidden" },
   topBar: {
     display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12,
-    padding: "16px 32px", borderBottom: "1px solid var(--border, #2a2a2e)",
-    flexShrink: 0, zIndex: 10, background: "var(--bg, #0e0e10)",
+    padding: "16px 32px", borderBottom: "1px solid var(--border, #393d60)",
+    flexShrink: 0, zIndex: 10, background: "var(--bg, #171826)",
   },
   topBarTitle: { fontWeight: 700, fontSize: 18 },
-  miniStats: { fontSize: 12, color: "var(--text-muted, #adadb8)", fontWeight: 500 },
+  miniStats: { fontSize: 12, color: "var(--text-muted, #9599c6)", fontWeight: 500 },
   // The actual scroll region — `main` is capped to the viewport (overflow
   // hidden), so this is what the mouse wheel scrolls.
   page: { padding: "24px 32px 48px", flex: 1, overflowY: "auto" },
@@ -494,31 +494,31 @@ const styles = {
   },
   statCard: {
     display: "flex", flexDirection: "column", gap: 4,
-    padding: "16px 18px", borderRadius: 12, background: "var(--surface, #18181b)",
-    border: "1px solid var(--border, #2a2a2e)",
+    padding: "16px 18px", borderRadius: 12, background: "var(--surface, #1f2033)",
+    border: "1px solid var(--border, #393d60)",
   },
-  statLabel: { fontSize: 12, color: "var(--text-muted, #adadb8)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" },
+  statLabel: { fontSize: 12, color: "var(--text-muted, #9599c6)", fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em" },
   statValue: { fontSize: 26, fontWeight: 800 },
-  statSub: { fontSize: 12, color: "var(--text-muted, #adadb8)" },
+  statSub: { fontSize: 12, color: "var(--text-muted, #9599c6)" },
 
   /* Section cards */
   cardTitle: { margin: "0 0 12px 0", fontSize: 17, fontWeight: 700 },
-  muted: { color: "var(--text-muted, #adadb8)", fontSize: 13, marginBottom: 12 },
+  muted: { color: "var(--text-muted, #9599c6)", fontSize: 13, marginBottom: 12 },
 
   title: { margin: "0 0 4px 0", fontSize: 22 },
-  input: { padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #2a2a2e)", background: "#0e0e10", color: "#efeff1" },
+  input: { padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #393d60)", background: "var(--bg, #171826)", color: "var(--text, #edeef7)" },
   error: { color: "var(--red, #e91916)", fontSize: 13 },
-  btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--purple, #9147ff)", color: "#fff", fontWeight: 600 },
+  btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--purple, #ffde4d)", color: "var(--on-accent, #2e3256)", fontWeight: 600 },
   smallBtn: { padding: "6px 12px", borderRadius: 6, border: "none", cursor: "pointer", color: "#fff", fontWeight: 600, fontSize: 13 },
   tierSelect: {
-    padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border, #2a2a2e)",
-    background: "#0e0e10", color: "#efeff1", fontSize: 13,
+    padding: "4px 8px", borderRadius: 6, border: "1px solid var(--border, #393d60)",
+    background: "var(--bg, #171826)", color: "var(--text, #edeef7)", fontSize: 13,
   },
 
-  tableWrap: { overflowX: "auto", borderRadius: 10, border: "1px solid var(--border, #2a2a2e)" },
+  tableWrap: { overflowX: "auto", borderRadius: 10, border: "1px solid var(--border, #393d60)" },
   table: { borderCollapse: "collapse", width: "100%" },
-  th: { textAlign: "left", padding: "10px 14px", borderBottom: "1px solid var(--border, #2a2a2e)", color: "var(--text-muted, #adadb8)", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" },
-  td: { padding: "10px 14px", borderBottom: "1px solid var(--border, #2a2a2e)", fontSize: 14, verticalAlign: "middle", whiteSpace: "nowrap" },
+  th: { textAlign: "left", padding: "10px 14px", borderBottom: "1px solid var(--border, #393d60)", color: "var(--text-muted, #9599c6)", fontSize: 12, fontWeight: 600, textTransform: "uppercase", letterSpacing: "0.03em", whiteSpace: "nowrap" },
+  td: { padding: "10px 14px", borderBottom: "1px solid var(--border, #393d60)", fontSize: 14, verticalAlign: "middle", whiteSpace: "nowrap" },
   avatar: { width: 24, height: 24, borderRadius: "50%", verticalAlign: "middle", marginRight: 8 },
 
   badgeGreen: {
@@ -535,6 +535,6 @@ const styles = {
   },
 
   meterLabel: { display: "flex", justifyContent: "space-between", fontSize: 13, opacity: 0.8, marginBottom: 4 },
-  meterTrack: { height: 8, borderRadius: 4, background: "var(--border, #2a2a2e)", overflow: "hidden" },
-  meterFill: { height: "100%", background: "var(--purple, #9147ff)", transition: "width 0.4s ease" },
+  meterTrack: { height: 8, borderRadius: 4, background: "var(--border, #393d60)", overflow: "hidden" },
+  meterFill: { height: "100%", background: "var(--purple, #ffde4d)", transition: "width 0.4s ease" },
 };

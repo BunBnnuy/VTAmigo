@@ -2,46 +2,49 @@
 
 :root,
 :root[data-theme="dark"] {
-  --bg: #0e0e10;
-  --surface: #18181b;
-  --surface2: #1f1f23;
-  --border: #2a2a2e;
-  --purple: #9147ff;
-  --purple-light: #bf94ff;
-  --text: #efeff1;
-  --text-muted: #adadb8;
+  --bg: #171826;
+  --surface: #1f2033;
+  --surface2: #2a2d46;
+  --border: #393d60;
+  --purple: #ffde4d;
+  --purple-light: #ffec99;
+  --on-accent: #2e3256;
+  --text: #edeef7;
+  --text-muted: #9599c6;
   --green: #00b300;
   --red: #e91916;
-  --yellow: #ffb31a;
+  --yellow: #ffec99;
 }
 
 :root[data-theme="light"] {
-  --bg: #f5f5f7;
+  --bg: #e9eaf7;
   --surface: #ffffff;
-  --surface2: #f0f0f3;
-  --border: #dcdce0;
-  --purple: #7c3aed;
-  --purple-light: #6d28d9;
-  --text: #1c1c1f;
-  --text-muted: #63636b;
+  --surface2: #f1f1f9;
+  --border: #cdd0ea;
+  --purple: #c19d0c;
+  --purple-light: #a5890d;
+  --on-accent: #2e3256;
+  --text: #2e3256;
+  --text-muted: #5b608f;
   --green: #16803c;
   --red: #d1221f;
-  --yellow: #b3790f;
+  --yellow: #a5890d;
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    --bg: #f5f5f7;
+    --bg: #e9eaf7;
     --surface: #ffffff;
-    --surface2: #f0f0f3;
-    --border: #dcdce0;
-    --purple: #7c3aed;
-    --purple-light: #6d28d9;
-    --text: #1c1c1f;
-    --text-muted: #63636b;
+    --surface2: #f1f1f9;
+    --border: #cdd0ea;
+    --purple: #c19d0c;
+    --purple-light: #a5890d;
+    --on-accent: #2e3256;
+    --text: #2e3256;
+    --text-muted: #5b608f;
     --green: #16803c;
     --red: #d1221f;
-    --yellow: #b3790f;
+    --yellow: #a5890d;
   }
 }
 

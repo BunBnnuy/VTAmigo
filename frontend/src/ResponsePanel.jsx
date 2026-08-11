@@ -147,7 +147,7 @@ const styles = {
   },
   sendBtn: {
     background: "var(--purple)",
-    color: "#fff",
+    color: "var(--on-accent)",
     border: "none",
     borderRadius: 4,
     padding: "2px 8px",

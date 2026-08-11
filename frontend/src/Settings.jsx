@@ -1239,18 +1239,27 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 {t("settings.voice.chromeOnly")}
               </p>
             )}
-            <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-              <input
-                type="checkbox"
-                id="micEnabled"
-                checked={form.micEnabled || false}
-                onChange={(e) => set("micEnabled", e.target.checked)}
-                style={{ width: "auto", accentColor: "var(--purple)" }}
+            <div style={{ ...styles.field, marginBottom: 12 }}>
+              <label>{t("settings.voice.modeLabel")}</label>
+              <select
+                value={form.micMode || "off"}
+                onChange={(e) => set("micMode", e.target.value)}
                 disabled={!micChromeAllowed}
-              />
-              <label htmlFor="micEnabled" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                {t("settings.voice.enableLabel")}
-              </label>
+              >
+                <option value="off">{t("settings.voice.modeOff")}</option>
+                <option value="voice">{t("settings.voice.modeVoice")}</option>
+                <option value="commands">{t("settings.voice.modeCommands")}</option>
+                <option value="full">{t("settings.voice.modeFull")}</option>
+              </select>
+              <span style={styles.hint}>
+                {form.micMode === "commands"
+                  ? t("settings.voice.modeCommandsHint")
+                  : form.micMode === "full"
+                  ? t("settings.voice.modeFullHint")
+                  : form.micMode === "voice"
+                  ? t("settings.voice.modeVoiceHint")
+                  : t("settings.voice.modeOffHint")}
+              </span>
             </div>
             <div style={styles.field}>
               <label>{t("settings.voice.micDevice")}</label>
@@ -1466,6 +1475,6 @@ const styles = {
   },
   saveBtn: {
     background: "var(--purple)",
-    color: "#fff",
+    color: "var(--on-accent)",
   },
 };
