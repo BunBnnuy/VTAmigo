@@ -445,15 +445,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   }, [pushToBuffer, runVoiceCommand]);
 
   const handleSendTyped = useCallback((text) => {
-    const label = twitchLogin || "Streamer";
-    setMessages((prev) => [...prev.slice(-199), {
-      id: `typed-${uid()}`,
-      timestamp: Date.now(),
-      username: label,
-      text,
-      isTyped: true,
-    }]);
-    pushToBuffer({ username: label, text });
+    // No optimistic local append here — the backend broadcasts a synthetic
+    // "chat" WS message (tagged isTyped: true) right after it posts to
+    // Twitch, and the ws.onmessage chat handler below is what actually adds
+    // it to `messages`/the AI buffer. Adding it here too used to double it up.
     // Only typed Live Chat messages reach real Twitch chat — voice-to-text
     // transcripts (see voice.onTranscript above) stay local/AI-buffer only.
     apiFetch("/say-as-streamer", {
@@ -466,7 +461,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         console.warn("[chat] failed to send typed message to Twitch chat:", d.error || r.status);
       }
     }).catch((e) => console.warn("[chat] failed to send typed message to Twitch chat:", e.message));
-  }, [twitchLogin, pushToBuffer]);
+  }, []);
 
   // Apply mic settings whenever they change
   useEffect(() => {
@@ -1477,7 +1472,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             value={settings.ttsVolume}
             onChange={(e) => updateSetting("ttsVolume", Number(e.target.value))}
             disabled={muted}
-            style={styles.volumeSlider}
+            style={{ ...styles.volumeSlider, "--pct": `${settings.ttsVolume * 100}%` }}
             title={t("app.ttsVolumeTitle", { pct: Math.round(settings.ttsVolume * 100) })}
           />
           <span style={styles.countdownLabel}>{Math.round(settings.ttsVolume * 100)}%</span>

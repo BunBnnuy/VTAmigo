@@ -28,7 +28,12 @@ export default function ChatFeed({
   const { t } = useTranslation(lang);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // block: "nearest" keeps this scoped to the message list's own scroll
+    // container — the default "start" alignment cascades up through every
+    // scrollable ancestor (including #root, which has overflow:hidden but
+    // is still a valid scroll port for scrollIntoView), nudging the whole
+    // app down a few pixels on every new message.
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages]);
 
   const submit = (e) => {

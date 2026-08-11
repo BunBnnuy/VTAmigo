@@ -1217,7 +1217,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   step={0.1}
                   value={form.ttsRate}
                   onChange={(e) => set("ttsRate", Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "var(--accent)" }}
+                  style={{ width: "100%", "--pct": `${(form.ttsRate - 0.5) / 1.5 * 100}%` }}
                 />
               </div>
               <div style={styles.field}>
@@ -1229,7 +1229,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   step={0.05}
                   value={form.ttsVolume}
                   onChange={(e) => set("ttsVolume", Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "var(--accent)" }}
+                  style={{ width: "100%", "--pct": `${form.ttsVolume * 100}%` }}
                 />
               </div>
             </div>

@@ -544,19 +544,19 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
       {layer.type === "image" && (
         <>
           <label style={styles.label}>Hue ({Math.round(layer.hue || 0)}°)
-            <input type="range" style={styles.slider} min={-180} max={180} value={layer.hue || 0}
+            <input type="range" style={{ ...styles.slider, "--pct": `${((layer.hue || 0) + 180) / 360 * 100}%` }} min={-180} max={180} value={layer.hue || 0}
               onChange={(e) => onChange({ hue: Number(e.target.value) })} />
           </label>
           <label style={styles.label}>Saturation ({Math.round(layer.saturation ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={200} value={layer.saturation ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${(layer.saturation ?? 100) / 200 * 100}%` }} min={0} max={200} value={layer.saturation ?? 100}
               onChange={(e) => onChange({ saturation: Number(e.target.value) })} />
           </label>
           <label style={styles.label}>Brightness ({Math.round(layer.brightness ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={200} value={layer.brightness ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${(layer.brightness ?? 100) / 200 * 100}%` }} min={0} max={200} value={layer.brightness ?? 100}
               onChange={(e) => onChange({ brightness: Number(e.target.value) })} />
           </label>
           <label style={styles.label}>Opacity ({Math.round(layer.opacity ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={100} value={layer.opacity ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${layer.opacity ?? 100}%` }} min={0} max={100} value={layer.opacity ?? 100}
               onChange={(e) => onChange({ opacity: Number(e.target.value) })} />
           </label>
           <button style={styles.toolBtn} onClick={() => onChange({ hue: 0, saturation: 100, brightness: 100, opacity: 100 })}>
@@ -602,7 +602,7 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
       {layer.type === "sound" && (
         <>
           <label style={styles.label}>Volume ({Math.round(layer.volume ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={100} value={layer.volume ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${layer.volume ?? 100}%` }} min={0} max={100} value={layer.volume ?? 100}
               onChange={(e) => onChange({ volume: Number(e.target.value) })} />
           </label>
           <audio controls src={assetUrl(layer.assetId)} style={{ width: "100%" }} />
