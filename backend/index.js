@@ -1726,7 +1726,14 @@ app.post("/lipsync/stop", (req, res) => {
 // public: the guard above only blocks PROTECTED_PREFIXES, and the SPA itself
 // does its own client-side /auth/me check.
 if (isProd) {
-  app.get("*", (req, res) => res.sendFile(path.join(distPath, "index.html")));
+  app.get("*", (req, res) => {
+    // "/" and the known client-side routes below still render their normal
+    // page — main.jsx figures out which — everything else is a real 404,
+    // so it gets the right status code even though the SPA itself renders
+    // the NotFound page for it.
+    const knownPath = req.path === "/" || ["/admin", "/device", "/overlay-builder"].some((p) => req.path.startsWith(p));
+    res.status(knownPath ? 200 : 404).sendFile(path.join(distPath, "index.html"));
+  });
 }
 
 wss.on("connection", (ws, req) => {
