@@ -98,6 +98,23 @@ if (isProd) {
     sendEvent("tunnel_client_download", { req, twitchLogin: user?.login });
     res.sendFile(path.join(distPath, "downloads/tunnel-client.exe"));
   });
+  // robots.txt is generated per-host rather than shipped as a static file:
+  // prod and staging build from the same repo, so a single committed file
+  // would let dev.vtamigo.top get indexed and compete with prod in search.
+  // Fail closed — only the canonical host is crawlable, so staging, bare-IP
+  // access and the packaged Electron app all say "go away" by default.
+  app.get("/robots.txt", (req, res) => {
+    const host = (req.get("host") || "").toLowerCase().split(":")[0];
+    const canonical = (process.env.CANONICAL_HOST || "vtamigo.top").toLowerCase();
+    const crawlable = host === canonical || host === `www.${canonical}`;
+    res.type("text/plain");
+    if (!crawlable) return res.send("User-agent: *\nDisallow: /\n");
+    // The app pages below all require an approved Twitch login, so there's
+    // nothing for a crawler to index there — keep it on the public pages.
+    res.send(
+      "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /device\nDisallow: /overlay-builder\nDisallow: /overlay/\n"
+    );
+  });
   app.use(express.static(distPath));
 }
 
@@ -1731,7 +1748,8 @@ if (isProd) {
     // page — main.jsx figures out which — everything else is a real 404,
     // so it gets the right status code even though the SPA itself renders
     // the NotFound page for it.
-    const knownPath = req.path === "/" || ["/admin", "/device", "/overlay-builder"].some((p) => req.path.startsWith(p));
+    // Keep in sync with the page() switch in frontend/src/main.jsx.
+    const knownPath = req.path === "/" || ["/admin", "/device", "/overlay-builder", "/privacy", "/faq"].some((p) => req.path.startsWith(p));
     res.status(knownPath ? 200 : 404).sendFile(path.join(distPath, "index.html"));
   });
 }

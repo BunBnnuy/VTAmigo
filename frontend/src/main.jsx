@@ -5,6 +5,8 @@ import Admin from "./Admin.jsx";
 import Device from "./Device.jsx";
 import OverlayBuilder from "./OverlayBuilder.jsx";
 import NotFound from "./NotFound.jsx";
+import PrivacyPolicy from "./PrivacyPolicy.jsx";
+import Faq from "./Faq.jsx";
 import ErrorBoundary from "./ErrorBoundary.jsx";
 import { initErrorLogger } from "./errorLogger.js";
 import "./index.css";
@@ -22,6 +24,10 @@ function page() {
   if (path.startsWith("/admin")) return <Admin />;
   if (path.startsWith("/device")) return <Device />;
   if (path.startsWith("/overlay-builder")) return <OverlayBuilder />;
+  // Keep in sync with the knownPath list in backend/index.js's catch-all —
+  // a path missing there renders fine but is served with a 404 status.
+  if (path.startsWith("/privacy")) return <PrivacyPolicy />;
+  if (path.startsWith("/faq")) return <Faq />;
   return <NotFound />;
 }
 
