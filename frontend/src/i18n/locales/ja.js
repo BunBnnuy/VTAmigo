@@ -258,6 +258,9 @@ export default {
       chatLabel: "チャットでのラベル",
       chatLabelPlaceholder: "Streamer",
       chatLabelHint: "チャットフィードであなたの音声メッセージに表示される名前です。",
+      titleDelimiter: "タイトル区切り文字",
+      titleDelimiterPlaceholder: "例: |",
+      titleDelimiterHint: "設定すると、「タイトルを変更して」という音声コマンドは、この文字列が最初に現れる位置より前の部分だけを置き換えます。それ以降はそのまま残ります。",
     },
 
     vtube: {

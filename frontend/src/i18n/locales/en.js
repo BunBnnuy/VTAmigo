@@ -258,6 +258,9 @@ export default {
       chatLabel: "Label in chat",
       chatLabelPlaceholder: "Streamer",
       chatLabelHint: "Name shown for your voice messages in the chat feed.",
+      titleDelimiter: "Title delimiter",
+      titleDelimiterPlaceholder: "e.g. |",
+      titleDelimiterHint: "When set, the \"change the title\" voice command only replaces the part of the title before the first instance of this text — everything from there on stays as-is.",
     },
 
     vtube: {

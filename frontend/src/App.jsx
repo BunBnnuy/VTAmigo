@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS = {
   micDeviceId: "",
   micLang: "es-ES",
   micLabel: "Streamer",
+  micTitleDelimiter: "",
   botUsername: "",
   botToken: "",
   autoSendToChat: false,
@@ -370,14 +371,23 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     if (!cmd) return;
     try {
       if (cmd.type === "title") {
+        let newTitle = cmd.value;
+        const delimiter = settingsRef.current.micTitleDelimiter;
+        if (delimiter) {
+          const infoRes = await apiFetch("/stream/info");
+          const info = await infoRes.json().catch(() => ({}));
+          if (!infoRes.ok) throw new Error(info.error || `HTTP ${infoRes.status}`);
+          const idx = (info.title || "").indexOf(delimiter);
+          if (idx !== -1) newTitle = cmd.value + info.title.slice(idx);
+        }
         const res = await apiFetch("/stream/settings", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ title: cmd.value }),
+          body: JSON.stringify({ title: newTitle }),
         });
         const data = await res.json().catch(() => ({}));
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        postCommandFeedback(true, t("app.voiceCommand.titleChanged", { title: cmd.value }));
+        postCommandFeedback(true, t("app.voiceCommand.titleChanged", { title: newTitle }));
       } else if (cmd.type === "category") {
         const searchRes = await apiFetch(`/stream/categories?query=${encodeURIComponent(cmd.value)}`);
         const searchData = await searchRes.json().catch(() => ({}));

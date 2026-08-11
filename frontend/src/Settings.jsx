@@ -1305,6 +1305,18 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 <span style={styles.hint}>{t("settings.voice.chatLabelHint")}</span>
               </div>
             </div>
+            {(form.micMode === "commands" || form.micMode === "full") && (
+              <div style={styles.field}>
+                <label>{t("settings.voice.titleDelimiter")}</label>
+                <input
+                  value={form.micTitleDelimiter || ""}
+                  onChange={(e) => set("micTitleDelimiter", e.target.value)}
+                  placeholder={t("settings.voice.titleDelimiterPlaceholder")}
+                  disabled={!micChromeAllowed}
+                />
+                <span style={styles.hint}>{t("settings.voice.titleDelimiterHint")}</span>
+              </div>
+            )}
           </section>
 
           <section style={{ ...styles.section, ...styles.disabledSection }}>

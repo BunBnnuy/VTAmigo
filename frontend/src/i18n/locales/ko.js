@@ -258,6 +258,9 @@ export default {
       chatLabel: "채팅에 표시할 이름",
       chatLabelPlaceholder: "Streamer",
       chatLabelHint: "채팅 피드에서 회원님의 음성 메시지에 표시되는 이름입니다.",
+      titleDelimiter: "제목 구분 기호",
+      titleDelimiterPlaceholder: "예: |",
+      titleDelimiterHint: "설정하면 \"제목을 바꿔줘\" 음성 명령이 이 텍스트가 처음 나타나는 부분 앞쪽만 교체합니다. 그 이후 내용은 그대로 유지됩니다.",
     },
 
     vtube: {
