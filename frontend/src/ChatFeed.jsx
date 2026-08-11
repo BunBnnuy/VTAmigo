@@ -240,7 +240,7 @@ const styles = {
     fontSize: 13,
   },
   sendBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
     borderRadius: 4,
@@ -312,8 +312,8 @@ const styles = {
     marginLeft: 2,
   },
   redeemRow: {
-    background: "rgba(255, 222, 77, 0.08)",
-    borderLeft: "2px solid var(--purple)",
+    background: "rgba(225, 29, 118, 0.08)",
+    borderLeft: "2px solid var(--accent)",
     paddingLeft: 6,
     borderRadius: 4,
   },
@@ -339,8 +339,8 @@ const styles = {
   },
   channelBadge: {
     fontSize: 10,
-    color: "var(--purple-light)",
-    background: "rgba(255, 222, 77, 0.15)",
+    color: "var(--accent-light)",
+    background: "rgba(225, 29, 118, 0.15)",
     borderRadius: 4,
     padding: "1px 5px",
     flexShrink: 0,

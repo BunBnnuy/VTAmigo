@@ -24,18 +24,18 @@ export default function Pending({ displayName, onLoggedOut }) {
 const styles = {
   wrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
-    height: "100vh", background: "var(--bg, #171826)", color: "var(--text, #edeef7)",
+    height: "100vh", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
   },
   card: {
     display: "flex", flexDirection: "column", alignItems: "center", gap: 12,
-    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #1f2033)",
-    border: "1px solid var(--border, #393d60)", maxWidth: 360, textAlign: "center",
+    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #18181b)",
+    border: "1px solid var(--border, #2a2a2e)", maxWidth: 360, textAlign: "center",
   },
   icon: { fontSize: 40 },
   title: { margin: 0, fontSize: 22 },
   subtitle: { margin: 0, opacity: 0.7, fontSize: 14 },
   btn: {
     marginTop: 12, padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer",
-    background: "var(--red, #e91916)", color: "#fff", fontWeight: 600, fontSize: 14,
+    background: "var(--red, #ef4444)", color: "#fff", fontWeight: 600, fontSize: 14,
   },
 };

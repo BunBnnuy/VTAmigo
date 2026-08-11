@@ -286,7 +286,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
                   onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
                   onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
                   onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
-                  style={{ outline: layer.id === selectedLayerId ? "2px solid var(--purple, #ffde4d)" : "1px dashed rgba(255,255,255,0.35)" }}
+                  style={{ outline: layer.id === selectedLayerId ? "2px solid var(--accent, #e11d76)" : "1px dashed rgba(255,255,255,0.35)" }}
                 >
                   <LayerContent layer={layer} assetUrl={assetUrl} latestByKind={latestByKind} />
                 </Rnd>
@@ -645,7 +645,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBy
       <div style={styles.quotaRow}>
         <div style={styles.quotaLabel}>{formatBytes(usageBytes)} / {formatBytes(quotaBytes)} used</div>
         <div style={styles.quotaTrack}>
-          <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--purple)" }} />
+          <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--accent)" }} />
         </div>
       </div>
       {assets.length === 0 && <div style={styles.panelEmpty}>No uploads yet.</div>}
@@ -738,7 +738,7 @@ const styles = {
     justifyContent: "center",
     gap: 2,
     color: "#fff",
-    background: "rgba(255, 222, 77, 0.25)",
+    background: "rgba(225, 29, 118, 0.25)",
     border: "1px dashed rgba(255,255,255,0.4)",
     borderRadius: 6,
     pointerEvents: "none",
@@ -762,7 +762,7 @@ const styles = {
   panelTitle: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     textTransform: "capitalize",
   },
   panelEmpty: {

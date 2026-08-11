@@ -704,7 +704,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="idleReddit"
                   checked={false}
                   onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="idleReddit" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.reddit.enableLabel")}
@@ -747,7 +747,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="youtubePeek"
                   checked={false}
                   onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="youtubePeek" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.youtube.enableLabel")}
@@ -781,7 +781,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="screenWatch"
                   checked={false}
                   onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="screenWatch" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.trivia.enableLabel")}
@@ -833,7 +833,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="screenClick"
                   checked={form.screenClickEnabled || false}
                   onChange={(e) => set("screenClickEnabled", e.target.checked)}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="screenClick" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.trivia.autoClickLabel")}
@@ -856,7 +856,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="screenAutoNav"
                   checked={form.screenAutoNavigate || false}
                   onChange={(e) => set("screenAutoNavigate", e.target.checked)}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="screenAutoNav" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.trivia.autoNavLabel")}
@@ -942,7 +942,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                           style={{
                             height: "100%",
                             width: `${exportStatus.pct || 0}%`,
-                            background: exportStatus.error ? "#e05555" : "var(--purple)",
+                            background: exportStatus.error ? "#e05555" : "var(--accent)",
                             transition: "width 0.4s ease",
                           }}
                         />
@@ -1032,7 +1032,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                           style={{
                             height: "100%",
                             width: `${downloadMemoryStatus.pct || 0}%`,
-                            background: "var(--purple)",
+                            background: "var(--accent)",
                             transition: "width 0.4s ease",
                           }}
                         />
@@ -1209,7 +1209,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   step={0.1}
                   value={form.ttsRate}
                   onChange={(e) => set("ttsRate", Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "var(--purple)" }}
+                  style={{ width: "100%", accentColor: "var(--accent)" }}
                 />
               </div>
               <div style={styles.field}>
@@ -1221,7 +1221,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   step={0.05}
                   value={form.ttsVolume}
                   onChange={(e) => set("ttsVolume", Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "var(--purple)" }}
+                  style={{ width: "100%", accentColor: "var(--accent)" }}
                 />
               </div>
             </div>
@@ -1452,7 +1452,7 @@ const styles = {
   sectionTitle: {
     fontSize: 12,
     fontWeight: 700,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: 12,
@@ -1472,7 +1472,7 @@ const styles = {
     display: "block",
   },
   link: {
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   footer: {
     display: "flex",
@@ -1486,7 +1486,7 @@ const styles = {
     color: "var(--text)",
   },
   saveBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
   },
 };

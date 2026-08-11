@@ -1066,7 +1066,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             timestamp: event.timestamp,
             username: event.username || "Twitch",
             text: formatEventText(event, t),
-            color: "var(--purple)",
+            color: "var(--accent)",
             isEvent: true,
             eventKind: event.kind,
           }]);
@@ -1310,7 +1310,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             </button>
           ) : (
             <button
-              style={{ ...styles.btn, background: "var(--purple)", color: "var(--on-accent)" }}
+              style={{ ...styles.btn, background: "var(--accent)", color: "var(--on-accent)" }}
               onClick={() => handleConnect(true)}
             >
               {t("app.connect")}
@@ -1429,7 +1429,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               ...styles.dot,
               background:
                 screenWatch.state === "collecting" ? "var(--yellow)"
-                : screenWatch.state === "answering" ? "var(--purple)"
+                : screenWatch.state === "answering" ? "var(--accent)"
                 : screenWatch.state === "error" ? "var(--red)"
                 : "var(--green)",
             }} />
@@ -1555,7 +1555,7 @@ const styles = {
   brandName: {
     fontWeight: 800,
     fontSize: 16,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     letterSpacing: "-0.01em",
   },
   topRight: {
@@ -1613,7 +1613,7 @@ const styles = {
   },
   countdownFill: {
     height: "100%",
-    background: "var(--purple)",
+    background: "var(--accent)",
     borderRadius: 2,
     transition: "width 1s linear",
   },

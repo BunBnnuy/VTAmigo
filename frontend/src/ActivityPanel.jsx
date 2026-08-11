@@ -12,13 +12,13 @@ const KIND_ICON = {
 };
 
 const KIND_COLOR = {
-  follow: "var(--purple)",
+  follow: "var(--accent)",
   sub: "var(--yellow)",
   resub: "var(--yellow)",
   giftsub: "var(--yellow)",
   raid: "var(--green)",
-  cheer: "var(--purple-light)",
-  redeem: "var(--purple)",
+  cheer: "var(--accent-light)",
+  redeem: "var(--accent)",
 };
 
 function formatTime(ts) {
@@ -99,7 +99,7 @@ const styles = {
   title: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   count: {
     marginLeft: "auto",

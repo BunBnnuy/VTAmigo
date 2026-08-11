@@ -26,7 +26,7 @@ export default function ResponsePanel({
           <div style={styles.empty}>{t("responsePanel.empty")}</div>
         )}
         {responses.map((r) => (
-          <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--purple)" }}>
+          <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--accent)" }}>
             <div style={styles.cardTime}>
               {formatTime(r.timestamp)}
               {r.eventLabel && <span style={styles.eventLabel}> · {r.eventLabel}</span>}
@@ -92,7 +92,7 @@ const styles = {
   title: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   thinking: {
     fontSize: 12,
@@ -146,7 +146,7 @@ const styles = {
     color: "var(--text-muted)",
   },
   sendBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
     borderRadius: 4,

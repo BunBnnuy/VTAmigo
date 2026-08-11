@@ -326,7 +326,7 @@ const styles = {
   brandName: {
     fontWeight: 800,
     fontSize: 16,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     letterSpacing: "-0.01em",
   },
   topRight: {
@@ -348,7 +348,7 @@ const styles = {
     border: "1px solid var(--border)",
   },
   primaryBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
   },
@@ -403,7 +403,7 @@ const styles = {
   panelTitle: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   panelActions: {
     display: "flex",

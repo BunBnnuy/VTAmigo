@@ -58,7 +58,7 @@ function Toggle({ checked, onChange }) {
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      style={{ ...styles.toggle, background: checked ? "var(--purple)" : "var(--border)" }}
+      style={{ ...styles.toggle, background: checked ? "var(--accent)" : "var(--border)" }}
     >
       <span style={{ ...styles.toggleKnob, background: checked ? "var(--on-accent)" : "#fff", transform: checked ? "translateX(16px)" : "translateX(0)" }} />
     </button>
@@ -566,17 +566,17 @@ const styles = {
     color: "var(--text)",
   },
   toggle: {
-    width: 34,
-    height: 18,
-    borderRadius: 9,
+    width: 36,
+    height: 20,
+    borderRadius: 10,
     padding: 2,
     display: "flex",
     alignItems: "center",
     flexShrink: 0,
   },
   toggleKnob: {
-    width: 14,
-    height: 14,
+    width: 16,
+    height: 16,
     borderRadius: "50%",
     background: "#fff",
     transition: "transform 0.15s",
