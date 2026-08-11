@@ -349,7 +349,7 @@ const styles = {
   },
   primaryBtn: {
     background: "var(--purple)",
-    color: "#fff",
+    color: "var(--on-accent)",
     border: "none",
   },
   dangerBtn: {

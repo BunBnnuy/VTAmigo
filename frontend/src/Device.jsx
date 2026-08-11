@@ -109,21 +109,21 @@ function ApproveDevice({ userCode, setUserCode }) {
 const styles = {
   wrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
-    height: "100vh", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
+    height: "100vh", background: "var(--bg, #171826)", color: "var(--text, #edeef7)",
   },
   card: {
     display: "flex", flexDirection: "column", gap: 12,
-    padding: "40px 48px", borderRadius: 12, background: "var(--panel, #18181b)",
-    border: "1px solid var(--border, #2a2a2e)", minWidth: 320, maxWidth: 420,
+    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #1f2033)",
+    border: "1px solid var(--border, #393d60)", minWidth: 320, maxWidth: 420,
   },
   title: { margin: "0 0 4px 0", fontSize: 22 },
   field: { display: "flex", flexDirection: "column", gap: 4 },
   input: {
-    padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #2a2a2e)",
-    background: "#0e0e10", color: "#efeff1", fontSize: 18, letterSpacing: 2, textAlign: "center",
+    padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #393d60)",
+    background: "var(--bg, #171826)", color: "var(--text, #edeef7)", fontSize: 18, letterSpacing: 2, textAlign: "center",
   },
   hint: { fontSize: 12, opacity: 0.6 },
-  btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--purple, #9147ff)", color: "#fff", fontWeight: 600 },
+  btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--purple, #ffde4d)", color: "var(--on-accent, #2e3256)", fontWeight: 600 },
   error: { color: "var(--red, #e91916)", fontSize: 13 },
   success: { color: "#3fb950", fontSize: 14 },
 };

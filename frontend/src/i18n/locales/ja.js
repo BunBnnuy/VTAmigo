@@ -24,6 +24,10 @@ export default {
         title: "イベントに反応",
         desc: "フォロー、サブスク、レイド、チアーにも即座にブランドに合った反応を返します — 手動でのトリガー不要。",
       },
+      voice: {
+        title: "音声操作とコマンド",
+        desc: "タイプする代わりに話しかけましょう — マイクの音声をAIのコンテキストに変換したり、「タイトルを...に変更して」のように言うだけでハンズフリーで配信を更新できます。音声テキスト化・コマンドのみ・両方から選べます。",
+      },
       leveling: {
         title: "内蔵レベリングシステム",
         desc: "視聴者はチャットするだけでXPとレベルを獲得できます。アニメーションするXPバーとトップ視聴者ランキングをOBSにBrowser Sourceとして追加できます。",
@@ -235,10 +239,18 @@ export default {
     },
 
     voice: {
-      title: "音声文字起こし（マイク）",
+      title: "音声とコマンド（マイク）",
       unsupported: "⚠ このブラウザではSpeechRecognitionがサポートされていません。Chromium/Chromeを使用してください。",
       chromeOnly: "⚠ 音声文字起こしはGoogle Chromeでのみ動作します。",
-      enableLabel: "マイクを文字起こしし、Claudeのバッチに含める",
+      modeLabel: "マイクモード",
+      modeOff: "オフ — マイク無効",
+      modeVoice: "音声テキスト化 — 文字起こしをAIのバッチに含める",
+      modeCommands: "コマンドのみ — チャットには追加せず操作のみ待ち受ける",
+      modeFull: "フル — 文字起こしとコマンド待ち受けの両方",
+      modeOffHint: "マイクはオフのままです。",
+      modeVoiceHint: "話した内容はすべてチャットフィードに文字起こしされ、AIのコンテキストに含まれます。",
+      modeCommandsHint: "チャットには何も追加されません — 「タイトルを...に変更して」「カテゴリーを...に変更して」のような発話コマンドのみ実行されます。",
+      modeFullHint: "話した内容は音声テキスト化と同様に文字起こしされ、さらに「タイトルを...に変更して」「カテゴリーを...に変更して」のような発話コマンドも実行されます。",
       micDevice: "マイクデバイス",
       systemDefault: "システムのデフォルト",
       micFallback: "マイク（{id}…）",
@@ -246,6 +258,9 @@ export default {
       chatLabel: "チャットでのラベル",
       chatLabelPlaceholder: "Streamer",
       chatLabelHint: "チャットフィードであなたの音声メッセージに表示される名前です。",
+      titleDelimiter: "タイトル区切り文字",
+      titleDelimiterPlaceholder: "例: |",
+      titleDelimiterHint: "設定すると、「タイトルを変更して」という音声コマンドは、この文字列が最初に現れる位置より前の部分だけを置き換えます。それ以降はそのまま残ります。",
     },
 
     vtube: {
@@ -343,6 +358,13 @@ export default {
       cheer: "{bits} ビット！{messageSuffix}",
       default: "Twitchイベント",
     },
+    voiceCommand: {
+      titleChanged: "🎙 コマンド: 配信タイトルを「{title}」に変更しました",
+      categoryChanged: "🎙 コマンド: 配信カテゴリーを「{category}」に変更しました",
+      categoryNotFound: "🎙 コマンド: 「{query}」に一致するTwitchカテゴリーが見つかりませんでした",
+      missingScope: "🎙 コマンド失敗: 一度ログアウトして再度ログインすると、音声コマンドで配信タイトル/カテゴリーを変更できるようになります。",
+      error: "🎙 コマンド失敗: {error}",
+    },
     status: {
       connected: "#{channel} に接続済み",
       eventsubConnected: "#{channel} でEventSub有効",
@@ -375,12 +397,10 @@ export default {
   chatFeed: {
     empty: "まだメッセージはありません — チャンネルに接続して始めましょう。",
     micChromeOnly: "音声認識はGoogle Chromeでのみ動作します",
-    micActiveTitle: "マイク有効 — クリックでオフ",
-    micEnableTitle: "マイクを有効にする",
-    micError: "🎙 エラー",
-    micLoading: "🎙 読み込み中…",
-    micLive: "🎙 Live",
-    micIdle: "🎙 Mic",
+    micModeOff: "🎙 オフ",
+    micModeVoice: "🎙 音声テキスト化",
+    micModeCommands: "🎙 コマンドのみ",
+    micModeFull: "🎙 フル",
     listening: "● 聞き取り中…",
     waitingForSpeech: "発話待ち…",
     inputPlaceholder: "メッセージを入力…",

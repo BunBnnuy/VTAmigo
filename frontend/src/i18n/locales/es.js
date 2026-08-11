@@ -24,6 +24,10 @@ export default {
         title: "Reacciona a eventos",
         desc: "Follows, subs, raids y cheers reciben una reacción instantánea y acorde a tu estilo — sin activarla manualmente.",
       },
+      voice: {
+        title: "Control por voz y comandos",
+        desc: "Habla en lugar de escribir — transcribe tu micrófono al contexto de la IA, o di cosas como \"cambia el título a ...\" para actualizar tu stream con las manos libres. Elige voz a texto, solo comandos, o ambos.",
+      },
       leveling: {
         title: "Sistema de niveles incorporado",
         desc: "Los espectadores ganan XP y suben de nivel solo por chatear. Añade la barra de XP animada y el ranking de top espectadores a OBS como Browser Source.",
@@ -235,10 +239,18 @@ export default {
     },
 
     voice: {
-      title: "Transcripción de voz (micrófono)",
+      title: "Voz y comandos (micrófono)",
       unsupported: "⚠ SpeechRecognition no es compatible en este navegador. Usa Chromium/Chrome.",
       chromeOnly: "⚠ La transcripción de voz solo funciona en Google Chrome.",
-      enableLabel: "Transcribir micrófono e incluirlo en los lotes de Claude",
+      modeLabel: "Modo del micrófono",
+      modeOff: "Apagado — micrófono desactivado",
+      modeVoice: "Voz a texto — transcribir e incluir en los lotes de la IA",
+      modeCommands: "Solo comandos — escuchar acciones, no chat",
+      modeFull: "Completo — transcribir y escuchar comandos",
+      modeOffHint: "El micrófono permanece apagado.",
+      modeVoiceHint: "Todo lo que digas se transcribe en el feed de chat y se incluye en el contexto de la IA.",
+      modeCommandsHint: "No se añade nada al chat — solo se ejecutan los comandos hablados, p. ej. \"cambia el título a ...\" o \"cambia la categoría a ...\".",
+      modeFullHint: "Todo lo que digas se transcribe igual que Voz a texto, y además se ejecutan los comandos hablados, p. ej. \"cambia el título a ...\" o \"cambia la categoría a ...\".",
       micDevice: "Dispositivo de micrófono",
       systemDefault: "Predeterminado del sistema",
       micFallback: "Micrófono ({id}…)",
@@ -246,6 +258,9 @@ export default {
       chatLabel: "Etiqueta en el chat",
       chatLabelPlaceholder: "Streamer",
       chatLabelHint: "Nombre que se muestra para tus mensajes de voz en el feed de chat.",
+      titleDelimiter: "Delimitador de título",
+      titleDelimiterPlaceholder: "p. ej. |",
+      titleDelimiterHint: "Si se define, el comando de voz \"cambia el título\" solo reemplaza la parte del título anterior a la primera aparición de este texto; el resto se mantiene igual.",
     },
 
     vtube: {
@@ -343,6 +358,13 @@ export default {
       cheer: "¡{bits} bits!{messageSuffix}",
       default: "Evento de Twitch",
     },
+    voiceCommand: {
+      titleChanged: "🎙 Comando: título del stream cambiado a \"{title}\"",
+      categoryChanged: "🎙 Comando: categoría del stream cambiada a \"{category}\"",
+      categoryNotFound: "🎙 Comando: no se encontró ninguna categoría de Twitch que coincida con \"{query}\"",
+      missingScope: "🎙 Comando fallido: cierra sesión y vuelve a entrar para permitir que los comandos de voz cambien el título/categoría de tu stream.",
+      error: "🎙 Comando fallido: {error}",
+    },
     status: {
       connected: "Conectado a #{channel}",
       eventsubConnected: "EventSub activo en #{channel}",
@@ -375,12 +397,10 @@ export default {
   chatFeed: {
     empty: "Sin mensajes aún — conéctate a un canal para empezar.",
     micChromeOnly: "La transcripción de voz solo funciona en Google Chrome",
-    micActiveTitle: "Mic activo — click para desactivar",
-    micEnableTitle: "Activar micrófono",
-    micError: "🎙 Error",
-    micLoading: "🎙 Cargando…",
-    micLive: "🎙 Live",
-    micIdle: "🎙 Mic",
+    micModeOff: "🎙 Apagado",
+    micModeVoice: "🎙 Voz a texto",
+    micModeCommands: "🎙 Solo comandos",
+    micModeFull: "🎙 Completo",
     listening: "● escuchando…",
     waitingForSpeech: "esperando voz…",
     inputPlaceholder: "Escribe un mensaje…",

@@ -16,7 +16,7 @@ const EVENT_ICONS = {
 
 export default function ChatFeed({
   messages, onSend,
-  micSupported, micChromeAllowed, micActive, micError, micModelStatus, micSpeaking, micLastText, onToggleMic,
+  micSupported, micChromeAllowed, micMode, micActive, micError, micSpeaking, micLastText, onMicModeChange,
   lang,
 }) {
   const bottomRef = useRef(null);
@@ -66,6 +66,16 @@ export default function ChatFeed({
             );
           }
 
+          if (m.isCommand) {
+            return (
+              <div key={m.id} style={{ ...styles.eventRow, ...(m.ok ? {} : styles.commandErrorRow) }}>
+                <span style={styles.time}>{formatTime(m.timestamp)}</span>
+                <span style={styles.eventIcon}>{m.ok ? "🎛️" : "⚠️"}</span>
+                <span style={styles.eventText}>{m.text}</span>
+              </div>
+            );
+          }
+
           return (
             <div key={m.id} style={{ ...styles.row, ...(m.isRedeem ? styles.redeemRow : {}) }}>
               <span style={styles.time}>{formatTime(m.timestamp)}</span>
@@ -85,10 +95,12 @@ export default function ChatFeed({
         <div ref={bottomRef} />
       </div>
       {micSupported && micActive && !micError && (
-        // Voice-to-text output — display only, deliberately separate from the
-        // typed-message input below. It's never sent to Twitch chat, only fed
-        // into the AI context buffer (see voice.onTranscript in App.jsx), so
-        // it must never share a field with the input that IS sent.
+        // Live heard-speech feedback — display only, deliberately separate
+        // from the typed-message input below regardless of mic mode. It's
+        // never sent to Twitch chat; whether it also lands in the chat feed
+        // history / AI buffer or triggers a command depends on mic mode
+        // (see voice.onTranscript in App.jsx), but this row always shows
+        // what the mic is hearing so the streamer gets instant feedback.
         <div style={styles.voiceOutRow}>
           <span style={styles.voiceOutIcon}>🎙</span>
           <span style={styles.voiceOutText}>
@@ -99,26 +111,33 @@ export default function ChatFeed({
       {(micSupported || onSend) && (
         <div style={styles.inputRow}>
           {micSupported && (
-            <button
-              type="button"
-              disabled={!micChromeAllowed}
-              style={{
-                ...styles.micBtn,
-                color: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--text-muted)",
-                borderColor: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--border)",
-                animation: micSpeaking ? "pulse 0.8s infinite" : "none",
-                opacity: micChromeAllowed ? 1 : 0.4,
-                cursor: micChromeAllowed ? "pointer" : "not-allowed",
-              }}
-              onClick={onToggleMic}
-              title={
-                !micChromeAllowed
-                  ? t("chatFeed.micChromeOnly")
-                  : micError || (micActive ? t("chatFeed.micActiveTitle") : t("chatFeed.micEnableTitle"))
-              }
+            <div
+              style={styles.micControl}
+              title={!micChromeAllowed ? t("chatFeed.micChromeOnly") : micError || undefined}
             >
-              {micError ? t("chatFeed.micError") : micModelStatus === "loading" ? t("chatFeed.micLoading") : micActive ? t("chatFeed.micLive") : t("chatFeed.micIdle")}
-            </button>
+              <span
+                style={{
+                  ...styles.micDot,
+                  background: micError ? "var(--red)" : micActive ? "#00d4ff" : "var(--text-muted)",
+                  animation: micSpeaking ? "pulse 0.8s infinite" : "none",
+                }}
+              />
+              <select
+                style={{
+                  ...styles.micSelect,
+                  opacity: micChromeAllowed ? 1 : 0.4,
+                  cursor: micChromeAllowed ? "pointer" : "not-allowed",
+                }}
+                disabled={!micChromeAllowed}
+                value={micMode}
+                onChange={(e) => onMicModeChange(e.target.value)}
+              >
+                <option value="off">{t("chatFeed.micModeOff")}</option>
+                <option value="voice">{t("chatFeed.micModeVoice")}</option>
+                <option value="commands">{t("chatFeed.micModeCommands")}</option>
+                <option value="full">{t("chatFeed.micModeFull")}</option>
+              </select>
+            </div>
           )}
           {onSend && (
             <form style={styles.inputBar} onSubmit={submit}>
@@ -185,14 +204,26 @@ const styles = {
     borderTop: "1px solid var(--border)",
     flexShrink: 0,
   },
-  micBtn: {
+  micControl: {
+    display: "flex",
+    alignItems: "center",
+    gap: 6,
+    flexShrink: 0,
+  },
+  micDot: {
+    width: 8,
+    height: 8,
+    borderRadius: "50%",
+    flexShrink: 0,
+  },
+  micSelect: {
     background: "var(--surface2)",
     border: "1px solid var(--border)",
     borderRadius: 4,
+    color: "var(--text)",
     fontSize: 12,
-    padding: "5px 10px",
-    cursor: "pointer",
-    flexShrink: 0,
+    padding: "5px 8px",
+    width: "auto",
   },
   inputBar: {
     display: "flex",
@@ -210,7 +241,7 @@ const styles = {
   },
   sendBtn: {
     background: "var(--purple)",
-    color: "#fff",
+    color: "var(--on-accent)",
     border: "none",
     borderRadius: 4,
     padding: "6px 12px",
@@ -246,6 +277,10 @@ const styles = {
     fontSize: 14,
     flexShrink: 0,
   },
+  commandErrorRow: {
+    background: "rgba(255, 0, 0, 0.08)",
+    borderLeft: "2px solid var(--red)",
+  },
   eventUser: {
     fontWeight: 700,
     fontSize: 13,
@@ -277,7 +312,7 @@ const styles = {
     marginLeft: 2,
   },
   redeemRow: {
-    background: "rgba(145, 71, 255, 0.08)",
+    background: "rgba(255, 222, 77, 0.08)",
     borderLeft: "2px solid var(--purple)",
     paddingLeft: 6,
     borderRadius: 4,
@@ -305,7 +340,7 @@ const styles = {
   channelBadge: {
     fontSize: 10,
     color: "var(--purple-light)",
-    background: "rgba(145, 71, 255, 0.15)",
+    background: "rgba(255, 222, 77, 0.15)",
     borderRadius: 4,
     padding: "1px 5px",
     flexShrink: 0,

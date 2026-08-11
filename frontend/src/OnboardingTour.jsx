@@ -218,7 +218,7 @@ const styles = {
   },
   primaryBtn: {
     background: "var(--purple)",
-    color: "#fff",
+    color: "var(--on-accent)",
     fontSize: 13,
     fontWeight: 600,
     padding: "6px 14px",

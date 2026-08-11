@@ -9,6 +9,7 @@ import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
+import { parseVoiceCommand } from "./voiceCommands.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
 import { logError } from "./errorLogger.js";
@@ -40,10 +41,11 @@ const DEFAULT_SETTINGS = {
   vtubePlugin: "Twitch Chat Bot",
   vtubeMouthParam: "MouthOpen",
   vtubeSensitivity: 0.8,
-  micEnabled: false,
+  micMode: "off", // "off" | "voice" | "commands" | "full" — see App.jsx's voice.onTranscript handler
   micDeviceId: "",
   micLang: "es-ES",
   micLabel: "Streamer",
+  micTitleDelimiter: "",
   botUsername: "",
   botToken: "",
   autoSendToChat: false,
@@ -134,6 +136,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
       // Migrate old Live2D param name to correct VTS tracking param name
       if (saved.vtubeMouthParam === "ParamMouthOpenY") saved.vtubeMouthParam = "MouthOpen";
+      // Migrate old on/off mic checkbox to the 4-way mic mode
+      if (saved.micMode === undefined) saved.micMode = saved.micEnabled ? "voice" : "off";
       // Temporarily disabled features — grayed out in Settings, forced off here
       // regardless of any previously saved value.
       saved.idleRedditStories = false;
@@ -263,7 +267,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [vtubeStatus, setVtubeStatus] = useState({ connected: false, authenticated: false });
   const [micActive, setMicActive] = useState(false);
   const [micError, setMicError] = useState(null);
-  const [micModelStatus, setMicModelStatus] = useState("idle");
   const [micSpeaking, setMicSpeaking] = useState(false);
   const [videoState, setVideoState] = useState({ queue: [], defaultPlaylistId: null, nowPlaying: null });
   const [botStatus, setBotStatus] = useState("disconnected");
@@ -350,27 +353,95 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  // Voice transcription — wire up transcript handler and sync settings
+  // Mic "commands"/"full" mode — parse a final transcript for a spoken
+  // request like "change the title to ..." and act on it via the same
+  // Helix calls StreamSettingsPanel uses. Posts a system row into the chat
+  // feed either way so the streamer gets feedback without looking away.
+  const postCommandFeedback = useCallback((ok, text) => {
+    setMessages((prev) => [...prev.slice(-199), {
+      id: `cmd-${uid()}`,
+      timestamp: Date.now(),
+      isCommand: true,
+      ok,
+      text,
+    }]);
+  }, []);
+  const runVoiceCommand = useCallback(async (text) => {
+    const cmd = parseVoiceCommand(text);
+    if (!cmd) return;
+    try {
+      if (cmd.type === "title") {
+        let newTitle = cmd.value;
+        const delimiter = settingsRef.current.micTitleDelimiter;
+        if (delimiter) {
+          const infoRes = await apiFetch("/stream/info");
+          const info = await infoRes.json().catch(() => ({}));
+          if (!infoRes.ok) throw new Error(info.error || `HTTP ${infoRes.status}`);
+          const idx = (info.title || "").indexOf(delimiter);
+          if (idx !== -1) newTitle = cmd.value + info.title.slice(idx);
+        }
+        const res = await apiFetch("/stream/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title: newTitle }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        postCommandFeedback(true, t("app.voiceCommand.titleChanged", { title: newTitle }));
+      } else if (cmd.type === "category") {
+        const searchRes = await apiFetch(`/stream/categories?query=${encodeURIComponent(cmd.value)}`);
+        const searchData = await searchRes.json().catch(() => ({}));
+        if (!searchRes.ok) throw new Error(searchData.error || `HTTP ${searchRes.status}`);
+        const match = (searchData.categories || [])[0];
+        if (!match) {
+          postCommandFeedback(false, t("app.voiceCommand.categoryNotFound", { query: cmd.value }));
+          return;
+        }
+        const res = await apiFetch("/stream/settings", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ gameId: match.id }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        postCommandFeedback(true, t("app.voiceCommand.categoryChanged", { category: match.name }));
+      }
+    } catch (err) {
+      postCommandFeedback(false, err.message === "MISSING_SCOPE"
+        ? t("app.voiceCommand.missingScope")
+        : t("app.voiceCommand.error", { error: err.message }));
+    }
+  }, [postCommandFeedback, t]);
+
+  // Voice transcription — wire up transcript handler and sync settings.
+  // Mode controls what a final transcript does: "voice"/"full" show it in
+  // the chat feed and feed the AI buffer (same as the old always-on
+  // behavior); "commands"/"full" also run it through runVoiceCommand.
   useEffect(() => {
     voice.onStateChange = () => {
       setMicActive(voice.running);
       setMicError(voice.error);
-      setMicModelStatus(voice.modelStatus);
       setMicSpeaking(voice.speaking);
       setMicLastText(voice.lastText);
     };
     voice.onTranscript = (text) => {
-      const label = settingsRef.current.micLabel || "Streamer";
-      const msg = { username: label, text, isVoice: true };
-      setMessages((prev) => [...prev.slice(-199), {
-        ...msg,
-        id: `voice-${Date.now()}`,
-        timestamp: Date.now(),
-        color: "#00d4ff",
-      }]);
-      pushToBuffer({ username: label, text });
+      const mode = settingsRef.current.micMode;
+      if (mode === "voice" || mode === "full") {
+        const label = settingsRef.current.micLabel || "Streamer";
+        const msg = { username: label, text, isVoice: true };
+        setMessages((prev) => [...prev.slice(-199), {
+          ...msg,
+          id: `voice-${Date.now()}`,
+          timestamp: Date.now(),
+          color: "#00d4ff",
+        }]);
+        pushToBuffer({ username: label, text });
+      }
+      if (mode === "commands" || mode === "full") {
+        runVoiceCommand(text);
+      }
     };
-  }, [pushToBuffer]);
+  }, [pushToBuffer, runVoiceCommand]);
 
   const handleSendTyped = useCallback((text) => {
     const label = twitchLogin || "Streamer";
@@ -406,9 +477,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   }, [settings.micDeviceId]);
 
   useEffect(() => {
-    if (settings.micEnabled) voice.start();
+    if (settings.micMode !== "off") voice.start();
     else voice.stop();
-  }, [settings.micEnabled]);
+  }, [settings.micMode]);
 
   // VTube Studio status polling
   useEffect(() => {
@@ -995,7 +1066,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             timestamp: event.timestamp,
             username: event.username || "Twitch",
             text: formatEventText(event, t),
-            color: "#9147ff",
+            color: "var(--purple)",
             isEvent: true,
             eventKind: event.kind,
           }]);
@@ -1239,7 +1310,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             </button>
           ) : (
             <button
-              style={{ ...styles.btn, background: "var(--purple)" }}
+              style={{ ...styles.btn, background: "var(--purple)", color: "var(--on-accent)" }}
               onClick={() => handleConnect(true)}
             >
               {t("app.connect")}
@@ -1266,15 +1337,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           onSend: handleSendTyped,
           micSupported: voice.supported,
           micChromeAllowed: voice.supported && isChromeBrowser(),
+          micMode: settings.micMode,
           micActive,
           micError,
-          micModelStatus,
           micSpeaking,
           micLastText,
           lang: settings.language,
-          onToggleMic: () => {
-            const next = !settings.micEnabled;
-            const ns = { ...settings, micEnabled: next };
+          onMicModeChange: (mode) => {
+            const ns = { ...settings, micMode: mode };
             setSettings(ns);
             localStorage.setItem("settings", JSON.stringify(ns));
           },
