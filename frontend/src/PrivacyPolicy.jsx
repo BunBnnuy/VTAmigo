@@ -1,23 +1,12 @@
-// ─────────────────────────────────────────────────────────────────────────────
-// DRAFT — NOT LEGALLY REVIEWED.
-//
 // The contents below were written by reading what the code actually does
-// (backend/auth.js, db.js, claude.js, elevenlabs.js, analytics.js, devices.js)
-// so the factual inventory should be accurate, but nobody with legal training
-// has looked at it. Before this goes to production:
-//
-//   1. Read it end to end and confirm it matches how you actually operate.
-//   2. Replace CONTACT_EMAIL below with a real, monitored address.
-//   3. Delete the <DraftNotice/> block so it stops rendering to users.
-//
-// If you add a new third-party service or start storing a new field, this
-// page needs updating too — nothing here is generated automatically.
-// ─────────────────────────────────────────────────────────────────────────────
+// (backend/auth.js, db.js, claude.js, elevenlabs.js, analytics.js, devices.js).
+// If you add a new third-party service or start storing a new field, this page
+// needs updating too — nothing here is generated automatically.
 import React from "react";
 import logo from "./img/logo.png";
 
 const LAST_UPDATED = "11 August 2026";
-const CONTACT_EMAIL = "privacy@vtamigo.top"; // TODO: confirm this mailbox exists
+const CONTACT_EMAIL = "privacy@vtamigo.top";
 
 export default function PrivacyPolicy() {
   return (
@@ -33,8 +22,6 @@ export default function PrivacyPolicy() {
       <main style={styles.main}>
         <h1 style={styles.title}>Privacy Policy</h1>
         <p style={styles.updated}>Last updated: {LAST_UPDATED}</p>
-
-        <DraftNotice />
 
         <p style={styles.lead}>
           VTAmigo is an AI co-host for Twitch streamers. It reads your chat,
@@ -294,17 +281,6 @@ function Section({ title, id, children }) {
   );
 }
 
-// Remove this component and its usage above once the policy has been reviewed.
-function DraftNotice() {
-  return (
-    <div style={styles.draft}>
-      <strong>Draft — pending review.</strong> This policy was assembled from
-      the application's actual data flows but has not been legally reviewed.
-      Don't rely on it as final.
-    </div>
-  );
-}
-
 const styles = {
   // index.css locks html/body/#root to overflow:hidden for the app shell, so
   // long standalone pages have to be their own scroll container. This needs a
@@ -362,15 +338,6 @@ const styles = {
     margin: "10px 0 0",
     fontSize: 13,
     color: "var(--text-muted, #adadb8)",
-  },
-  draft: {
-    margin: "24px 0 0",
-    padding: "14px 16px",
-    borderRadius: 9,
-    background: "var(--surface, #18181b)",
-    border: "1px solid var(--accent, #e11d76)",
-    fontSize: 14,
-    lineHeight: 1.6,
   },
   lead: {
     margin: "28px 0 0",
