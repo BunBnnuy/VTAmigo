@@ -92,11 +92,45 @@ app.use(devicesRouter);
 // so the login screen itself can load before the user is authenticated.
 const isProd = !process.env.VITE_DEV && !process.defaultApp;
 const distPath = path.join(__dirname, "../frontend/dist");
+
+// Only the canonical public host should be indexable. Everything else —
+// staging, bare-IP access, the packaged Electron app — is treated as private.
+function isCanonicalHost(req) {
+  const host = (req.get("host") || "").toLowerCase().split(":")[0];
+  const canonical = (process.env.CANONICAL_HOST || "vtamigo.top").toLowerCase();
+  return host === canonical || host === `www.${canonical}`;
+}
+
+// robots.txt alone is not enough to keep staging out of search results:
+// Cloudflare's "managed robots.txt" prepends its own `User-agent: *` group
+// with `Allow: /`, and a crawler merging two same-agent groups resolves the
+// equal-length Allow/Disallow conflict in favour of the least restrictive
+// rule — so our Disallow gets ignored. This header can't be merged away, and
+// it blocks *indexing* rather than crawling, which is what we actually want.
+app.use((req, res, next) => {
+  if (!isCanonicalHost(req)) res.set("X-Robots-Tag", "noindex, nofollow");
+  next();
+});
+
 if (isProd) {
   app.get("/downloads/tunnel-client.exe", (req, res) => {
     const user = getApprovedUserFromCookieHeader(req.headers.cookie);
     sendEvent("tunnel_client_download", { req, twitchLogin: user?.login });
     res.sendFile(path.join(distPath, "downloads/tunnel-client.exe"));
+  });
+  // robots.txt is generated per-host rather than shipped as a static file:
+  // prod and staging build from the same repo, so a single committed file
+  // would let dev.vtamigo.top get indexed and compete with prod in search.
+  // Fail closed — only the canonical host is crawlable, so staging, bare-IP
+  // access and the packaged Electron app all say "go away" by default.
+  app.get("/robots.txt", (req, res) => {
+    res.type("text/plain");
+    if (!isCanonicalHost(req)) return res.send("User-agent: *\nDisallow: /\n");
+    // The app pages below all require an approved Twitch login, so there's
+    // nothing for a crawler to index there — keep it on the public pages.
+    res.send(
+      "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /device\nDisallow: /overlay-builder\nDisallow: /overlay/\n"
+    );
   });
   app.use(express.static(distPath));
 }
@@ -1731,7 +1765,8 @@ if (isProd) {
     // page — main.jsx figures out which — everything else is a real 404,
     // so it gets the right status code even though the SPA itself renders
     // the NotFound page for it.
-    const knownPath = req.path === "/" || ["/admin", "/device", "/overlay-builder"].some((p) => req.path.startsWith(p));
+    // Keep in sync with the page() switch in frontend/src/main.jsx.
+    const knownPath = req.path === "/" || ["/admin", "/device", "/overlay-builder", "/privacy", "/faq"].some((p) => req.path.startsWith(p));
     res.status(knownPath ? 200 : 404).sendFile(path.join(distPath, "index.html"));
   });
 }

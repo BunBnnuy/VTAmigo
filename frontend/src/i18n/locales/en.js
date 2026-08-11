@@ -7,6 +7,8 @@ export default {
     cta: "Log in with Twitch to get started",
     ctaNote: "Free to try — no credit card required.",
     footer: "VTAmigo works alongside your existing Twitch and VTube Studio setup.",
+    privacy: "Privacy Policy",
+    faq: "FAQ",
     features: {
       chat: {
         title: "Reads your chat live",
@@ -35,6 +37,39 @@ export default {
       customize: {
         title: "Customize your experience",
         desc: "Rewrite the base prompt to match your vibe — sarcastic, wholesome, hype-man, whatever fits your stream — and the bot's replies follow suit.",
+      },
+    },
+  },
+
+  faq: {
+    title: "Frequently asked questions",
+    subtitle: "The things people ask most before setting VTAmigo up.",
+    back: "Back to site",
+    home: "Home",
+    privacy: "Privacy Policy",
+    privacyLink: "Read the full Privacy Policy",
+    ctaTitle: "Ready to try it?",
+    ctaBody: "Log in with Twitch and VTAmigo connects to your chat.",
+    items: {
+      what: {
+        q: "What is VTAmigo?",
+        a: "VTAmigo is an AI co-host for your Twitch stream. It reads your chat as messages come in, replies out loud with text-to-speech, and reacts to follows, subs, raids and cheers — so there's always someone to bounce off, even when chat is quiet.",
+      },
+      need: {
+        q: "What do I need to get started?",
+        a: "A Twitch account is the only requirement. Log in with Twitch and VTAmigo connects to your chat. If you want the on-screen extras — the avatar, the XP bar, or the chat overlay — you'll also want OBS, or anything else that supports Browser Sources, since you add each one as a Browser Source URL.",
+      },
+      approval: {
+        q: "I logged in, but it says my account is awaiting approval. Why?",
+        a: "Access is granted manually at the moment. The first time you log in, your account joins a queue and an admin approves it before you can use the app. It's a one-time step — once you're approved, logging in takes you straight to the dashboard.",
+      },
+      vtube: {
+        q: "Do I need VTube Studio or a VTuber model?",
+        a: "No. VTAmigo can drive a simple avatar overlay in OBS by itself, switching between a speaking image and an idle image in time with the voice. If you already use VTube Studio it works alongside it, but it isn't required.",
+      },
+      data: {
+        q: "What happens to my chat data?",
+        a: "To write a reply, the relevant chat messages and your prompt are sent to the AI provider configured for your account. If you use ElevenLabs voices, the text being spoken is sent there too — picking a local Piper voice keeps that on our server instead. We also store leveling data and stream events for your channel.",
       },
     },
   },

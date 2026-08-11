@@ -4,7 +4,7 @@ import angryKb from "./img/KB Emo_Type Angry_2026-08-11-12-40-30.gif";
 export default function NotFound() {
   return (
     <div style={styles.page}>
-      <img src={angryKb} alt="" style={styles.art} />
+      <img src={angryKb} alt="VTAmigo's mascot, looking annoyed" style={styles.art} />
       <h1 style={styles.code}>404</h1>
       <p style={styles.title}>This page doesn't exist — and now she's mad about it.</p>
       <p style={styles.subtitle}>Whatever you were looking for isn't here.</p>

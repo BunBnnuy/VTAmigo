@@ -35,7 +35,8 @@ export default function Login() {
 
       <header style={styles.header}>
         <div style={styles.brand}>
-          <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
+          {/* decorative: the brand name is already in the adjacent span */}
+          <img src={logo} alt="" style={styles.brandIcon} />
           <span style={styles.brandName}>VTAmigo</span>
         </div>
         <div style={styles.headerRight}>
@@ -78,6 +79,11 @@ export default function Login() {
 
       <footer style={styles.footer}>
         <span>{t("login.footer")}</span>
+        <div style={styles.footerLinks}>
+          <a style={styles.footerLink} href="/faq">{t("login.faq")}</a>
+          <span>·</span>
+          <a style={styles.footerLink} href="/privacy">{t("login.privacy")}</a>
+        </div>
       </footer>
     </div>
   );
@@ -211,4 +217,12 @@ const styles = {
     fontSize: 12,
     color: "var(--text-muted, #adadb8)",
   },
+  footerLinks: {
+    display: "flex",
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 8,
+    marginTop: 10,
+  },
+  footerLink: { color: "var(--accent-light, #f0429b)" },
 };

@@ -1268,7 +1268,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       {/* ── Top bar ── */}
       <div style={styles.topBar}>
         <div style={styles.brand}>
-          <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
+          {/* decorative: the brand name is already in the adjacent span */}
+          <img src={logo} alt="" style={styles.brandIcon} />
           <span style={styles.brandName}>VTAmigo</span>
           {twitchLogin && (
             <span style={styles.brandUser}>{t("app.loggedInAs", { login: twitchLogin, tier: TIER_LABELS[tier] || tier })}</span>

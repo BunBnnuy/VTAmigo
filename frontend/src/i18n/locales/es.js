@@ -7,6 +7,8 @@ export default {
     cta: "Inicia sesión con Twitch para empezar",
     ctaNote: "Gratis para probar — no se necesita tarjeta de crédito.",
     footer: "VTAmigo funciona junto a tu configuración actual de Twitch y VTube Studio.",
+    privacy: "Política de Privacidad",
+    faq: "Preguntas frecuentes",
     features: {
       chat: {
         title: "Lee tu chat en vivo",
@@ -35,6 +37,39 @@ export default {
       customize: {
         title: "Personaliza tu experiencia",
         desc: "Reescribe el prompt base para que encaje con tu estilo — sarcástico, tierno, hype-man, lo que sea que le quede a tu stream — y las respuestas del bot lo reflejan.",
+      },
+    },
+  },
+
+  faq: {
+    title: "Preguntas frecuentes",
+    subtitle: "Lo que más se pregunta antes de configurar VTAmigo.",
+    back: "Volver al sitio",
+    home: "Inicio",
+    privacy: "Política de Privacidad",
+    privacyLink: "Leer la Política de Privacidad completa",
+    ctaTitle: "¿Listo para probarlo?",
+    ctaBody: "Inicia sesión con Twitch y VTAmigo se conectará a tu chat.",
+    items: {
+      what: {
+        q: "¿Qué es VTAmigo?",
+        a: "VTAmigo es un copresentador con IA para tu directo de Twitch. Lee tu chat según llegan los mensajes, responde en voz alta con síntesis de voz y reacciona a seguidores, suscripciones, raids y bits — así siempre hay alguien con quien hablar, incluso cuando el chat está tranquilo.",
+      },
+      need: {
+        q: "¿Qué necesito para empezar?",
+        a: "Solo necesitas una cuenta de Twitch. Inicia sesión con Twitch y VTAmigo se conectará a tu chat. Si quieres los extras en pantalla — el avatar, la barra de XP o el overlay del chat — también te hará falta OBS, o cualquier programa compatible con Browser Sources, ya que cada uno se añade como una URL de Browser Source.",
+      },
+      approval: {
+        q: "Inicié sesión, pero dice que mi cuenta está pendiente de aprobación. ¿Por qué?",
+        a: "Por ahora el acceso se concede manualmente. La primera vez que inicias sesión, tu cuenta entra en una cola y un administrador la aprueba antes de que puedas usar la aplicación. Es un paso único: una vez aprobada, al iniciar sesión irás directo al panel.",
+      },
+      vtube: {
+        q: "¿Necesito VTube Studio o un modelo de VTuber?",
+        a: "No. VTAmigo puede animar por sí solo un overlay de avatar sencillo en OBS, alternando entre una imagen hablando y otra en reposo al ritmo de la voz. Si ya usas VTube Studio, funciona junto a él, pero no es obligatorio.",
+      },
+      data: {
+        q: "¿Qué pasa con los datos de mi chat?",
+        a: "Para escribir una respuesta, los mensajes de chat relevantes y tu prompt se envían al proveedor de IA configurado en tu cuenta. Si usas voces de ElevenLabs, el texto que se va a leer también se envía allí — elegir una voz local de Piper hace que eso se quede en nuestro servidor. También guardamos los datos de niveles y los eventos del directo de tu canal.",
       },
     },
   },
