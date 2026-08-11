@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from "react";
+import { Mic, MicOff, Check, Link2, Upload } from "lucide-react";
 import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
@@ -99,7 +100,7 @@ export default function AvatarPanel({ ttsSpeaking, lang }) {
             {!previewSrc && <span style={styles.previewEmpty}>—</span>}
           </div>
           <span style={styles.previewLabel}>
-            {ttsSpeaking ? t("avatarPanel.speaking") : t("avatarPanel.silent")}
+            {ttsSpeaking ? <Mic size={14} /> : <MicOff size={14} />} {ttsSpeaking ? t("avatarPanel.speaking") : t("avatarPanel.silent")}
           </span>
         </div>
 
@@ -109,7 +110,7 @@ export default function AvatarPanel({ ttsSpeaking, lang }) {
           disabled={!overlayUrl}
           title={t("avatarPanel.copyOverlayTitle")}
         >
-          {overlayCopied ? t("avatarPanel.copied") : t("avatarPanel.copyOverlay")}
+          {overlayCopied ? <Check size={14} color="var(--accent)" /> : <Link2 size={14} color="var(--accent)" />} {overlayCopied ? t("avatarPanel.copied") : t("avatarPanel.copyOverlay")}
         </button>
 
         <div style={styles.uploadRow}>
@@ -122,6 +123,7 @@ export default function AvatarPanel({ ttsSpeaking, lang }) {
                   opacity: uploading[slot] ? 0.6 : 1,
                 }}
               >
+                {!uploading[slot] && <Upload size={14} color="var(--accent)" />}{" "}
                 {uploading[slot]
                   ? t("avatarPanel.uploading")
                   : slot === "speaking" ? t("avatarPanel.uploadSpeaking") : t("avatarPanel.uploadSilent")}

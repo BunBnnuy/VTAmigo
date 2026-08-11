@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Check, Link2, MessageCircle, Gift, PartyPopper, Type, Upload, Trash2 } from "lucide-react";
 import { apiFetch, apiUrl } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
@@ -58,7 +59,7 @@ function Toggle({ checked, onChange }) {
       role="switch"
       aria-checked={checked}
       onClick={onChange}
-      style={{ ...styles.toggle, background: checked ? "var(--purple)" : "var(--border)" }}
+      style={{ ...styles.toggle, background: checked ? "var(--accent)" : "var(--border)" }}
     >
       <span style={{ ...styles.toggleKnob, background: checked ? "var(--on-accent)" : "#fff", transform: checked ? "translateX(16px)" : "translateX(0)" }} />
     </button>
@@ -225,7 +226,7 @@ export default function ChatOverlayPanel({ lang }) {
     <>
       <div style={styles.body}>
         <button style={styles.actionBtn} onClick={copyOverlayUrl} disabled={!overlayUrl} title={t("chatOverlayPanel.copyOverlayTitle")}>
-          {overlayCopied ? t("chatOverlayPanel.copied") : t("chatOverlayPanel.copyOverlay")}
+          {overlayCopied ? <Check size={14} color="var(--accent)" /> : <Link2 size={14} color="var(--accent)" />} {overlayCopied ? t("chatOverlayPanel.copied") : t("chatOverlayPanel.copyOverlay")}
         </button>
 
         <div style={styles.divider} />
@@ -233,14 +234,14 @@ export default function ChatOverlayPanel({ lang }) {
         <div style={styles.sectionLabel}>{t("chatOverlayPanel.testSection")}</div>
         <div style={styles.row2}>
           <button type="button" style={styles.actionBtn} onClick={() => sendTest("message")}>
-            {t("chatOverlayPanel.testMessage")}
+            <MessageCircle size={14} color="var(--accent)" /> {t("chatOverlayPanel.testMessage")}
           </button>
           <button type="button" style={styles.actionBtn} onClick={() => sendTest("redeem")}>
-            {t("chatOverlayPanel.testRedeem")}
+            <Gift size={14} color="var(--accent)" /> {t("chatOverlayPanel.testRedeem")}
           </button>
         </div>
         <button type="button" style={styles.actionBtn} onClick={() => sendTest("event")}>
-          {t("chatOverlayPanel.testEvent")}
+          <PartyPopper size={14} color="var(--accent)" /> {t("chatOverlayPanel.testEvent")}
         </button>
         <span style={styles.fieldLabel}>{t("chatOverlayPanel.testHint")}</span>
 
@@ -345,7 +346,7 @@ export default function ChatOverlayPanel({ lang }) {
             </div>
             <div style={styles.field}>
               <label style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacity", { pct: Math.round(cfg.bg * 100) })}</label>
-              <input type="range" min={0} max={1} step={0.05} value={cfg.bg} onChange={(e) => set("bg", Number(e.target.value))} disabled={!loaded || cfg.hasBgImage} />
+              <input type="range" min={0} max={1} step={0.05} value={cfg.bg} onChange={(e) => set("bg", Number(e.target.value))} disabled={!loaded || cfg.hasBgImage} style={{ "--pct": `${cfg.bg * 100}%` }} />
               {cfg.hasBgImage && <span style={styles.fieldLabel}>{t("chatOverlayPanel.bgOpacityDisabled")}</span>}
             </div>
             <div style={styles.field}>
@@ -375,6 +376,7 @@ export default function ChatOverlayPanel({ lang }) {
             onClick={loadLocalFonts}
             disabled={fontLoadStatus === "loading"}
           >
+            {fontLoadStatus !== "loading" && <Type size={14} color="var(--accent)" />}{" "}
             {fontLoadStatus === "loading" ? t("chatOverlayPanel.fontLoading") : t("chatOverlayPanel.fontLoadButton")}
           </button>
           {fontLoadStatus === "unsupported" && (
@@ -482,6 +484,7 @@ export default function ChatOverlayPanel({ lang }) {
 
         <div style={{ display: "flex", gap: 8 }}>
           <label style={{ ...styles.uploadLabel, flex: 1, cursor: bgUploading ? "default" : "pointer", opacity: bgUploading ? 0.6 : 1 }}>
+            {!bgUploading && <Upload size={14} color="var(--accent)" />}{" "}
             {bgUploading ? t("chatOverlayPanel.bgUploading") : t("chatOverlayPanel.bgUpload")}
             <input
               type="file"
@@ -496,7 +499,7 @@ export default function ChatOverlayPanel({ lang }) {
           </label>
           {cfg.hasBgImage && (
             <button type="button" style={styles.actionBtn} onClick={removeBgImage} disabled={bgUploading}>
-              {t("chatOverlayPanel.bgRemove")}
+              <Trash2 size={14} color="var(--accent)" /> {t("chatOverlayPanel.bgRemove")}
             </button>
           )}
         </div>
@@ -506,7 +509,7 @@ export default function ChatOverlayPanel({ lang }) {
           <>
             <div style={styles.field}>
               <label style={styles.fieldLabel}>{t("chatOverlayPanel.bgImageOpacity", { pct: Math.round(cfg.bgImageOpacity * 100) })}</label>
-              <input type="range" min={0} max={1} step={0.05} value={cfg.bgImageOpacity} onChange={(e) => set("bgImageOpacity", Number(e.target.value))} disabled={!loaded} />
+              <input type="range" min={0} max={1} step={0.05} value={cfg.bgImageOpacity} onChange={(e) => set("bgImageOpacity", Number(e.target.value))} disabled={!loaded} style={{ "--pct": `${cfg.bgImageOpacity * 100}%` }} />
             </div>
 
             <div style={styles.fieldLabel}>{t("chatOverlayPanel.sliceHint")}</div>
@@ -566,17 +569,17 @@ const styles = {
     color: "var(--text)",
   },
   toggle: {
-    width: 34,
-    height: 18,
-    borderRadius: 9,
+    width: 36,
+    height: 20,
+    borderRadius: 10,
     padding: 2,
     display: "flex",
     alignItems: "center",
     flexShrink: 0,
   },
   toggleKnob: {
-    width: 14,
-    height: 14,
+    width: 16,
+    height: 16,
     borderRadius: "50%",
     background: "#fff",
     transition: "transform 0.15s",

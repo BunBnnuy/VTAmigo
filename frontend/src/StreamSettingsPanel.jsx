@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Save, Check } from "lucide-react";
 import { apiFetch } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
@@ -192,9 +193,14 @@ export default function StreamSettingsPanel({ lang }) {
       </div>
 
       <button type="button" style={styles.actionBtn} onClick={save} disabled={!loaded || !dirty || saveStatus === "saving"}>
+        {saveStatus !== "saving" && <Save size={14} color="var(--accent)" />}{" "}
         {saveStatus === "saving" ? t("streamSettingsPanel.saving") : t("streamSettingsPanel.save")}
       </button>
-      {saveStatus === "saved" && <span style={styles.fieldLabel}>{t("streamSettingsPanel.saved")}</span>}
+      {saveStatus === "saved" && (
+        <span style={styles.fieldLabel}>
+          <Check size={14} color="var(--green)" /> {t("streamSettingsPanel.saved")}
+        </span>
+      )}
       {saveStatus === "error" && (
         <span style={styles.errorText}>{t("streamSettingsPanel.saveError", { error: saveErrorMsg })}</span>
       )}

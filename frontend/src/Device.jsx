@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { CheckCircle2 } from "lucide-react";
 import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { apiFetch } from "./api.js";
@@ -100,7 +101,12 @@ function ApproveDevice({ userCode, setUserCode }) {
           </>
         )}
         {status === "approving" && <p>Approving…</p>}
-        {status === "done" && <p style={styles.success}>✅ Device approved — it should connect automatically within a few seconds.</p>}
+        {status === "done" && (
+          <p style={styles.success}>
+            <CheckCircle2 size={16} color="var(--green)" style={{ verticalAlign: "middle", marginRight: 6 }} />
+            Device approved — it should connect automatically within a few seconds.
+          </p>
+        )}
       </div>
     </div>
   );
@@ -109,21 +115,21 @@ function ApproveDevice({ userCode, setUserCode }) {
 const styles = {
   wrap: {
     display: "flex", alignItems: "center", justifyContent: "center",
-    height: "100vh", background: "var(--bg, #171826)", color: "var(--text, #edeef7)",
+    height: "100vh", background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)",
   },
   card: {
     display: "flex", flexDirection: "column", gap: 12,
-    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #1f2033)",
-    border: "1px solid var(--border, #393d60)", minWidth: 320, maxWidth: 420,
+    padding: "40px 48px", borderRadius: 12, background: "var(--surface, #18181b)",
+    border: "1px solid var(--border, #2a2a2e)", minWidth: 320, maxWidth: 420,
   },
   title: { margin: "0 0 4px 0", fontSize: 22 },
   field: { display: "flex", flexDirection: "column", gap: 4 },
   input: {
-    padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #393d60)",
-    background: "var(--bg, #171826)", color: "var(--text, #edeef7)", fontSize: 18, letterSpacing: 2, textAlign: "center",
+    padding: "10px 12px", borderRadius: 8, border: "1px solid var(--border, #2a2a2e)",
+    background: "var(--bg, #0e0e10)", color: "var(--text, #efeff1)", fontSize: 18, letterSpacing: 2, textAlign: "center",
   },
   hint: { fontSize: 12, opacity: 0.6 },
-  btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--purple, #ffde4d)", color: "var(--on-accent, #2e3256)", fontWeight: 600 },
-  error: { color: "var(--red, #e91916)", fontSize: 13 },
-  success: { color: "#3fb950", fontSize: 14 },
+  btn: { padding: "10px 20px", borderRadius: 8, border: "none", cursor: "pointer", background: "var(--accent, #e11d76)", color: "var(--on-accent, #ffffff)", fontWeight: 600 },
+  error: { color: "var(--red, #ef4444)", fontSize: 13 },
+  success: { color: "#3fb950", fontSize: 14, display: "flex", alignItems: "center" },
 };

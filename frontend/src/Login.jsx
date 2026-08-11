@@ -1,9 +1,20 @@
 import React, { useState } from "react";
+import {
+  MessageCircle, Volume2, Mic, Image as ImageIcon, Trophy, SlidersHorizontal, PartyPopper,
+} from "lucide-react";
 import { apiUrl } from "./api.js";
 import { detectLanguage, SUPPORTED_LANGUAGES, useTranslation } from "./i18n/index.js";
 import logo from "./img/logo.png";
 
-const FEATURE_ICONS = { chat: "💬", tts: "🗣️", overlay: "🖼️", leveling: "🏆", customize: "🎛️", events: "🎉", voice: "🎙️" };
+const FEATURE_ICONS = {
+  chat: MessageCircle,
+  tts: Volume2,
+  voice: Mic,
+  overlay: ImageIcon,
+  leveling: Trophy,
+  customize: SlidersHorizontal,
+  events: PartyPopper,
+};
 const FEATURE_KEYS = ["chat", "tts", "voice", "overlay", "leveling", "customize", "events"];
 const LANDING_LANG_KEY = "landingLang";
 
@@ -53,13 +64,16 @@ export default function Login() {
       </main>
 
       <section style={styles.features}>
-        {FEATURE_KEYS.map((key) => (
-          <div key={key} style={styles.card}>
-            <div style={styles.cardIcon}>{FEATURE_ICONS[key]}</div>
-            <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
-            <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
-          </div>
-        ))}
+        {FEATURE_KEYS.map((key) => {
+          const IconComp = FEATURE_ICONS[key];
+          return (
+            <div key={key} style={styles.card}>
+              <div style={styles.cardIcon}><IconComp size={26} /></div>
+              <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
+              <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
+            </div>
+          );
+        })}
       </section>
 
       <footer style={styles.footer}>
@@ -72,12 +86,13 @@ export default function Login() {
 const styles = {
   page: {
     position: "relative",
-    minHeight: "100vh",
+    height: "100vh",
     display: "flex",
     flexDirection: "column",
-    background: "var(--bg, #171826)",
-    color: "var(--text, #edeef7)",
+    background: "var(--bg, #0e0e10)",
+    color: "var(--text, #efeff1)",
     overflowX: "hidden",
+    overflowY: "auto",
   },
   glow: {
     position: "absolute",
@@ -86,7 +101,7 @@ const styles = {
     transform: "translateX(-50%)",
     width: 900,
     height: 500,
-    background: "radial-gradient(closest-side, rgba(255,222,77,0.25), transparent)",
+    background: "radial-gradient(closest-side, rgba(225,29,118,0.25), transparent)",
     pointerEvents: "none",
   },
   header: {
@@ -99,9 +114,10 @@ const styles = {
   brand: { display: "flex", alignItems: "center", gap: 10 },
   brandIcon: { width: 28, height: 28, objectFit: "contain" },
   brandName: {
-    fontWeight: 800,
+    fontFamily: "'Quicksand', system-ui, sans-serif",
+    fontWeight: 700,
     fontSize: 18,
-    color: "var(--purple-light, #ffec99)",
+    color: "var(--accent-light, #f0429b)",
     letterSpacing: "-0.01em",
   },
   headerRight: {
@@ -116,11 +132,11 @@ const styles = {
   },
   headerBtn: {
     padding: "8px 16px",
-    borderRadius: 8,
+    borderRadius: 9,
     textDecoration: "none",
-    background: "var(--surface2, #2a2d46)",
-    color: "var(--text, #edeef7)",
-    border: "1px solid var(--border, #393d60)",
+    background: "var(--surface2, #1f1f23)",
+    color: "var(--text, #efeff1)",
+    border: "1px solid var(--border, #2a2a2e)",
     fontWeight: 600,
     fontSize: 13,
   },
@@ -141,29 +157,29 @@ const styles = {
     lineHeight: 1.15,
     letterSpacing: "-0.02em",
   },
-  titleAccent: { color: "var(--purple-light, #ffec99)" },
+  titleAccent: { color: "var(--accent-light, #f0429b)" },
   subtitle: {
     margin: "20px 0 0",
     fontSize: 17,
     lineHeight: 1.6,
-    color: "var(--text-muted, #9599c6)",
+    color: "var(--text-muted, #adadb8)",
     maxWidth: 560,
   },
   ctaBtn: {
     marginTop: 32,
     padding: "14px 28px",
-    borderRadius: 10,
+    borderRadius: 9,
     textDecoration: "none",
-    background: "var(--purple, #ffde4d)",
-    color: "var(--on-accent, #2e3256)",
+    background: "var(--accent, #e11d76)",
+    color: "var(--on-accent, #ffffff)",
     fontWeight: 700,
     fontSize: 16,
-    boxShadow: "0 8px 24px rgba(255,222,77,0.35)",
+    boxShadow: "0 8px 24px rgba(225,29,118,0.35)",
   },
   ctaNote: {
     margin: "12px 0 0",
     fontSize: 13,
-    color: "var(--text-muted, #9599c6)",
+    color: "var(--text-muted, #adadb8)",
   },
   features: {
     position: "relative",
@@ -178,8 +194,8 @@ const styles = {
   card: {
     padding: "24px 20px",
     borderRadius: 14,
-    background: "var(--surface, #1f2033)",
-    border: "1px solid var(--border, #393d60)",
+    background: "var(--surface, #18181b)",
+    border: "1px solid var(--border, #2a2a2e)",
   },
   cardIcon: { fontSize: 26, marginBottom: 10 },
   cardTitle: { margin: "0 0 8px", fontSize: 15, fontWeight: 700 },
@@ -187,12 +203,12 @@ const styles = {
     margin: 0,
     fontSize: 13,
     lineHeight: 1.5,
-    color: "var(--text-muted, #9599c6)",
+    color: "var(--text-muted, #adadb8)",
   },
   footer: {
     textAlign: "center",
     padding: "24px 24px 40px",
     fontSize: 12,
-    color: "var(--text-muted, #9599c6)",
+    color: "var(--text-muted, #adadb8)",
   },
 };

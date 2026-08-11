@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from "react";
+import { MessageCircle } from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
 
 function formatTime(ts) {
@@ -26,7 +27,7 @@ export default function ResponsePanel({
           <div style={styles.empty}>{t("responsePanel.empty")}</div>
         )}
         {responses.map((r) => (
-          <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--purple)" }}>
+          <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--accent)" }}>
             <div style={styles.cardTime}>
               {formatTime(r.timestamp)}
               {r.eventLabel && <span style={styles.eventLabel}> · {r.eventLabel}</span>}
@@ -42,7 +43,7 @@ export default function ResponsePanel({
                   title={botConnected ? t("responsePanel.sendTitle") : t("responsePanel.botNotConnected")}
                   onClick={() => botConnected && onSendToChat(r.text)}
                 >
-                  {t("responsePanel.send")}
+                  <MessageCircle size={14} color="var(--accent)" /> {t("responsePanel.send")}
                 </button>
               )}
             </div>
@@ -92,7 +93,7 @@ const styles = {
   title: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   thinking: {
     fontSize: 12,
@@ -146,7 +147,7 @@ const styles = {
     color: "var(--text-muted)",
   },
   sendBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
     borderRadius: 4,

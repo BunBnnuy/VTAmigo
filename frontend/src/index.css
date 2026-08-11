@@ -2,59 +2,70 @@
 
 :root,
 :root[data-theme="dark"] {
-  --bg: #171826;
-  --surface: #1f2033;
-  --surface2: #2a2d46;
-  --border: #393d60;
-  --purple: #ffde4d;
-  --purple-light: #ffec99;
-  --on-accent: #2e3256;
-  --text: #edeef7;
-  --text-muted: #9599c6;
-  --green: #00b300;
-  --red: #e91916;
-  --yellow: #ffec99;
+  --bg: #0e0e10;
+  --surface: #18181b;
+  --surface2: #1f1f23;
+  --border: #2a2a2e;
+  --accent: #e11d76;
+  --accent-light: #f0429b;
+  --accent-dark: #b0155c;
+  --on-accent: #ffffff;
+  --text: #efeff1;
+  --text-muted: #adadb8;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #ffb31a;
+  --shadow: 0 4px 16px rgba(0, 0, 0, .28);
 }
 
 :root[data-theme="light"] {
-  --bg: #e9eaf7;
+  --bg: #f4f4f6;
   --surface: #ffffff;
-  --surface2: #f1f1f9;
-  --border: #cdd0ea;
-  --purple: #c19d0c;
-  --purple-light: #a5890d;
-  --on-accent: #2e3256;
-  --text: #2e3256;
-  --text-muted: #5b608f;
-  --green: #16803c;
-  --red: #d1221f;
-  --yellow: #a5890d;
+  --surface2: #f0f0f3;
+  --border: #dcdce0;
+  --accent: #e11d76;
+  --accent-light: #f0429b;
+  --accent-dark: #b0155c;
+  --on-accent: #ffffff;
+  --text: #1c1c1f;
+  --text-muted: #63636b;
+  --green: #22c55e;
+  --red: #ef4444;
+  --yellow: #ffb31a;
+  --shadow: 0 4px 16px rgba(0, 0, 0, .14);
 }
 
 @media (prefers-color-scheme: light) {
   :root:not([data-theme="dark"]):not([data-theme="light"]) {
-    --bg: #e9eaf7;
+    --bg: #f4f4f6;
     --surface: #ffffff;
-    --surface2: #f1f1f9;
-    --border: #cdd0ea;
-    --purple: #c19d0c;
-    --purple-light: #a5890d;
-    --on-accent: #2e3256;
-    --text: #2e3256;
-    --text-muted: #5b608f;
-    --green: #16803c;
-    --red: #d1221f;
-    --yellow: #a5890d;
+    --surface2: #f0f0f3;
+    --border: #dcdce0;
+    --accent: #e11d76;
+    --accent-light: #f0429b;
+    --accent-dark: #b0155c;
+    --on-accent: #ffffff;
+    --text: #1c1c1f;
+    --text-muted: #63636b;
+    --green: #22c55e;
+    --red: #ef4444;
+    --yellow: #ffb31a;
+    --shadow: 0 4px 16px rgba(0, 0, 0, .14);
   }
 }
 
 html, body, #root {
   height: 100%;
   overflow: hidden;
-  font-family: 'Inter', system-ui, sans-serif;
+  font-family: 'Nunito', system-ui, sans-serif;
   background: var(--bg);
   color: var(--text);
   font-size: 14px;
+}
+
+h1, h2, h3, h4, h5, h6 {
+  font-family: 'Quicksand', system-ui, sans-serif;
+  font-weight: 600;
 }
 
 ::-webkit-scrollbar { width: 6px; }
@@ -64,13 +75,17 @@ html, body, #root {
 button {
   cursor: pointer;
   border: none;
-  border-radius: 6px;
-  font-family: inherit;
+  border-radius: 9px;
+  font-family: 'Quicksand', system-ui, sans-serif;
   font-size: 13px;
   font-weight: 600;
   padding: 6px 14px;
   transition: opacity 0.15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
+button svg { flex-shrink: 0; }
 button:hover { opacity: 0.85; }
 button:disabled { opacity: 0.4; cursor: not-allowed; }
 
@@ -78,24 +93,74 @@ input:not([type="checkbox"]):not([type="radio"]), select {
   background: var(--bg);
   border: 1px solid var(--border);
   color: var(--text);
-  border-radius: 6px;
-  padding: 7px 10px;
-  font-family: inherit;
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-family: 'Nunito', system-ui, sans-serif;
   font-size: 13px;
   width: 100%;
 }
-input:focus, select:focus { outline: 2px solid var(--purple); }
+input:focus, select:focus { outline: 2px solid var(--accent); }
 /* Without the exclusion above, checkboxes/radios inherit width: 100% too —
    the native checkbox glyph stays small but its layout box fills the row,
    shoving any following label text (e.g. "Muted", "Autoplay") off to the
    far right instead of sitting next to the box. */
 input[type="checkbox"], input[type="radio"] { width: auto; flex-shrink: 0; }
 
-label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; }
+/* Filled-track range slider. Callers set the `--pct` custom property
+   (e.g. style={{ "--pct": `${(value - min) / (max - min) * 100}%` }}) so
+   the fill reaches exactly to the thumb — native browser range fill
+   always leaves a sliver un/over-filled because it fills to the thumb's
+   edge, not its center. */
+input[type="range"] {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 100%;
+  height: 6px;
+  border-radius: 3px;
+  background: linear-gradient(
+    to right,
+    var(--accent) var(--pct, 50%),
+    var(--border) var(--pct, 50%)
+  );
+  cursor: pointer;
+}
+input[type="range"]::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--on-accent, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+  margin-top: 0;
+}
+input[type="range"]::-moz-range-track {
+  height: 6px;
+  border-radius: 3px;
+  background: transparent;
+}
+input[type="range"]::-moz-range-progress {
+  height: 6px;
+  border-radius: 3px 0 0 3px;
+  background: var(--accent);
+}
+input[type="range"]::-moz-range-thumb {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent);
+  border: 2px solid var(--on-accent, #fff);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+  cursor: pointer;
+}
+input[type="range"]:disabled { opacity: 0.4; cursor: not-allowed; }
+
+label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom: 4px; font-family: 'Quicksand', system-ui, sans-serif; font-weight: 600; }
 
 /* ── Admin dashboard ── */
 .admin-nav-link {
-  display: flex; align-items: center; gap: 10px;
+  display: flex; align-items: center; justify-content: flex-start; gap: 10px;
   padding: 9px 14px; border-radius: 8px; font-size: 13px; font-weight: 600;
   color: var(--text-muted); text-decoration: none; cursor: pointer;
   transition: background 0.15s, color 0.15s;
@@ -106,5 +171,5 @@ label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom
 
 .admin-table tbody tr { transition: background 0.12s; }
 .admin-table tbody tr:nth-child(even) { background: var(--surface2); }
-.admin-table tbody tr:hover { background: color-mix(in srgb, var(--purple) 8%, transparent); }
+.admin-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .admin-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; }

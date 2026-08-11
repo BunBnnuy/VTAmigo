@@ -1,5 +1,6 @@
 import React from "react";
 import { Rnd } from "react-rnd";
+import { ChevronDown, ChevronUp, X } from "lucide-react";
 
 const GRID = 20;
 const HEADER_HEIGHT = 36;
@@ -54,10 +55,10 @@ export default function Window({
           <span style={styles.title}>{title}</span>
           <div style={styles.headerBtns}>
             <button style={styles.headerBtn} onClick={toggleCollapsed} title={title}>
-              {collapsed ? "▾" : "▴"}
+              {collapsed ? <ChevronDown size={13} /> : <ChevronUp size={13} />}
             </button>
             <button style={styles.headerBtn} onClick={close} title={title}>
-              ✕
+              <X size={13} />
             </button>
           </div>
         </div>
@@ -74,10 +75,10 @@ const styles = {
     display: "flex",
     flexDirection: "column",
     border: "1px solid var(--border)",
-    borderRadius: 6,
+    borderRadius: 9,
     background: "var(--surface)",
     overflow: "hidden",
-    boxShadow: "0 2px 8px rgba(0,0,0,0.25)",
+    boxShadow: "var(--shadow, 0 4px 16px rgba(0,0,0,.28))",
   },
   header: {
     display: "flex",
@@ -85,10 +86,13 @@ const styles = {
     justifyContent: "space-between",
     gap: 8,
     padding: "8px 10px",
+    height: HEADER_HEIGHT,
+    background: "var(--accent)",
     borderBottom: "1px solid var(--border)",
     flexShrink: 0,
     userSelect: "none",
     cursor: "move",
+    boxSizing: "border-box",
   },
   headerBtns: {
     display: "flex",
@@ -96,16 +100,18 @@ const styles = {
     flexShrink: 0,
   },
   title: {
+    fontFamily: "'Quicksand', system-ui, sans-serif",
     fontWeight: 700,
     fontSize: 13,
+    color: "var(--on-accent)",
     overflow: "hidden",
     textOverflow: "ellipsis",
     whiteSpace: "nowrap",
   },
   headerBtn: {
-    background: "var(--surface2)",
-    border: "1px solid var(--border)",
-    color: "var(--text-muted)",
+    background: "rgba(255,255,255,0.16)",
+    border: "1px solid rgba(255,255,255,0.3)",
+    color: "var(--on-accent)",
     fontSize: 12,
     padding: "3px 7px",
     flexShrink: 0,

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
+import { X, XCircle, CheckCircle2, Check, AlertTriangle, RefreshCw, Monitor, Download, Upload, Link2, Clipboard } from "lucide-react";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, apiUrl } from "./api.js";
@@ -445,7 +446,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
       <div style={styles.modal}>
         <div style={styles.header}>
           <span style={styles.title}>{t("settings.title")}</span>
-          <button style={styles.closeBtn} onClick={onClose}>✕</button>
+          <button style={styles.closeBtn} onClick={onClose}><X size={14} color="var(--accent)" /></button>
         </div>
 
         <div style={styles.body}>
@@ -491,7 +492,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
                   <input readOnly value={botLinkUrl} onFocus={(e) => e.target.select()} style={{ flex: 1 }} />
                   <button type="button" onClick={copyBotLinkUrl} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
-                    {botLinkCopied ? t("settings.overlay.copied") : t("settings.overlay.copy")}
+                    {botLinkCopied ? (<><Check size={14} color="var(--accent)" /> {t("settings.overlay.copied")}</>) : (<><Clipboard size={14} color="var(--accent)" /> {t("settings.overlay.copy")}</>)}
                   </button>
                 </div>
                 <button type="button" onClick={cancelBotLink} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
@@ -501,7 +502,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             ) : (
               <div style={styles.field}>
                 <button type="button" onClick={startBotLink} disabled={botLinkStatus === "starting"} style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}>
-                  {botLinkStatus === "starting" ? "…" : t("settings.bot.connect")}
+                  {botLinkStatus === "starting" ? "…" : (<><Link2 size={14} color="var(--accent)" /> {t("settings.bot.connect")}</>)}
                 </button>
                 {botLinkStatus === "expired" && <span style={styles.hint}>{t("settings.bot.expired")}</span>}
                 {botLinkStatus === "error" && <span style={styles.hint}>{t("settings.bot.error")}</span>}
@@ -537,7 +538,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   disabled={!overlayUrl}
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
                 >
-                  {overlayCopied ? t("settings.overlay.copied") : t("settings.overlay.copy")}
+                  {overlayCopied ? (<><Check size={14} color="var(--accent)" /> {t("settings.overlay.copied")}</>) : (<><Clipboard size={14} color="var(--accent)" /> {t("settings.overlay.copy")}</>)}
                 </button>
               </div>
               <span style={styles.hint}>{t("settings.overlay.hint")}</span>
@@ -556,7 +557,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   disabled={!chatOverlayUrl}
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
                 >
-                  {chatOverlayCopied ? t("settings.chatOverlay.copied") : t("settings.chatOverlay.copy")}
+                  {chatOverlayCopied ? (<><Check size={14} color="var(--accent)" /> {t("settings.chatOverlay.copied")}</>) : (<><Clipboard size={14} color="var(--accent)" /> {t("settings.chatOverlay.copy")}</>)}
                 </button>
               </div>
               <span style={styles.hint}>{t("settings.chatOverlay.hint")}</span>
@@ -575,7 +576,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   disabled={!avatarOverlayUrl}
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
                 >
-                  {avatarOverlayCopied ? t("settings.avatarOverlay.copied") : t("settings.avatarOverlay.copy")}
+                  {avatarOverlayCopied ? (<><Check size={14} color="var(--accent)" /> {t("settings.avatarOverlay.copied")}</>) : (<><Clipboard size={14} color="var(--accent)" /> {t("settings.avatarOverlay.copy")}</>)}
                 </button>
               </div>
               <span style={styles.hint}>{t("settings.avatarOverlay.urlHint")}</span>
@@ -615,13 +616,14 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
+                        gap: 6,
                         cursor: avatarUploading[slot] ? "default" : "pointer",
                         borderRadius: 6,
                         padding: "6px 0",
                         opacity: avatarUploading[slot] ? 0.6 : 1,
                       }}
                     >
-                      {avatarUploading[slot] ? t("settings.avatarOverlay.uploading") : t("settings.avatarOverlay.upload")}
+                      {avatarUploading[slot] ? t("settings.avatarOverlay.uploading") : (<><Upload size={14} color="var(--accent)" /> {t("settings.avatarOverlay.upload")}</>)}
                       <input
                         type="file"
                         accept="image/jpeg,image/png,image/gif,image/webp"
@@ -634,7 +636,9 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                       />
                     </label>
                     {avatarError[slot] && (
-                      <span style={{ ...styles.hint, color: "var(--danger, #ff6b6b)" }}>❌ {avatarError[slot]}</span>
+                      <span style={{ ...styles.hint, color: "var(--danger, #ff6b6b)", display: "inline-flex", alignItems: "center", gap: 4 }}>
+                        <XCircle size={14} color="var(--red)" /> {avatarError[slot]}
+                      </span>
                     )}
                   </div>
                 );
@@ -704,7 +708,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="idleReddit"
                   checked={false}
                   onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="idleReddit" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.reddit.enableLabel")}
@@ -747,7 +751,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="youtubePeek"
                   checked={false}
                   onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="youtubePeek" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.youtube.enableLabel")}
@@ -781,7 +785,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="screenWatch"
                   checked={false}
                   onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="screenWatch" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.trivia.enableLabel")}
@@ -833,7 +837,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="screenClick"
                   checked={form.screenClickEnabled || false}
                   onChange={(e) => set("screenClickEnabled", e.target.checked)}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="screenClick" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.trivia.autoClickLabel")}
@@ -856,7 +860,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   id="screenAutoNav"
                   checked={form.screenAutoNavigate || false}
                   onChange={(e) => set("screenAutoNavigate", e.target.checked)}
-                  style={{ width: "auto", accentColor: "var(--purple)" }}
+                  style={{ width: "auto", accentColor: "var(--accent)" }}
                 />
                 <label htmlFor="screenAutoNav" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
                   {t("settings.trivia.autoNavLabel")}
@@ -874,7 +878,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     onClose();
                   }}
                 >
-                  {t("settings.trivia.testButton")}
+                  <Monitor size={14} color="var(--accent)" /> {t("settings.trivia.testButton")}
                 </button>
               </div>
             </fieldset>
@@ -924,7 +928,9 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                         opacity: !canExport || !target ? 0.5 : 1,
                       }}
                     >
-                      {exportStatus?.running ? t("settings.aiProvider.exporting") : t("settings.aiProvider.exportTo", { target: label(target || "") })}
+                      {exportStatus?.running
+                        ? t("settings.aiProvider.exporting")
+                        : (<><Download size={14} color="var(--accent)" /> {t("settings.aiProvider.exportTo", { target: label(target || "") })}</>)}
                     </button>
                   </div>
                   {exportStatus && (exportStatus.running || exportStatus.pct > 0 || exportStatus.error) && (
@@ -942,16 +948,16 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                           style={{
                             height: "100%",
                             width: `${exportStatus.pct || 0}%`,
-                            background: exportStatus.error ? "#e05555" : "var(--purple)",
+                            background: exportStatus.error ? "#e05555" : "var(--accent)",
                             transition: "width 0.4s ease",
                           }}
                         />
                       </div>
-                      <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                      <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                         {exportStatus.error
-                          ? `❌ ${exportStatus.error}`
+                          ? (<><XCircle size={14} color="var(--red)" /> {exportStatus.error}</>)
                           : exportStatus.pct >= 100
-                          ? `✅ ${exportStatus.stage}${exportStatus.mdPath ? ` — ${exportStatus.mdPath}` : ""}`
+                          ? (<><CheckCircle2 size={14} color="var(--green)" /> {exportStatus.stage}{exportStatus.mdPath ? ` — ${exportStatus.mdPath}` : ""}</>)
                           : `${exportStatus.stage} (${exportStatus.pct || 0}%)`}
                       </span>
                     </div>
@@ -983,12 +989,14 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     >
                       {importStatus?.running
                         ? t("settings.aiProvider.importing")
-                        : t("settings.aiProvider.importButton", { file: importFile ? ` "${importFile.name}"` : "" })}
+                        : (<><Upload size={14} color="var(--accent)" /> {t("settings.aiProvider.importButton", { file: importFile ? ` "${importFile.name}"` : "" })}</>)}
                     </button>
                   </div>
                   {importStatus && (importStatus.error || importStatus.ok) && (
-                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                      {importStatus.error ? `❌ ${importStatus.error}` : t("settings.aiProvider.importSuccess")}
+                    <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      {importStatus.error
+                        ? (<><XCircle size={14} color="var(--red)" /> {importStatus.error}</>)
+                        : (<><CheckCircle2 size={14} color="var(--green)" /> {t("settings.aiProvider.importSuccess")}</>)}
                     </span>
                   )}
                   <span style={styles.hint}>{t("settings.aiProvider.importHint")}</span>
@@ -1015,7 +1023,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   >
                     {downloadMemoryStatus.running
                       ? t("settings.aiProvider.downloading")
-                      : t("settings.aiProvider.downloadMemoryButton")}
+                      : (<><Download size={14} color="var(--accent)" /> {t("settings.aiProvider.downloadMemoryButton")}</>)}
                   </button>
                   {downloadMemoryStatus.running && (
                     <div style={{ marginTop: 8 }}>
@@ -1032,7 +1040,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                           style={{
                             height: "100%",
                             width: `${downloadMemoryStatus.pct || 0}%`,
-                            background: "var(--purple)",
+                            background: "var(--accent)",
                             transition: "width 0.4s ease",
                           }}
                         />
@@ -1043,7 +1051,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     </div>
                   )}
                   {!downloadMemoryStatus.running && downloadMemoryStatus.pct >= 100 && !downloadMemoryStatus.error && (
-                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>✅ {t("settings.aiProvider.downloadDone")}</span>
+                    <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}><CheckCircle2 size={14} color="var(--green)" /> {t("settings.aiProvider.downloadDone")}</span>
                   )}
                   {onCooldown && (
                     <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
@@ -1051,8 +1059,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     </span>
                   )}
                   {downloadMemoryStatus.error && (
-                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                      ❌ {downloadMemoryStatus.error === "COOLDOWN" ? t("settings.aiProvider.downloadCooldownError") : downloadMemoryStatus.error}
+                    <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                      <XCircle size={14} color="var(--red)" /> {downloadMemoryStatus.error === "COOLDOWN" ? t("settings.aiProvider.downloadCooldownError") : downloadMemoryStatus.error}
                     </span>
                   )}
                   <span style={styles.hint}>{t("settings.aiProvider.downloadMemoryHint")}</span>
@@ -1149,11 +1157,11 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                       onClick={() => loadElevenVoices(form.elevenLabsKey)}
                       disabled={!form.elevenLabsKey || elevenVoicesStatus === "loading"}
                     >
-                      {elevenVoicesStatus === "loading" ? t("settings.tts.loading") : t("settings.tts.loadVoices")}
+                      {elevenVoicesStatus === "loading" ? t("settings.tts.loading") : (<><RefreshCw size={14} color="var(--accent)" /> {t("settings.tts.loadVoices")}</>)}
                     </button>
                   </div>
                   {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
-                    <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ {elevenVoicesStatus}</span>
+                    <span style={{ ...styles.hint, color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} /> {elevenVoicesStatus}</span>
                   )}
                 </div>
                 <div style={styles.field}>
@@ -1187,14 +1195,14 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     onClick={loadPiperVoices}
                     disabled={piperStatus === "loading"}
                   >
-                    {piperStatus === "loading" ? t("settings.tts.loading") : t("settings.tts.loadVoices")}
+                    {piperStatus === "loading" ? t("settings.tts.loading") : (<><RefreshCw size={14} color="var(--accent)" /> {t("settings.tts.loadVoices")}</>)}
                   </button>
                 </div>
                 {piperStatus === "missing" && (
                   <span style={{ ...styles.hint, color: "var(--red)" }}>{t("settings.tts.piperMissing")}</span>
                 )}
                 {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
-                  <span style={{ ...styles.hint, color: "var(--red)" }}>⚠ {piperStatus}</span>
+                  <span style={{ ...styles.hint, color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} /> {piperStatus}</span>
                 )}
                 <span style={styles.hint}>{t("settings.tts.piperHint")}</span>
               </div>
@@ -1209,7 +1217,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   step={0.1}
                   value={form.ttsRate}
                   onChange={(e) => set("ttsRate", Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "var(--purple)" }}
+                  style={{ width: "100%", "--pct": `${(form.ttsRate - 0.5) / 1.5 * 100}%` }}
                 />
               </div>
               <div style={styles.field}>
@@ -1221,7 +1229,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   step={0.05}
                   value={form.ttsVolume}
                   onChange={(e) => set("ttsVolume", Number(e.target.value))}
-                  style={{ width: "100%", accentColor: "var(--purple)" }}
+                  style={{ width: "100%", "--pct": `${form.ttsVolume * 100}%` }}
                 />
               </div>
             </div>
@@ -1329,7 +1337,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   onClick={exportSettings}
                   style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", flex: 1 }}
                 >
-                  {t("settings.copySettings.download")}
+                  <Download size={14} color="var(--accent)" /> {t("settings.copySettings.download")}
                 </button>
                 <label
                   style={{
@@ -1344,17 +1352,17 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                     borderRadius: 6,
                   }}
                 >
-                  {t("settings.copySettings.upload")}
+                  <Upload size={14} color="var(--accent)" /> {t("settings.copySettings.upload")}
                   <input type="file" accept=".json,application/json" onChange={importSettingsFile} style={{ display: "none" }} />
                 </label>
               </div>
               {settingsFileStatus && (
-                <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
                   {settingsFileStatus.error
-                    ? `❌ ${settingsFileStatus.error}`
-                    : settingsFileStatus.droppedStaleBackendUrl
-                    ? t("settings.copySettings.loadedOkDroppedBackend")
-                    : t("settings.copySettings.loadedOk")}
+                    ? (<><XCircle size={14} color="var(--red)" /> {settingsFileStatus.error}</>)
+                    : (<><CheckCircle2 size={14} color="var(--green)" /> {settingsFileStatus.droppedStaleBackendUrl
+                        ? t("settings.copySettings.loadedOkDroppedBackend")
+                        : t("settings.copySettings.loadedOk")}</>)}
                 </span>
               )}
               <span style={styles.hint}>{t("settings.copySettings.hint")}</span>
@@ -1452,7 +1460,7 @@ const styles = {
   sectionTitle: {
     fontSize: 12,
     fontWeight: 700,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     textTransform: "uppercase",
     letterSpacing: "0.08em",
     marginBottom: 12,
@@ -1472,7 +1480,7 @@ const styles = {
     display: "block",
   },
   link: {
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   footer: {
     display: "flex",
@@ -1486,7 +1494,7 @@ const styles = {
     color: "var(--text)",
   },
   saveBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
   },
 };

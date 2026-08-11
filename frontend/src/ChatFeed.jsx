@@ -1,4 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
+import {
+  Star, PartyPopper, Gift, Swords, Gem, Megaphone,
+  Keyboard, Mic, SlidersHorizontal, AlertTriangle, Zap,
+} from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
 
 function formatTime(ts) {
@@ -6,12 +10,12 @@ function formatTime(ts) {
 }
 
 const EVENT_ICONS = {
-  follow: "⭐",
-  sub: "🎉",
-  resub: "🎉",
-  giftsub: "🎁",
-  raid: "⚔️",
-  cheer: "💎",
+  follow: Star,
+  sub: PartyPopper,
+  resub: PartyPopper,
+  giftsub: Gift,
+  raid: Swords,
+  cheer: Gem,
 };
 
 export default function ChatFeed({
@@ -24,7 +28,12 @@ export default function ChatFeed({
   const { t } = useTranslation(lang);
 
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+    // block: "nearest" keeps this scoped to the message list's own scroll
+    // container — the default "start" alignment cascades up through every
+    // scrollable ancestor (including #root, which has overflow:hidden but
+    // is still a valid scroll port for scrollIntoView), nudging the whole
+    // app down a few pixels on every new message.
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages]);
 
   const submit = (e) => {
@@ -43,11 +52,11 @@ export default function ChatFeed({
         )}
         {messages.map((m) => {
           if (m.isEvent) {
-            const icon = EVENT_ICONS[m.eventKind] || "📢";
+            const IconComp = EVENT_ICONS[m.eventKind] || Megaphone;
             return (
               <div key={m.id} style={styles.eventRow}>
                 <span style={styles.time}>{formatTime(m.timestamp)}</span>
-                <span style={styles.eventIcon}>{icon}</span>
+                <span style={styles.eventIcon}><IconComp size={14} /></span>
                 <span style={styles.eventUser}>{m.username}</span>
                 <span style={styles.eventText}>{m.text}</span>
               </div>
@@ -58,7 +67,7 @@ export default function ChatFeed({
             return (
               <div key={m.id} style={styles.voiceRow}>
                 <span style={styles.time}>{formatTime(m.timestamp)}</span>
-                <span style={styles.voiceIcon}>{m.isTyped ? "⌨️" : "🎙"}</span>
+                <span style={styles.voiceIcon}>{m.isTyped ? <Keyboard size={14} /> : <Mic size={14} />}</span>
                 <span style={{ ...styles.user, color: "#00d4ff" }}>{m.username}</span>
                 <span style={styles.colon}>: </span>
                 <span style={{ ...styles.text, fontStyle: "italic" }}>{m.text}</span>
@@ -70,7 +79,7 @@ export default function ChatFeed({
             return (
               <div key={m.id} style={{ ...styles.eventRow, ...(m.ok ? {} : styles.commandErrorRow) }}>
                 <span style={styles.time}>{formatTime(m.timestamp)}</span>
-                <span style={styles.eventIcon}>{m.ok ? "🎛️" : "⚠️"}</span>
+                <span style={styles.eventIcon}>{m.ok ? <SlidersHorizontal size={14} /> : <AlertTriangle size={14} color="var(--yellow)" />}</span>
                 <span style={styles.eventText}>{m.text}</span>
               </div>
             );
@@ -83,12 +92,12 @@ export default function ChatFeed({
                 <span style={styles.channelBadge}>#{m.extraChannel}</span>
               )}
               {m.isRedeem && (
-                <span style={styles.redeemBadge} title={m.rewardTitle || t("chatFeed.pointsRedeem")}>🎁</span>
+                <span style={styles.redeemBadge} title={m.rewardTitle || t("chatFeed.pointsRedeem")}><Gift size={14} /></span>
               )}
               <span style={{ ...styles.user, color: m.color }}>{m.username}</span>
               <span style={styles.colon}>: </span>
               <span style={styles.text}>{m.text || m.rewardTitle}</span>
-              {m.isHype && <span style={styles.hype}>⚡</span>}
+              {m.isHype && <span style={styles.hype}><Zap size={14} /></span>}
             </div>
           );
         })}
@@ -102,7 +111,7 @@ export default function ChatFeed({
         // (see voice.onTranscript in App.jsx), but this row always shows
         // what the mic is hearing so the streamer gets instant feedback.
         <div style={styles.voiceOutRow}>
-          <span style={styles.voiceOutIcon}>🎙</span>
+          <span style={styles.voiceOutIcon}><Mic size={14} /></span>
           <span style={styles.voiceOutText}>
             {micSpeaking ? t("chatFeed.listening") : micLastText || t("chatFeed.waitingForSpeech")}
           </span>
@@ -240,7 +249,7 @@ const styles = {
     fontSize: 13,
   },
   sendBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
     borderRadius: 4,
@@ -312,8 +321,8 @@ const styles = {
     marginLeft: 2,
   },
   redeemRow: {
-    background: "rgba(255, 222, 77, 0.08)",
-    borderLeft: "2px solid var(--purple)",
+    background: "rgba(225, 29, 118, 0.08)",
+    borderLeft: "2px solid var(--accent)",
     paddingLeft: 6,
     borderRadius: 4,
   },
@@ -339,8 +348,8 @@ const styles = {
   },
   channelBadge: {
     fontSize: 10,
-    color: "var(--purple-light)",
-    background: "rgba(255, 222, 77, 0.15)",
+    color: "var(--accent-light)",
+    background: "rgba(225, 29, 118, 0.15)",
     borderRadius: 4,
     padding: "1px 5px",
     flexShrink: 0,

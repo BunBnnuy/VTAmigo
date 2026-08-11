@@ -1,24 +1,25 @@
 import React from "react";
+import { Heart, Star, Repeat, Gift, Rocket, Gem, Trophy, Sparkles } from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
 
 const KIND_ICON = {
-  follow: "💜",
-  sub: "⭐",
-  resub: "🔁",
-  giftsub: "🎁",
-  raid: "🚀",
-  cheer: "💎",
-  redeem: "🏆",
+  follow: Heart,
+  sub: Star,
+  resub: Repeat,
+  giftsub: Gift,
+  raid: Rocket,
+  cheer: Gem,
+  redeem: Trophy,
 };
 
 const KIND_COLOR = {
-  follow: "var(--purple)",
+  follow: "var(--accent)",
   sub: "var(--yellow)",
   resub: "var(--yellow)",
   giftsub: "var(--yellow)",
   raid: "var(--green)",
-  cheer: "var(--purple-light)",
-  redeem: "var(--purple)",
+  cheer: "var(--accent-light)",
+  redeem: "var(--accent)",
 };
 
 function formatTime(ts) {
@@ -63,9 +64,11 @@ export default function ActivityPanel({ events = [], lang }) {
         {sorted.length === 0 && (
           <div style={styles.empty}>{t("activityPanel.empty")}</div>
         )}
-        {sorted.map((event) => (
+        {sorted.map((event) => {
+          const IconComp = KIND_ICON[event.kind] || Sparkles;
+          return (
           <div key={event.id} style={{ ...styles.row, borderLeftColor: KIND_COLOR[event.kind] || "var(--border)" }}>
-            <span style={styles.icon}>{KIND_ICON[event.kind] || "✨"}</span>
+            <span style={styles.icon}><IconComp size={16} /></span>
             <div style={styles.rowBody}>
               <div style={styles.rowTop}>
                 <span style={styles.username}>{event.username || t("activityPanel.anonymous")}</span>
@@ -76,7 +79,8 @@ export default function ActivityPanel({ events = [], lang }) {
               {event.kind === "redeem" && event.text && <div style={styles.message}>&quot;{event.text}&quot;</div>}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
@@ -99,7 +103,7 @@ const styles = {
   title: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
   },
   count: {
     marginLeft: "auto",

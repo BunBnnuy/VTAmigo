@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
+import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2 } from "lucide-react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
@@ -444,15 +445,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   }, [pushToBuffer, runVoiceCommand]);
 
   const handleSendTyped = useCallback((text) => {
-    const label = twitchLogin || "Streamer";
-    setMessages((prev) => [...prev.slice(-199), {
-      id: `typed-${uid()}`,
-      timestamp: Date.now(),
-      username: label,
-      text,
-      isTyped: true,
-    }]);
-    pushToBuffer({ username: label, text });
+    // No optimistic local append here — the backend broadcasts a synthetic
+    // "chat" WS message (tagged isTyped: true) right after it posts to
+    // Twitch, and the ws.onmessage chat handler below is what actually adds
+    // it to `messages`/the AI buffer. Adding it here too used to double it up.
     // Only typed Live Chat messages reach real Twitch chat — voice-to-text
     // transcripts (see voice.onTranscript above) stay local/AI-buffer only.
     apiFetch("/say-as-streamer", {
@@ -465,7 +461,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         console.warn("[chat] failed to send typed message to Twitch chat:", d.error || r.status);
       }
     }).catch((e) => console.warn("[chat] failed to send typed message to Twitch chat:", e.message));
-  }, [twitchLogin, pushToBuffer]);
+  }, []);
 
   // Apply mic settings whenever they change
   useEffect(() => {
@@ -633,7 +629,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       if (data.error) throw new Error(data.error);
 
       const { story } = data;
-      const label = `📖 r/${story.subreddit} — ${story.title}`;
+      const label = `r/${story.subreddit} — ${story.title}`;
 
       // Show the story text in the response panel
       setResponses((prev) => [...prev.slice(-49), {
@@ -672,7 +668,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             timestamp: Date.now(),
             text: thoughtsText,
             error: !!thoughtsData.error,
-            eventLabel: `💬 Pensamientos — ${story.title}`,
+            eventLabel: `Pensamientos — ${story.title}`,
           }]);
           if (!thoughtsData.error) tts.enqueue(thoughtsText);
         } catch (err) {
@@ -704,7 +700,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         timestamp: Date.now(),
         text,
         error: !!data.error,
-        eventLabel: "📺 YouTube Peek",
+        eventLabel: "YouTube Peek",
       }]);
       if (!data.error) tts.enqueue(text);
     } catch (err) {
@@ -776,7 +772,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         timestamp: Date.now(),
         text,
         error: !!data.error,
-        eventLabel: `🎯 Respuesta — ${collect.question.slice(0, 60)}`,
+        eventLabel: `Respuesta — ${collect.question.slice(0, 60)}`,
         messageCount: collect.messages.length || null,
       }]);
       if (!data.error) {
@@ -818,7 +814,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             if (!r.ok) {
               const d = await r.json().catch(() => ({}));
               setResponses((prev) => [...prev.slice(-49), {
-                id: uid(), timestamp: Date.now(), text: `No pude hacer clic: ${d.error || r.status}`, error: true, eventLabel: "🖱️ Auto-click",
+                id: uid(), timestamp: Date.now(), text: `No pude hacer clic: ${d.error || r.status}`, error: true, eventLabel: "Auto-click",
               }]);
             }
           }).catch(() => {});
@@ -848,7 +844,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       timestamp: Date.now(),
       text: `${question}\n\n${optionText}\n\nEsperando al chat ${windowSec}s…`,
       error: false,
-      eventLabel: "🖥️ Pregunta detectada en pantalla",
+      eventLabel: "Pregunta detectada en pantalla",
     }]);
 
     // Post the question to chat so viewers can vote (Twitch caps ~500 chars)
@@ -901,12 +897,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           timestamp: Date.now(),
           text: "No encontré ninguna pregunta con opciones en la pantalla.",
           error: false,
-          eventLabel: "🖥️ Escaneo manual",
+          eventLabel: "Escaneo manual",
         }]);
       }
     } catch (err) {
       setResponses((prev) => [...prev.slice(-49), {
-        id: uid(), timestamp: Date.now(), text: `Error: ${err.message}`, error: true, eventLabel: "🖥️ Escaneo manual",
+        id: uid(), timestamp: Date.now(), text: `Error: ${err.message}`, error: true, eventLabel: "Escaneo manual",
       }]);
     } finally {
       setLoading(false);
@@ -1066,7 +1062,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             timestamp: event.timestamp,
             username: event.username || "Twitch",
             text: formatEventText(event, t),
-            color: "var(--purple)",
+            color: "var(--accent)",
             isEvent: true,
             eventKind: event.kind,
           }]);
@@ -1285,14 +1281,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             onClick={() => window.open("/overlay-builder", "_blank")}
             title={t("app.overlayStudioTitle")}
           >
-            {t("app.overlayStudioBtn")}
+            <Palette size={14} color="var(--accent)" /> {t("app.overlayStudioBtn")}
           </button>
           <button
             style={styles.settingsBtn}
             onClick={cycleTheme}
             title={t("app.themeTitle", { theme: t(`app.theme${theme[0].toUpperCase()}${theme.slice(1)}`) })}
           >
-            {theme === "light" ? "☀️" : theme === "dark" ? "🌙" : "🖥️"}
+            {theme === "light" ? <Sun size={14} color="var(--accent)" /> : theme === "dark" ? <Moon size={14} color="var(--accent)" /> : <Monitor size={14} color="var(--accent)" />}
           </button>
           <button
             style={styles.settingsBtn}
@@ -1302,7 +1298,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               if (tourActive && tourStep === 3) setTourStep(4);
             }}
           >
-            {t("app.settingsBtn")}
+            <SettingsIcon size={14} color="var(--accent)" /> {t("app.settingsBtn")}
           </button>
           {connected ? (
             <button style={{ ...styles.btn, background: "var(--red)" }} onClick={() => handleDisconnect(true)}>
@@ -1310,7 +1306,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             </button>
           ) : (
             <button
-              style={{ ...styles.btn, background: "var(--purple)", color: "var(--on-accent)" }}
+              style={{ ...styles.btn, background: "var(--accent)", color: "var(--on-accent)" }}
               onClick={() => handleConnect(true)}
             >
               {t("app.connect")}
@@ -1399,8 +1395,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         {/* Now playing (video queue) */}
         {videoState.nowPlaying && (
           <div style={styles.statusGroup} title={videoState.nowPlaying.title}>
-            <span style={styles.statusText}>
-              {videoState.nowPlaying.paused ? "⏸" : "🎵"} {videoState.nowPlaying.title}
+            <span style={{ ...styles.statusText, display: "inline-flex", alignItems: "center", gap: 5 }}>
+              {videoState.nowPlaying.paused ? <Pause size={13} /> : <Music2 size={13} />} {videoState.nowPlaying.title}
             </span>
           </div>
         )}
@@ -1429,7 +1425,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               ...styles.dot,
               background:
                 screenWatch.state === "collecting" ? "var(--yellow)"
-                : screenWatch.state === "answering" ? "var(--purple)"
+                : screenWatch.state === "answering" ? "var(--accent)"
                 : screenWatch.state === "error" ? "var(--red)"
                 : "var(--green)",
             }} />
@@ -1467,7 +1463,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
 
         {/* TTS volume */}
         <div style={styles.volumeGroup}>
-          <span style={styles.statusText}>{muted ? "🔇" : "🔊"}</span>
+          <span style={{ ...styles.statusText, display: "inline-flex" }}>{muted ? <VolumeX size={14} /> : <Volume2 size={14} />}</span>
           <input
             type="range"
             min={0}
@@ -1476,7 +1472,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             value={settings.ttsVolume}
             onChange={(e) => updateSetting("ttsVolume", Number(e.target.value))}
             disabled={muted}
-            style={styles.volumeSlider}
+            style={{ ...styles.volumeSlider, "--pct": `${settings.ttsVolume * 100}%` }}
             title={t("app.ttsVolumeTitle", { pct: Math.round(settings.ttsVolume * 100) })}
           />
           <span style={styles.countdownLabel}>{Math.round(settings.ttsVolume * 100)}%</span>
@@ -1555,7 +1551,7 @@ const styles = {
   brandName: {
     fontWeight: 800,
     fontSize: 16,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     letterSpacing: "-0.01em",
   },
   topRight: {
@@ -1613,7 +1609,7 @@ const styles = {
   },
   countdownFill: {
     height: "100%",
-    background: "var(--purple)",
+    background: "var(--accent)",
     borderRadius: 2,
     transition: "width 1s linear",
   },

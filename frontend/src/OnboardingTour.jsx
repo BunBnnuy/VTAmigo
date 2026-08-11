@@ -166,7 +166,7 @@ const styles = {
   },
   spotlightBorder: {
     position: "fixed",
-    border: "2px solid var(--purple)",
+    border: "2px solid var(--accent)",
     borderRadius: 8,
     boxShadow: "0 0 0 3px rgba(168, 85, 247, 0.25)",
     pointerEvents: "none",
@@ -217,7 +217,7 @@ const styles = {
     padding: "4px 0",
   },
   primaryBtn: {
-    background: "var(--purple)",
+    background: "var(--accent)",
     color: "var(--on-accent)",
     fontSize: 13,
     fontWeight: 600,

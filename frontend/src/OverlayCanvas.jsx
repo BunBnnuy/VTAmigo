@@ -1,6 +1,17 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Rnd } from "react-rnd";
 import { apiFetch, apiUrl } from "./api.js";
+import {
+  Volume2,
+  Image as ImageIcon,
+  Film,
+  Type,
+  ArrowDown,
+  ArrowUp,
+  Trash2,
+  Check,
+  X,
+} from "lucide-react";
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -286,7 +297,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
                   onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
                   onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
                   onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
-                  style={{ outline: layer.id === selectedLayerId ? "2px solid var(--purple, #ffde4d)" : "1px dashed rgba(255,255,255,0.35)" }}
+                  style={{ outline: layer.id === selectedLayerId ? "2px solid var(--accent, #e11d76)" : "1px dashed rgba(255,255,255,0.35)" }}
                 >
                   <LayerContent layer={layer} assetUrl={assetUrl} latestByKind={latestByKind} />
                 </Rnd>
@@ -343,7 +354,7 @@ function LayerContent({ layer, assetUrl, latestByKind }) {
   if (layer.type === "sound") {
     return (
       <div style={styles.soundPlaceholder}>
-        <div style={{ fontSize: 28 }}>🔊</div>
+        <Volume2 size={28} />
         <div style={{ fontSize: 10, opacity: 0.8 }}>Sound</div>
       </div>
     );
@@ -377,7 +388,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
 
   return (
     <div style={styles.toolbar}>
-      <button style={styles.toolBtn} disabled={uploading} onClick={() => imageInputRef.current?.click()}>🖼️ Add Image</button>
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => imageInputRef.current?.click()}><ImageIcon size={14} color="var(--accent)" /> Add Image</button>
       <input
         ref={imageInputRef}
         type="file"
@@ -385,7 +396,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddImage(e.target.files[0]); e.target.value = ""; }}
       />
-      <button style={styles.toolBtn} disabled={uploading} onClick={() => videoInputRef.current?.click()}>🎬 Add Video</button>
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => videoInputRef.current?.click()}><Film size={14} color="var(--accent)" /> Add Video</button>
       <input
         ref={videoInputRef}
         type="file"
@@ -393,7 +404,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddVideo(e.target.files[0]); e.target.value = ""; }}
       />
-      <button style={styles.toolBtn} disabled={uploading} onClick={() => audioInputRef.current?.click()}>🔊 Add Sound</button>
+      <button style={styles.toolBtn} disabled={uploading} onClick={() => audioInputRef.current?.click()}><Volume2 size={14} color="var(--accent)" /> Add Sound</button>
       <input
         ref={audioInputRef}
         type="file"
@@ -401,7 +412,7 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         style={{ display: "none" }}
         onChange={(e) => { if (e.target.files[0]) onAddAudio(e.target.files[0]); e.target.value = ""; }}
       />
-      <button style={styles.toolBtn} onClick={onAddText}>🔤 Add Text</button>
+      <button style={styles.toolBtn} onClick={onAddText}><Type size={14} color="var(--accent)" /> Add Text</button>
       <div style={styles.saveIndicator}>
         {uploading ? "Uploading…" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
       </div>
@@ -533,19 +544,19 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
       {layer.type === "image" && (
         <>
           <label style={styles.label}>Hue ({Math.round(layer.hue || 0)}°)
-            <input type="range" style={styles.slider} min={-180} max={180} value={layer.hue || 0}
+            <input type="range" style={{ ...styles.slider, "--pct": `${((layer.hue || 0) + 180) / 360 * 100}%` }} min={-180} max={180} value={layer.hue || 0}
               onChange={(e) => onChange({ hue: Number(e.target.value) })} />
           </label>
           <label style={styles.label}>Saturation ({Math.round(layer.saturation ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={200} value={layer.saturation ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${(layer.saturation ?? 100) / 200 * 100}%` }} min={0} max={200} value={layer.saturation ?? 100}
               onChange={(e) => onChange({ saturation: Number(e.target.value) })} />
           </label>
           <label style={styles.label}>Brightness ({Math.round(layer.brightness ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={200} value={layer.brightness ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${(layer.brightness ?? 100) / 200 * 100}%` }} min={0} max={200} value={layer.brightness ?? 100}
               onChange={(e) => onChange({ brightness: Number(e.target.value) })} />
           </label>
           <label style={styles.label}>Opacity ({Math.round(layer.opacity ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={100} value={layer.opacity ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${layer.opacity ?? 100}%` }} min={0} max={100} value={layer.opacity ?? 100}
               onChange={(e) => onChange({ opacity: Number(e.target.value) })} />
           </label>
           <button style={styles.toolBtn} onClick={() => onChange({ hue: 0, saturation: 100, brightness: 100, opacity: 100 })}>
@@ -591,7 +602,7 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
       {layer.type === "sound" && (
         <>
           <label style={styles.label}>Volume ({Math.round(layer.volume ?? 100)}%)
-            <input type="range" style={styles.slider} min={0} max={100} value={layer.volume ?? 100}
+            <input type="range" style={{ ...styles.slider, "--pct": `${layer.volume ?? 100}%` }} min={0} max={100} value={layer.volume ?? 100}
               onChange={(e) => onChange({ volume: Number(e.target.value) })} />
           </label>
           <audio controls src={assetUrl(layer.assetId)} style={{ width: "100%" }} />
@@ -629,10 +640,10 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
       </div>
 
       <div style={styles.panelActions}>
-        <button style={styles.toolBtn} onClick={() => onReorder("back")}>⬇️ Send back</button>
-        <button style={styles.toolBtn} onClick={() => onReorder("front")}>⬆️ Bring front</button>
+        <button style={styles.toolBtn} onClick={() => onReorder("back")}><ArrowDown size={14} color="var(--accent)" /> Send back</button>
+        <button style={styles.toolBtn} onClick={() => onReorder("front")}><ArrowUp size={14} color="var(--accent)" /> Bring front</button>
       </div>
-      <button style={styles.deleteBtn} onClick={onDelete}>🗑️ Delete layer</button>
+      <button style={styles.deleteBtn} onClick={onDelete}><Trash2 size={14} /> Delete layer</button>
     </div>
   );
 }
@@ -645,7 +656,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBy
       <div style={styles.quotaRow}>
         <div style={styles.quotaLabel}>{formatBytes(usageBytes)} / {formatBytes(quotaBytes)} used</div>
         <div style={styles.quotaTrack}>
-          <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--purple)" }} />
+          <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--accent)" }} />
         </div>
       </div>
       {assets.length === 0 && <div style={styles.panelEmpty}>No uploads yet.</div>}
@@ -657,7 +668,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBy
               {a.kind === "image" ? (
                 <img src={assetUrl(a.id)} alt="" style={styles.assetThumb} />
               ) : (
-                <div style={styles.assetThumbVideo}>{a.kind === "video" ? "🎬" : "🔊"}</div>
+                <div style={styles.assetThumbVideo}>{a.kind === "video" ? <Film size={24} /> : <Volume2 size={24} />}</div>
               )}
               <div style={styles.assetMeta}>{formatBytes(a.sizeBytes)}</div>
               <button
@@ -666,7 +677,7 @@ function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBy
                 onBlur={() => armed && onDelete(null)}
                 title={armed ? "Click again to confirm" : "Delete"}
               >
-                {armed ? "✓" : "✕"}
+                {armed ? <Check size={14} color="var(--accent)" /> : <X size={14} color="var(--accent)" />}
               </button>
             </div>
           );
@@ -738,7 +749,7 @@ const styles = {
     justifyContent: "center",
     gap: 2,
     color: "#fff",
-    background: "rgba(255, 222, 77, 0.25)",
+    background: "rgba(225, 29, 118, 0.25)",
     border: "1px dashed rgba(255,255,255,0.4)",
     borderRadius: 6,
     pointerEvents: "none",
@@ -762,7 +773,7 @@ const styles = {
   panelTitle: {
     fontWeight: 700,
     fontSize: 13,
-    color: "var(--purple-light)",
+    color: "var(--accent-light)",
     textTransform: "capitalize",
   },
   panelEmpty: {

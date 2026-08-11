@@ -402,6 +402,7 @@ app.post("/say-as-streamer", (req, res) => {
       badges: [{ type: "broadcaster", version: "1", url: null, description: "broadcaster" }],
       isHype: false,
       isRedeem: false,
+      isTyped: true,
     },
   });
 
