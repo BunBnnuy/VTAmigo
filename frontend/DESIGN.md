@@ -60,12 +60,19 @@ happen in one place.
 - Secondary: transparent bg, `var(--accent)` text + 1.5px border
 - Ghost: bg `var(--surface2)`, text `var(--text-muted)`, border `var(--border)`
 - Disabled: primary style at `0.4` opacity
+- Buttons are flex containers (global `display: inline-flex` in
+  `index.css`), so `textAlign` has no effect on their contents — to
+  centre a button's icon/label use `justifyContent: "center"`
+  (icon-only or full-width buttons need this explicitly; the default is
+  left-aligned)
 
 ## Inputs
 - Border `var(--border)`, `9px` radius, `9px 12px` padding, Nunito 13px
 
 ## Toggles
 - Off: track `var(--border)`; On: track `var(--accent)`; thumb white, 16px circle
+- Track `38 × 22`, radius `11`, `3px` padding — that keeps an even 3px
+  inset around the 16px thumb on all four sides. On = `translateX(16px)`.
 
 ## Icons
 - No emoji anywhere in the UI — use flat line-icon glyphs from
