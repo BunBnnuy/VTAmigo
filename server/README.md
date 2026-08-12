@@ -76,17 +76,60 @@ There's deliberately no `/home/tunnel/.ssh/authorized_keys` file at all — sshd
 
 If a client ever hits a `password:` prompt instead of connecting silently, something is misconfigured — never type a password at that prompt. Check `sudo sshd -T | grep -A6 -i 'Match User tunnel\|authorizedkeys'` reflects the block above, and `journalctl -u ssh` for `AuthorizedKeysCommand` errors.
 
-## Dev instance (dev.vtamigo.top), on-demand only
+## Dev instance (dev.vtamigo.top), edit-in-place
 
-There's a second, self-managed instance of the app running from the `dev` branch, alongside prod on the same VPS. It exists to test changes on `dev` before merging to `master` without touching the live site. Given the box only has ~1GB RAM, it's designed to stay off unless someone is actually pushing to or hitting it:
+There's a second instance of the app running from the `dev` branch, alongside prod on the same VPS. It exists to test changes on `dev` before merging to `master` without touching the live site. Unlike prod, it's set up to be **edited directly on the box** — you change a file under `/opt/vtamigo-dev` and it's live within seconds, no commit, push, or build step:
 
 - **Repo**: `/opt/vtamigo-dev`, checked out on `dev`, port `3002` (`/etc/vtamigo-dev.env`)
-- **Service**: `vtamigo-backend-dev` (systemd) — never enabled at boot, only started by the watcher below
+- **Service**: `vtamigo-backend-dev` (systemd), enabled at boot
 - **nginx/TLS**: `/etc/nginx/sites-available/vtamigo-dev` → `127.0.0.1:3002`, cert via certbot for `dev.vtamigo.top`
-- **Auto-deploy on push**: `/usr/local/sbin/vtamigo-dev-check-push.sh`, run every 2 min by `vtamigo-dev-push.timer`. Polls `origin/dev`; on a new commit it does `git reset --hard`, reinstalls backend/frontend deps, rebuilds the frontend, and restarts the service (which also starts it if it was stopped).
-- **Auto-shutdown on idle**: `/usr/local/sbin/vtamigo-dev-check-idle.sh`, run every 15 min by `vtamigo-dev-idle.timer`. If the service is active and there's been no nginx access-log activity (nor a recent start) for 2 hours, it stops it.
+- **Backend reload**: the unit is started with `node --watch` via the drop-in `/etc/systemd/system/vtamigo-backend-dev.service.d/watch.conf`, so editing anything under `backend/` restarts the process in ~1s. Open `/chat` WebSockets drop and the frontend reconnects on its own.
+- **Frontend rebuild**: `vtamigo-dev-frontend-watch` (systemd) runs `vite build --watch` in `frontend/`, rewriting `frontend/dist` ~1-3s after any `frontend/src` change. The backend serves `dist` statically and re-reads per request, so a browser refresh is all that's needed — no backend restart.
 
-So the lifecycle is: push to `dev` → live at `https://dev.vtamigo.top` within ~2 min → stops itself automatically ~2h after the last request. No manual start/stop needed in the common case; `systemctl start/stop vtamigo-backend-dev` still works directly if you want to force it either way. Backend's `PORT` is read from `process.env.PORT` (`backend/index.js`) specifically so the two instances can coexist on the same box.
+There is deliberately **no auto-deploy from `origin/dev`**. An earlier `vtamigo-dev-push.timer` polled every 2 min and ran `git reset --hard`, which silently destroyed uncommitted edits on the box — incompatible with editing in place. To pick up work someone else pushed, just:
+
+```bash
+cd /opt/vtamigo-dev && git pull
+```
+
+Both watchers notice the changed files on their own, so `git pull` *is* the deploy. The one thing that no longer happens automatically is dependency installation — after a `package.json` change, run `npm ci` in `backend/` and/or `frontend/` by hand.
+
+Reproducing the two watchers on a fresh box:
+
+```ini
+# /etc/systemd/system/vtamigo-backend-dev.service.d/watch.conf
+# The empty ExecStart= clears the inherited value before setting the new one.
+[Service]
+ExecStart=
+ExecStart=/usr/bin/node --watch index.js
+```
+
+```ini
+# /etc/systemd/system/vtamigo-dev-frontend-watch.service
+[Unit]
+Description=VTAmigo dev frontend rebuild-on-save
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/vtamigo-dev/frontend
+ExecStart=/usr/bin/node node_modules/vite/bin/vite.js build --watch
+Restart=on-failure
+RestartSec=5
+MemoryMax=500M
+
+[Install]
+WantedBy=multi-user.target
+```
+
+The frontend watcher runs as root (matching the ownership of `frontend/`); its default umask leaves `dist` world-readable, which is all the `vtamigo` service user needs — so the `chmod -R o+rX` that `deploy-frontend.sh` does isn't required here. `MemoryMax=500M` is a safety valve: the box is 2GB and shared with prod, so a runaway build gets killed instead of letting the kernel OOM-pick the live site. For the same reason there's a 1GB `/swapfile` (in `/etc/fstab`).
+
+Backend's `PORT` is read from `process.env.PORT` (`backend/index.js`) and the SQLite file is per-environment (`backend/db.js`, `vtamigo.<env>.sqlite3`), so the two instances coexist on the same box without sharing state.
+
+Two cautions when working in `/opt/vtamigo-dev`:
+
+- Don't run `git clean` there — `.claude/worktrees/` is untracked and would be deleted.
+- The checkout is on `dev`. Keep it that way; the old auto-deploy used to `reset --hard origin/dev` regardless of the checked-out branch, which had quietly dragged the local `master` onto dev commits.
 
 ## Notes
 
