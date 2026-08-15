@@ -283,6 +283,34 @@ export default {
     },
   },
 
+  announcement: {
+    title: "今回のアップデート",
+    ok: "OK",
+    headings: {
+      action: "ひとつ対応をお願いします",
+      fixed: "修正",
+      removed: "廃止",
+    },
+    v20260816: {
+      action: {
+        overlays: "OBS のオーバーレイをコピーし直してください。オーバーレイのリンクに有効期限と失効の仕組みが入ったため、保存済みのものは動作しなくなりました。パネルを開いて各 URL（チャット、アバター、レベル、動画）をもう一度コピーし、ブラウザソースに貼り直してください。作業は今回だけです。",
+      },
+      fixed: {
+        songRequestPanel: "アプリのチャット入力欄からでも !sr が使えるようになりました。これまでは Twitch から送られたコマンドしかキューに入らず、ここから入力しても送信されるだけで何も起きませんでした。",
+        botIgnoresSongRequests: "ボットがリクエスト曲に返事をしなくなりました。!sr は会話ではなくキューに送られます。",
+        noScrollJump: "画面が飛ばなくなりました。AI が返答するたびに表示が下へずれていました。",
+        chatReconnect: "ログインし直したあとにチャットが接続できなくなる問題を修正しました。",
+        aiWedge: "ボットが黙り込む問題を解消しました。内部エラーで「Grok CLI not found」のまま再起動するまで固まっていましたが、自動で復帰します。",
+      },
+      removed: {
+        vtubeStudio: "VTube Studio: VTAmigo からの制御は終了します。アバターのオーバーレイ（発話中／待機の画像切り替え）はこれまでどおり動作し、追加のインストールは不要です。",
+        desktopApp: "デスクトップアプリと tunnel-client.exe の配布を終了します。すべてウェブ上で完結します。",
+        disabledFeatures: "Reddit ストーリー、YouTube Peek、画面上の質問が設定から削除されます。以前から無効になっていた機能です。",
+        ttsVoices: "ElevenLabs の音声: Windows と Piper の音声は引き続き利用できます。",
+      },
+    },
+  },
+
   app: {
     themeTitle: "テーマ: {theme}（クリックで変更）",
     themeLight: "ライト",

@@ -283,6 +283,34 @@ export default {
     },
   },
 
+  announcement: {
+    title: "Novedades de esta versión",
+    ok: "OK",
+    headings: {
+      action: "Una cosa que tienes que hacer",
+      fixed: "Arreglado",
+      removed: "Lo que se va",
+    },
+    v20260816: {
+      action: {
+        overlays: "Vuelve a copiar tus overlays en OBS. Los enlaces de overlay ahora pueden caducar y revocarse, así que los que tengas guardados dejaron de funcionar. Entra al panel, copia de nuevo cada URL (chat, avatar, niveles, vídeo) y pégalas en tus Browser Sources. Solo hace falta esta vez.",
+      },
+      fixed: {
+        songRequestPanel: "!sr ya funciona desde el chat de la app. Antes solo se encolaba la canción si el comando venía desde Twitch; escrito desde aquí se publicaba pero no hacía nada.",
+        botIgnoresSongRequests: "El bot ya no contesta a las peticiones de canción. !sr va a la cola, no a la conversación.",
+        noScrollJump: "La pantalla ya no salta. Cada respuesta de la IA empujaba la vista hacia abajo.",
+        chatReconnect: "El chat ya no se queda sin conectar al volver a iniciar sesión.",
+        aiWedge: "Adiós al bot mudo. Un error interno lo dejaba clavado dando «Grok CLI not found» hasta reiniciar; ahora se recupera solo.",
+      },
+      removed: {
+        vtubeStudio: "VTube Studio: VTAmigo ya no lo controla. Tu overlay de avatar (imagen hablando / en reposo) sigue funcionando igual y no necesita instalar nada.",
+        desktopApp: "La app de escritorio y el tunnel-client.exe dejan de distribuirse: todo vive en la web.",
+        disabledFeatures: "Historias de Reddit, YouTube Peek y Preguntas en pantalla desaparecen de Ajustes. Llevaban tiempo desactivadas.",
+        ttsVoices: "Voces de ElevenLabs: quedan las de Windows y las de Piper.",
+      },
+    },
+  },
+
   app: {
     themeTitle: "Tema: {theme} (clic para cambiar)",
     themeLight: "claro",

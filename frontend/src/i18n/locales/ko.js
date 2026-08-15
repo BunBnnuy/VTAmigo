@@ -283,6 +283,34 @@ export default {
     },
   },
 
+  announcement: {
+    title: "이번 버전의 새로운 소식",
+    ok: "확인",
+    headings: {
+      action: "한 가지 해주셔야 할 일",
+      fixed: "수정된 사항",
+      removed: "사라지는 기능",
+    },
+    v20260816: {
+      action: {
+        overlays: "OBS의 오버레이 주소를 다시 복사해 주세요. 이제 오버레이 링크가 만료되거나 취소될 수 있어서, 저장해 두신 주소는 더 이상 작동하지 않습니다. 패널에서 각 URL(채팅, 아바타, 레벨, 동영상)을 다시 복사해 브라우저 소스에 붙여넣어 주세요. 이번 한 번만 하시면 됩니다.",
+      },
+      fixed: {
+        songRequestPanel: "앱의 채팅창에서도 !sr이 작동합니다. 이전에는 트위치에서 보낸 명령만 대기열에 들어갔고, 여기서 입력하면 전송은 되지만 아무 일도 일어나지 않았습니다.",
+        botIgnoresSongRequests: "봇이 더 이상 신청곡에 답하지 않습니다. !sr은 대화가 아니라 대기열로 갑니다.",
+        noScrollJump: "화면이 더 이상 밀리지 않습니다. AI가 답할 때마다 화면이 아래로 내려갔습니다.",
+        chatReconnect: "다시 로그인한 뒤 채팅이 연결되지 않던 문제를 고쳤습니다.",
+        aiWedge: "봇이 말이 없어지는 문제를 해결했습니다. 내부 오류로 「Grok CLI not found」에서 멈춘 채 재시작할 때까지 그대로였지만, 이제 스스로 복구합니다.",
+      },
+      removed: {
+        vtubeStudio: "VTube Studio: VTAmigo가 더 이상 제어하지 않습니다. 아바타 오버레이(말하는 이미지 / 대기 이미지)는 그대로 작동하며 따로 설치할 것은 없습니다.",
+        desktopApp: "데스크톱 앱과 tunnel-client.exe 배포를 중단합니다. 모든 기능은 웹에서 이용하실 수 있습니다.",
+        disabledFeatures: "레딧 스토리, YouTube Peek, 화면 질문 기능이 설정에서 사라집니다. 한동안 꺼져 있던 기능입니다.",
+        ttsVoices: "ElevenLabs 음성: Windows와 Piper 음성은 계속 사용할 수 있습니다.",
+      },
+    },
+  },
+
   app: {
     themeTitle: "테마: {theme} (클릭하여 변경)",
     themeLight: "라이트",
