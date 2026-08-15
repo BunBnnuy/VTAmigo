@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigoはTwitchチャットを読み取り、声で返信し、アバターをアニメーションさせます — 静かな時間でも、配信には常に話し相手がいます。",
     cta: "Twitchでログインして始める",
     ctaNote: "無料でお試しいただけます — クレジットカード不要。",
-    footer: "VTAmigoは、既存のTwitchおよびVTube Studioの設定と一緒に動作します。",
+    footer: "VTAmigoは、既存のTwitchの設定と一緒に動作します。",
     privacy: "プライバシーポリシー",
     faq: "よくある質問",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "OBSアバターオーバーレイをアニメーション",
-        desc: "OBSにBrowser Sourceを追加するだけで、TTSに合わせてアバターが「話している」画像と「待機」画像を切り替えます — VTube Studio不要。",
+        desc: "OBSにBrowser Sourceを追加するだけで、TTSに合わせてアバターが「話している」画像と「待機」画像を切り替えます。",
       },
       events: {
         title: "イベントに反応",
@@ -63,13 +63,9 @@ export default {
         q: "ログインしましたが「承認待ち」と表示されます。なぜですか？",
         a: "現在、アクセスは手動で許可しています。初回ログイン時にアカウントが順番待ちに入り、管理者が承認してから利用できるようになります。これは最初の一度だけで、承認後はログインするとそのままダッシュボードに進みます。",
       },
-      vtube: {
-        q: "VTube StudioやVTuberモデルは必要ですか？",
-        a: "いいえ。VTAmigoは単体でOBS上のシンプルなアバターオーバーレイを動かせます。音声に合わせて「話している画像」と「待機画像」を切り替えます。すでにVTube Studioをお使いなら併用できますが、必須ではありません。",
-      },
       data: {
         q: "チャットのデータはどう扱われますか？",
-        a: "返答を生成するために、該当するチャットメッセージとあなたのプロンプトが、アカウントに設定されたAIプロバイダーへ送信されます。ElevenLabsの音声を使う場合は、読み上げるテキストもそちらへ送られます。ローカルのPiper音声を選べば、その処理は当社のサーバー内にとどまります。また、チャンネルのレベリングデータや配信イベントも保存しています。",
+        a: "返答を生成するために、該当するチャットメッセージとあなたのプロンプトが、アカウントに設定されたAIプロバイダーへ送信されます。音声合成はお使いのブラウザ内で行われ、Piper音声を選んだ場合は当社のサーバー内で処理されます。第三者の音声サービスへ送信されることはありません。また、チャンネルのレベリングデータや配信イベントも保存しています。",
       },
     },
   },
@@ -145,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "OBSオーバーレイ — アバター（VTube Studio不要）",
+      title: "OBSオーバーレイ — アバター",
       urlLabel: "ブラウザソースURL",
       copy: "コピー",
       copied: "コピーしました",
@@ -173,7 +169,6 @@ export default {
     aiProvider: {
       title: "AIプロバイダー",
       providerLabel: "プロバイダー",
-      onlyClaude: "（現在はClaudeのみ利用可能）",
       exportMemoryLabel: "現在のモデルのメモリをエクスポート",
       exporting: "エクスポート中…",
       exportTo: "{target} へエクスポート",
@@ -261,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "ステータスバー",
-        body: "このバーでは、Twitch、ボットアカウント、VTube Studioの接続状況と、次のAI返信までのカウントダウンを一目で確認できます。",
+        body: "このバーでは、Twitchとボットアカウントの接続状況と、次のAI返信までのカウントダウンを一目で確認できます。",
       },
       openSettings: {
         title: "設定を開く",
@@ -392,8 +387,6 @@ export default {
     windowsOption: "Windows（ブラウザ）",
     voice: "音声",
     systemDefault: "システムのデフォルト",
-    chooseVoice: "音声を選択",
-    saved: "（保存済み）",
     defaultOption: "デフォルト",
     piperMissing: "Piperがインストールされていません",
     hint: "このパネルはコンパクトモードで非表示にできます",

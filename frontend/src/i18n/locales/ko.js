@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigo는 Twitch 채팅을 지켜보고, 소리 내어 답하고, 아바타를 움직입니다 — 방송이 조용할 때도 항상 이야기할 상대가 있습니다.",
     cta: "Twitch로 로그인하고 시작하기",
     ctaNote: "무료로 체험해보세요 — 신용카드가 필요하지 않습니다.",
-    footer: "VTAmigo는 기존 Twitch 및 VTube Studio 설정과 함께 작동합니다.",
+    footer: "VTAmigo는 기존 Twitch 설정과 함께 작동합니다.",
     privacy: "개인정보 처리방침",
     faq: "자주 묻는 질문",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "OBS 아바타 오버레이 애니메이션",
-        desc: "OBS에 브라우저 소스를 추가하면 TTS에 맞춰 말하는 이미지와 대기 이미지가 전환됩니다 — VTube Studio가 필요 없어요.",
+        desc: "OBS에 브라우저 소스를 추가하면 TTS에 맞춰 말하는 이미지와 대기 이미지가 전환됩니다.",
       },
       events: {
         title: "이벤트에 반응해요",
@@ -63,13 +63,9 @@ export default {
         q: "로그인했는데 계정이 승인 대기 중이라고 나옵니다. 왜 그런가요?",
         a: "현재는 접근 권한을 수동으로 부여하고 있습니다. 처음 로그인하면 계정이 대기열에 들어가고, 관리자가 승인해야 앱을 사용할 수 있습니다. 최초 한 번만 거치는 절차이며, 승인 후에는 로그인하면 바로 대시보드로 이동합니다.",
       },
-      vtube: {
-        q: "VTube Studio나 VTuber 모델이 필요한가요?",
-        a: "아니요. VTAmigo는 단독으로 OBS에서 간단한 아바타 오버레이를 구동할 수 있으며, 음성에 맞춰 말하는 이미지와 대기 이미지를 전환합니다. 이미 VTube Studio를 쓰고 있다면 함께 사용할 수 있지만 필수는 아닙니다.",
-      },
       data: {
         q: "제 채팅 데이터는 어떻게 되나요?",
-        a: "답변을 생성하기 위해 관련 채팅 메시지와 프롬프트가 계정에 설정된 AI 제공업체로 전송됩니다. ElevenLabs 음성을 사용하면 읽어줄 텍스트도 그쪽으로 전송되며, 로컬 Piper 음성을 선택하면 해당 처리는 저희 서버 안에서만 이루어집니다. 또한 채널의 레벨링 데이터와 방송 이벤트도 저장합니다.",
+        a: "답변을 생성하기 위해 관련 채팅 메시지와 프롬프트가 계정에 설정된 AI 제공업체로 전송됩니다. 음성 합성은 사용자의 브라우저에서 실행되며, Piper 음성을 선택한 경우 저희 서버에서 처리됩니다. 제3자 음성 서비스로는 전송되지 않습니다. 또한 채널의 레벨링 데이터와 방송 이벤트도 저장합니다.",
       },
     },
   },
@@ -145,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "OBS 오버레이 — 아바타 (VTube Studio 불필요)",
+      title: "OBS 오버레이 — 아바타",
       urlLabel: "브라우저 소스 URL",
       copy: "복사",
       copied: "복사됨",
@@ -173,7 +169,6 @@ export default {
     aiProvider: {
       title: "AI 제공자",
       providerLabel: "제공자",
-      onlyClaude: "(현재 Claude만 사용 가능)",
       exportMemoryLabel: "현재 모델의 메모리 내보내기",
       exporting: "내보내는 중…",
       exportTo: "{target}(으)로 내보내기",
@@ -261,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "상태 표시줄",
-        body: "이 바는 Twitch, 봇 계정, VTube Studio의 연결 상태와 다음 AI 응답까지의 카운트다운을 한눈에 보여줍니다.",
+        body: "이 바는 Twitch와 봇 계정의 연결 상태와 다음 AI 응답까지의 카운트다운을 한눈에 보여줍니다.",
       },
       openSettings: {
         title: "설정 열기",
@@ -392,8 +387,6 @@ export default {
     windowsOption: "Windows (브라우저)",
     voice: "음성",
     systemDefault: "시스템 기본값",
-    chooseVoice: "음성 선택",
-    saved: " (저장됨)",
     defaultOption: "기본값",
     piperMissing: "Piper가 설치되어 있지 않습니다",
     hint: "이 패널은 컴팩트 모드에서 숨길 수 있습니다",

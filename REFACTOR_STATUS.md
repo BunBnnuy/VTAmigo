@@ -30,7 +30,7 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 |---|---|---|---|---|---|
 | A — Infra de pruebas y CI | A (barrera) | `claude/legacy-refactor/a-test-infra` | mergeado | 9 | `app.js` exportable; Vitest+supertest+RTL; CI de tests |
 | B1 — Purga backend | B | `claude/legacy-refactor/b1-backend-purge` | mergeado | 67 | −2361 LOC; `/lipsync/*` → `/avatar/speaking/*` con `tts_state` intacto |
-| B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | en curso | — | |
+| B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | mergeado | 47 | `App.jsx` 1641→1035, `Settings.jsx` 1500→1096; bundle bajo 500 kB |
 | B3 — Purga build/docs/i18n | B | `claude/legacy-refactor/b3-build-docs` | mergeado | 21 | −8070 LOC; `npm audit` del frontend de 7 a 2 |
 | C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | pendiente | — | Refactor puro: la suite de B debe pasar sin tocar un test |
 | D1 — Proveedores de IA | D | `claude/legacy-refactor/d1-ai-providers` | pendiente | — | |
@@ -81,6 +81,22 @@ base de desarrollo y ya cubierto por `.gitignore`.
 
 *(append únicamente — no reescribir entradas ajenas)*
 
+- **[Integración Fase B]** Cerrada. Dos huecos que ningún lote podía ver solo,
+  resueltos al integrar:
+  1. **Tests que dependían de claves borradas en paralelo.** B2 escribió sus
+     aserciones de purga leyendo las cadenas del locale `en`, pero B3 borró esas
+     mismas claves. Un test de purga cuyas expectativas desaparecen junto con la
+     feature no prueba nada, así que ahora fija los literales históricos
+     (sacados de la historia de git). Aplica a las 12 secciones y al cartel
+     `onlyClaude`.
+  2. **Claves i18n huérfanas y prosa desactualizada.** B3 no podía saber qué
+     claves dejaría huérfanas B2. Eliminadas en los 4 locales: `faq.items.vtube`,
+     `settings.aiProvider.onlyClaude`, `quickControls.chooseVoice` y
+     `quickControls.saved` (esta última anclada a `chooseVoice` para no tocar la
+     `saved` de Stream Settings, que sigue viva). Además se reescribió — no se
+     borró — la prosa que seguía anunciando VTube Studio o ElevenLabs en
+     `login.footer`, `login.features.overlay.desc`, `faq.items.data.a`,
+     `settings.avatarOverlay.title` y el paso `statusFooter` del onboarding.
 - **[Fase A]** El proxy de dev en `frontend/vite.config.js` todavía enruta
   `/reddit-story`, `/reddit-thoughts`, `/vtube`, `/lipsync`, `/youtube-narrate`,
   `/screenwatch`, `/screen-answer` y `/transcribe`. No estaba en la kill list

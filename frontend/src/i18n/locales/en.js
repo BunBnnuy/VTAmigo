@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigo watches your Twitch chat, replies out loud, and animates your avatar — so your stream always has someone to talk to, even when it's quiet.",
     cta: "Log in with Twitch to get started",
     ctaNote: "Free to try — no credit card required.",
-    footer: "VTAmigo works alongside your existing Twitch and VTube Studio setup.",
+    footer: "VTAmigo works alongside your existing Twitch setup.",
     privacy: "Privacy Policy",
     faq: "FAQ",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "Animates an OBS avatar overlay",
-        desc: "Drop a Browser Source into OBS and your avatar switches between speaking and idle images in sync with the TTS — no VTube Studio required.",
+        desc: "Drop a Browser Source into OBS and your avatar switches between speaking and idle images in sync with the TTS.",
       },
       events: {
         title: "Reacts to events",
@@ -63,13 +63,9 @@ export default {
         q: "I logged in, but it says my account is awaiting approval. Why?",
         a: "Access is granted manually at the moment. The first time you log in, your account joins a queue and an admin approves it before you can use the app. It's a one-time step — once you're approved, logging in takes you straight to the dashboard.",
       },
-      vtube: {
-        q: "Do I need VTube Studio or a VTuber model?",
-        a: "No. VTAmigo can drive a simple avatar overlay in OBS by itself, switching between a speaking image and an idle image in time with the voice. If you already use VTube Studio it works alongside it, but it isn't required.",
-      },
       data: {
         q: "What happens to my chat data?",
-        a: "To write a reply, the relevant chat messages and your prompt are sent to the AI provider configured for your account. If you use ElevenLabs voices, the text being spoken is sent there too — picking a local Piper voice keeps that on our server instead. We also store leveling data and stream events for your channel.",
+        a: "To write a reply, the relevant chat messages and your prompt are sent to the AI provider configured for your account. Speech is synthesised either in your own browser or, if you pick a Piper voice, on our server — it never goes to a third-party voice service. We also store leveling data and stream events for your channel.",
       },
     },
   },
@@ -145,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "OBS Overlay — Avatar (no VTube Studio needed)",
+      title: "OBS Overlay — Avatar",
       urlLabel: "Browser Source URL",
       copy: "Copy",
       copied: "Copied",
@@ -173,7 +169,6 @@ export default {
     aiProvider: {
       title: "AI Provider",
       providerLabel: "Provider",
-      onlyClaude: "(only Claude available for now)",
       exportMemoryLabel: "Export current model's memory",
       exporting: "Exporting…",
       exportTo: "Export to {target}",
@@ -261,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "Status Footer",
-        body: "This bar shows your connection status at a glance — Twitch, bot account, VTube Studio — plus the countdown to the next AI response.",
+        body: "This bar shows your connection status at a glance — Twitch and your bot account — plus the countdown to the next AI response.",
       },
       openSettings: {
         title: "Open Settings",
@@ -399,8 +394,6 @@ export default {
     windowsOption: "Windows (browser)",
     voice: "Voice",
     systemDefault: "System default",
-    chooseVoice: "Choose a voice",
-    saved: " (saved)",
     defaultOption: "Default",
     piperMissing: "Piper is not installed",
     hint: "This panel can be hidden in compact mode",

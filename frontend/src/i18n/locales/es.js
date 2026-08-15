@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigo lee tu chat de Twitch, responde en voz alta y anima tu avatar — para que tu stream siempre tenga con quién hablar, incluso cuando está tranquilo.",
     cta: "Inicia sesión con Twitch para empezar",
     ctaNote: "Gratis para probar — no se necesita tarjeta de crédito.",
-    footer: "VTAmigo funciona junto a tu configuración actual de Twitch y VTube Studio.",
+    footer: "VTAmigo funciona junto a tu configuración actual de Twitch.",
     privacy: "Política de Privacidad",
     faq: "Preguntas frecuentes",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "Anima un overlay de avatar en OBS",
-        desc: "Añade una Browser Source en OBS y tu avatar cambia entre las imágenes de hablando y en reposo en sincronía con el TTS — sin necesitar VTube Studio.",
+        desc: "Añade una Browser Source en OBS y tu avatar cambia entre las imágenes de hablando y en reposo en sincronía con el TTS.",
       },
       events: {
         title: "Reacciona a eventos",
@@ -63,13 +63,9 @@ export default {
         q: "Inicié sesión, pero dice que mi cuenta está pendiente de aprobación. ¿Por qué?",
         a: "Por ahora el acceso se concede manualmente. La primera vez que inicias sesión, tu cuenta entra en una cola y un administrador la aprueba antes de que puedas usar la aplicación. Es un paso único: una vez aprobada, al iniciar sesión irás directo al panel.",
       },
-      vtube: {
-        q: "¿Necesito VTube Studio o un modelo de VTuber?",
-        a: "No. VTAmigo puede animar por sí solo un overlay de avatar sencillo en OBS, alternando entre una imagen hablando y otra en reposo al ritmo de la voz. Si ya usas VTube Studio, funciona junto a él, pero no es obligatorio.",
-      },
       data: {
         q: "¿Qué pasa con los datos de mi chat?",
-        a: "Para escribir una respuesta, los mensajes de chat relevantes y tu prompt se envían al proveedor de IA configurado en tu cuenta. Si usas voces de ElevenLabs, el texto que se va a leer también se envía allí — elegir una voz local de Piper hace que eso se quede en nuestro servidor. También guardamos los datos de niveles y los eventos del directo de tu canal.",
+        a: "Para escribir una respuesta, los mensajes de chat relevantes y tu prompt se envían al proveedor de IA configurado en tu cuenta. La voz se sintetiza en tu propio navegador o, si eliges una voz de Piper, en nuestro servidor — nunca se envía a un servicio de voz de terceros. También guardamos los datos de niveles y los eventos del directo de tu canal.",
       },
     },
   },
@@ -145,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "Overlay de OBS — Avatar (sin necesidad de VTube Studio)",
+      title: "Overlay de OBS — Avatar",
       urlLabel: "URL de Browser Source",
       copy: "Copiar",
       copied: "Copiado",
@@ -173,7 +169,6 @@ export default {
     aiProvider: {
       title: "Proveedor de IA",
       providerLabel: "Proveedor",
-      onlyClaude: "(solo Claude disponible por ahora)",
       exportMemoryLabel: "Exportar memoria del modelo actual",
       exporting: "Exportando…",
       exportTo: "Exportar a {target}",
@@ -261,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "Barra de estado",
-        body: "Esta barra muestra tu estado de conexión de un vistazo — Twitch, cuenta del bot, VTube Studio — además de la cuenta regresiva para la próxima respuesta de la IA.",
+        body: "Esta barra muestra tu estado de conexión de un vistazo — Twitch y la cuenta del bot — además de la cuenta regresiva para la próxima respuesta de la IA.",
       },
       openSettings: {
         title: "Abrir configuración",
@@ -392,8 +387,6 @@ export default {
     windowsOption: "Windows (navegador)",
     voice: "Voz",
     systemDefault: "Predeterminada del sistema",
-    chooseVoice: "Elegir voz",
-    saved: " (guardada)",
     defaultOption: "Predeterminada",
     piperMissing: "Piper no está instalado",
     hint: "Este panel se puede ocultar en modo compacto",

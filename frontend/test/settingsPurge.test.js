@@ -49,21 +49,25 @@ afterEach(() => {
 });
 
 describe("Settings no longer renders the retired desktop features", () => {
-  // Each entry is a string the deleted section used to put on screen, taken
-  // from the English locale so a renamed label can't quietly pass.
+  // Each entry is a string the deleted section used to put on screen. These
+  // are the literal English labels as they stood before the purge, copied
+  // from git history on purpose: sourcing them from the live locale would
+  // make the test read a key that the i18n batch deleted in the same phase,
+  // and a purge test whose expectations vanish along with the feature proves
+  // nothing. Hardcoding is what makes "this text must never come back" real.
   const goneSections = [
-    ["Reddit stories", en.settings.reddit.title],
-    ["Reddit stories (subreddit field)", en.settings.reddit.subredditsLabel],
-    ["YouTube peek", en.settings.youtube.title],
-    ["YouTube peek (interval field)", en.settings.youtube.intervalLabel],
-    ["screen watcher", en.settings.trivia.title],
-    ["screen watcher (capture region)", en.settings.trivia.regionLabel],
-    ["ElevenLabs (provider option)", en.settings.tts.elevenlabs],
-    ["ElevenLabs (API key field)", en.settings.tts.elevenApiKey],
-    ["VTube Studio", en.settings.vtube.title],
-    ["VTube Studio (mouth parameter)", en.settings.vtube.mouthParam],
-    ["tunnel client", en.settings.tunnel.title],
-    ["tunnel client (.exe download)", en.settings.tunnel.download],
+    ["Reddit stories", "Reddit Stories"],
+    ["Reddit stories (subreddit field)", "Subreddits (comma-separated)"],
+    ["YouTube peek", "YouTube Peek"],
+    ["YouTube peek (interval field)", "Interval (minutes)"],
+    ["screen watcher", "On-Screen Questions (Trivia)"],
+    ["screen watcher (capture region)", "Capture region (optional): x,y,width,height"],
+    ["ElevenLabs (provider option)", "ElevenLabs (API key required)"],
+    ["ElevenLabs (API key field)", "ElevenLabs API key"],
+    ["VTube Studio", "VTube Studio — Lip Sync"],
+    ["VTube Studio (mouth parameter)", "Mouth parameter (VTS tracking param)"],
+    ["tunnel client", "Tunnel client (VTube Studio from another PC)"],
+    ["tunnel client (.exe download)", "Download tunnel-client.exe"],
   ];
 
   it.each(goneSections)("has no %s section", (_label, text) => {
@@ -101,7 +105,9 @@ describe("AI provider picker", () => {
 
   it("no longer claims only Claude is available", () => {
     renderSettings();
-    expect(screen.queryByText(en.settings.aiProvider.onlyClaude)).toBeNull();
+    // Literal for the same reason as the section labels above: the key that
+    // held this string was itself deleted once nothing rendered it.
+    expect(screen.queryByText("(only Claude available for now)")).toBeNull();
   });
 });
 
