@@ -5,11 +5,97 @@ const express = require("express");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
 const { sendEvent } = require("./analytics");
-const { db } = require("./db");
+const { db, ENV } = require("./db");
 
-const SESSION_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
 const STATE_COOKIE = "twitch_oauth_state";
 const SESSION_COOKIE = "session";
+
+// ── Trust root ───────────────────────────────────────────────────────────
+// Four separate trust roots hang off SESSION_SECRET: the user session JWTs
+// signed here, the admin JWTs signed in adminAuth.js, the AES-256-GCM key
+// that encrypts Twitch access/refresh tokens at rest, and the HMAC behind
+// overlay tokens. With the old `|| "dev-insecure-session-secret"` fallback a
+// deployment that simply forgot the variable had sessions anyone who read
+// this repo could forge *and* its users' live Twitch tokens decryptable with
+// a public constant. So outside development/test the process now refuses to
+// start without a real secret.
+const DEV_FALLBACK_SECRET = "dev-insecure-session-secret";
+const MIN_SECRET_LENGTH = 32;
+// Same environment resolution db.js uses to pick its database file, so
+// "which environment is this?" has one answer across the backend.
+const RELAXED_ENVS = new Set(["development", "test"]);
+
+// Pure and exported so the boot-time contract is testable without spawning a
+// process: returns { secret, warning }, or throws with an actionable message
+// when the environment demands a real secret and doesn't have one.
+function resolveSessionSecret({ secret: raw = process.env.SESSION_SECRET, env = ENV } = {}) {
+  const secret = typeof raw === "string" ? raw.trim() : "";
+  const relaxed = RELAXED_ENVS.has(env);
+
+  if (!secret) {
+    if (!relaxed) {
+      throw new Error(
+        `SESSION_SECRET is not set and APP_ENV=${env} is not a development environment. ` +
+          `It signs session and admin cookies, encrypts Twitch tokens at rest and derives overlay ` +
+          `tokens — there is no safe default. Generate one with ` +
+          `\`node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"\` ` +
+          `and set it (on the VPS: /etc/vtamigo.env, then restart vtamigo-backend). ` +
+          `Note that changing it later invalidates existing sessions and stored Twitch tokens, ` +
+          `so every user has to log in again.`
+      );
+    }
+    return {
+      secret: DEV_FALLBACK_SECRET,
+      warning:
+        `[auth] SESSION_SECRET is not set — falling back to the public development secret ` +
+        `(APP_ENV=${env}). Sessions are forgeable and Twitch tokens are encrypted with a ` +
+        `constant that is checked into the repo. Never run a real deployment like this.`,
+    };
+  }
+
+  if (!relaxed && secret === DEV_FALLBACK_SECRET) {
+    throw new Error(
+      `SESSION_SECRET is set to the public development placeholder while APP_ENV=${env}. ` +
+        `That value is in the repo — set a real random secret instead.`
+    );
+  }
+  if (!relaxed && secret.length < MIN_SECRET_LENGTH) {
+    throw new Error(
+      `SESSION_SECRET is only ${secret.length} characters while APP_ENV=${env}; ` +
+        `at least ${MIN_SECRET_LENGTH} are required. Generate one with ` +
+        `\`node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"\`.`
+    );
+  }
+
+  return { secret, warning: null };
+}
+
+const { secret: SESSION_SECRET, warning: SESSION_SECRET_WARNING } = resolveSessionSecret();
+// Module bodies run once, so this is the "warn exactly once per process" the
+// dev fallback is allowed to get away with.
+if (SESSION_SECRET_WARNING) console.warn(SESSION_SECRET_WARNING);
+
+// ── Per-purpose subkeys ──────────────────────────────────────────────────
+// SESSION_SECRET is input keying material, never used directly to sign or
+// encrypt any more. HKDF-SHA256 gives each purpose an independent key, so a
+// token minted for one of them is meaningless to the others even if a future
+// verifier forgets to check `subject`/claims. The token-encryption key is the
+// one exception: it keeps its original scrypt derivation because changing it
+// would make every Twitch token already stored in a live database
+// undecryptable.
+function deriveKey(purpose, length = 32) {
+  return Buffer.from(crypto.hkdfSync("sha256", SESSION_SECRET, "vtamigo-subkey", purpose, length));
+}
+
+const SESSION_JWT_KEY = deriveKey("session-jwt");
+const OVERLAY_HMAC_KEY = deriveKey("overlay-token");
+
+// Session cookies last 30 days, and they were signed with the bare
+// SESSION_SECRET before subkeys existed. Accepting those on *verification*
+// only (never for signing) keeps logged-in users logged in across this
+// deploy; set SESSION_LEGACY_COOKIES=0 once the 30-day window has passed to
+// retire the bare secret as a valid session signature entirely.
+const ACCEPT_LEGACY_SESSION_COOKIES = process.env.SESSION_LEGACY_COOKIES !== "0";
 
 // Scopes needed to read chat and subscribe to EventSub events on the
 // logged-in user's own channel — see backend/eventsub.js's subscribeAll().
@@ -55,6 +141,10 @@ function pruneExpiredBotLinks() {
 // ── Token encryption at rest (AES-256-GCM, key derived from SESSION_SECRET) ──
 // These are live Twitch account tokens, not just session identifiers, so they
 // don't belong in users.json as plaintext.
+//
+// Deliberately still scrypt with the original "vtamigo-twitch-token" salt
+// rather than the HKDF subkeys above: this key has to reproduce byte for byte
+// or every token already encrypted in a live database becomes unreadable.
 const ENC_KEY = crypto.scryptSync(SESSION_SECRET, "vtamigo-twitch-token", 32);
 
 function encryptToken(plain) {
@@ -86,7 +176,16 @@ const USER_COLUMNS = [
   "createdAt", "approvedAt", "twitchAccessTokenEnc", "twitchRefreshTokenEnc",
   "twitchTokenExpiresAt", "botTwitchId", "botLogin", "botAccessTokenEnc",
   "botRefreshTokenEnc", "botTokenExpiresAt", "botLinkedAt",
+  "overlayTokenVersion",
 ];
+
+// overlayTokenVersion is NOT NULL DEFAULT 1 in the schema, but writeUsers
+// takes whole user objects from callers that never heard of the column, so
+// normalise instead of writing a null the column rejects.
+function normalizeOverlayVersion(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : 1;
+}
 
 const upsertUserStmt = db.prepare(`
   INSERT INTO users (${USER_COLUMNS.join(", ")})
@@ -117,7 +216,9 @@ function writeUsers(users) {
       keep.add(u.twitchId);
       const row = {};
       for (const c of USER_COLUMNS) {
-        row[c] = c === "approved" ? (u[c] ? 1 : 0) : u[c] === undefined ? null : u[c];
+        if (c === "approved") row[c] = u[c] ? 1 : 0;
+        else if (c === "overlayTokenVersion") row[c] = normalizeOverlayVersion(u[c]);
+        else row[c] = u[c] === undefined ? null : u[c];
       }
       upsertUserStmt.run(row);
     }
@@ -308,18 +409,32 @@ async function forceRefreshBotToken(streamerTwitchId) {
 }
 
 function signSession(user) {
-  return jwt.sign({ twitchId: user.twitchId }, SESSION_SECRET, { expiresIn: "30d" });
+  return jwt.sign({ twitchId: user.twitchId }, SESSION_JWT_KEY, { expiresIn: "30d" });
 }
 
-function readSession(req) {
-  const token = req.cookies && req.cookies[SESSION_COOKIE];
+// Verifies a session cookie and returns its payload, or null. Signing always
+// uses the user-session subkey; the bare-secret branch only exists so cookies
+// issued before this change survive their remaining lifetime (see
+// ACCEPT_LEGACY_SESSION_COOKIES).
+function verifySessionToken(token) {
   if (!token) return null;
   try {
-    const { twitchId } = jwt.verify(token, SESSION_SECRET);
-    return findUser(twitchId) || null;
+    return jwt.verify(token, SESSION_JWT_KEY);
+  } catch {
+    /* fall through to the legacy check */
+  }
+  if (!ACCEPT_LEGACY_SESSION_COOKIES) return null;
+  try {
+    return jwt.verify(token, SESSION_SECRET);
   } catch {
     return null;
   }
+}
+
+function readSession(req) {
+  const payload = verifySessionToken(req.cookies && req.cookies[SESSION_COOKIE]);
+  if (!payload || !payload.twitchId) return null;
+  return findUser(payload.twitchId) || null;
 }
 
 // Express middleware — 401s unless the session cookie maps to an approved user.
@@ -332,16 +447,50 @@ function requireApprovedUser(req, res, next) {
 
 // Stable per-account token for unauthenticated surfaces that can't carry the
 // session cookie (OBS Browser Source runs its own CEF instance with no
-// access to the streamer's browser cookies). Deterministic from twitchId, so
-// it doesn't need its own storage — same idea as the session JWT, but for a
-// case where a signed/expiring token would just be an annoyance to re-paste.
-function getOverlayToken(twitchId) {
-  return crypto.createHmac("sha256", SESSION_SECRET).update(`overlay:${twitchId}`).digest("hex").slice(0, 32);
+// access to the streamer's browser cookies). Deterministic from twitchId plus
+// a per-account version, so it still needs no per-token storage but is no
+// longer valid forever: these tokens travel in query strings, which means
+// they end up in access logs, referrers and screen-shared OBS dialogs, and
+// before the version there was no way to take one back short of rotating
+// SESSION_SECRET for every account at once.
+//
+// `version` is optional purely to save a lookup when the caller already has
+// the user row in hand (findUserByOverlayToken loops over every user).
+function getOverlayToken(twitchId, version) {
+  const v = normalizeOverlayVersion(version === undefined ? readOverlayVersion(twitchId) : version);
+  return crypto
+    .createHmac("sha256", OVERLAY_HMAC_KEY)
+    .update(`overlay:${twitchId}:v${v}`)
+    .digest("hex")
+    .slice(0, 32);
+}
+
+const selectOverlayVersionStmt = db.prepare(`SELECT overlayTokenVersion FROM users WHERE twitchId = ?`);
+
+function readOverlayVersion(twitchId) {
+  const row = selectOverlayVersionStmt.get(twitchId);
+  return row ? row.overlayTokenVersion : 1;
+}
+
+// Invalidates the account's current overlay token and returns the new one.
+// The streamer has to re-copy the browser-source URL into OBS afterwards —
+// that's the point: it's the only way to take back a leaked token.
+// NOTE (coordinator): this is deliberately not wired to an HTTP route here,
+// because backend/app.js belongs to batch C right now. It wants a
+// `POST /overlay-token/rotate` behind requireApprovedUser answering
+// `{ token: rotateOverlayToken(req.user.twitchId) }`.
+function rotateOverlayToken(twitchId) {
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === twitchId);
+  if (!user) return null;
+  user.overlayTokenVersion = normalizeOverlayVersion(user.overlayTokenVersion) + 1;
+  writeUsers(users);
+  return getOverlayToken(twitchId, user.overlayTokenVersion);
 }
 
 function findUserByOverlayToken(token) {
   if (!token) return null;
-  const user = readUsers().find((u) => getOverlayToken(u.twitchId) === token);
+  const user = readUsers().find((u) => getOverlayToken(u.twitchId, u.overlayTokenVersion) === token);
   return user && user.approved ? user : null;
 }
 
@@ -649,4 +798,13 @@ module.exports = {
   getValidBotTwitchToken,
   forceRefreshBotToken,
   clearBotTwitchTokens,
+  rotateOverlayToken,
+  // Exported for adminAuth.js, which needs its own subkey off the same trust
+  // root, and for the test suite, which asserts the boot-time contract without
+  // spawning a process.
+  deriveKey,
+  resolveSessionSecret,
+  encryptToken,
+  decryptToken,
+  DEV_FALLBACK_SECRET,
 };
