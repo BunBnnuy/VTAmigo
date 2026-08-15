@@ -32,13 +32,13 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 | B1 — Purga backend | B | `claude/legacy-refactor/b1-backend-purge` | mergeado | 67 | −2361 LOC; `/lipsync/*` → `/avatar/speaking/*` con `tts_state` intacto |
 | B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | mergeado | 47 | `App.jsx` 1641→1035, `Settings.jsx` 1500→1096; bundle bajo 500 kB |
 | B3 — Purga build/docs/i18n | B | `claude/legacy-refactor/b3-build-docs` | mergeado | 21 | −8070 LOC; `npm audit` del frontend de 7 a 2 |
-| C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | **bloqueado (WIP)** | — | Interrumpido por límite de plataforma; ver abajo. **No mergeado** |
+| C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | mergeado | 20 | `app.js` 1526→258 LOC; 10 routers. Los 95 tests previos, sin tocar |
 | D1 — Proveedores de IA | D | `claude/legacy-refactor/d1-ai-providers` | pendiente | — | |
 | D2 — Overlays | D | `claude/legacy-refactor/d2-overlays` | pendiente | — | |
 | D3 — Chat / Twitch / actividad | D | `claude/legacy-refactor/d3-chat-twitch` | pendiente | — | |
 | D4 — Descomposición frontend | D | `claude/legacy-refactor/d4-frontend-split` | pendiente | — | |
 | D5 — Settings server-side | D | `claude/legacy-refactor/d5-settings-source` | pendiente | — | Único con cambio observable; mergea al final |
-| E1 — Raíz de confianza y auth | E | `claude/legacy-refactor/e1-auth-hardening` | **bloqueado (WIP)** | — | Interrumpido por límite de plataforma; ver abajo. **No mergeado** |
+| E1 — Raíz de confianza y auth | E | `claude/legacy-refactor/e1-auth-hardening` | mergeado | 25 | Sin default inseguro; subclaves HKDF; rotación de overlay tokens |
 | E2 — Rate limits, CORS, cabeceras | E | `claude/legacy-refactor/e2-limits-headers` | pendiente | — | Requiere C mergeado; va tras D2/D3 |
 | E3 — Dependencias | E | `claude/legacy-refactor/e3-deps` | mergeado | — | `npm audit` a 0 en ambos paquetes; puerta de auditoría en CI |
 
@@ -113,12 +113,40 @@ así que en principio arranca — pero conviene confirmarlo en la caja antes de
 tirar del pull, porque si falta, el servicio queda caído y `dev.vtamigo.top`
 devuelve 502.
 
+## Pendiente al cerrar esta tanda
+
+Completadas: **A, B, C, E1, E3**. Quedan la **Fase D** (5 lotes de reescritura
+con cobertura) y **E2** (rate limits, CORS, cabeceras). E2 ya puede arrancar:
+su prerrequisito era la Fase C, que está mergeada.
+
+Dos cabos sueltos concretos que dejaron los lotes cerrados:
+
+- **`rotateOverlayToken` no está enganchada a ninguna ruta.** E1 la dejó lista
+  pero `app.js` era territorio de C en ese momento. Quiere un
+  `POST /overlay-token/rotate` tras `requireApprovedUser`, devolviendo
+  `{ token: rotateOverlayToken(req.user.twitchId) }`. Sin eso no hay forma de
+  revocar un overlay token filtrado desde la interfaz.
+- **`SESSION_LEGACY_COOKIES=0`** debe ponerse ~30 días después de desplegar E1,
+  para retirar la aceptación de cookies firmadas con el secreto desnudo.
+
+Observaciones que C anotó y dejó intactas a propósito (era un lote de mover, no
+reescribir), pendientes de decisión:
+
+- `videoRouter` repite `requireApprovedUser` en rutas que el prefijo `/video` ya
+  cubre; redundante pero inofensivo. Unificarlo cambia el orden de evaluación.
+- `routes/overlayBuilder.js` hace `fs.mkdirSync` en tiempo de import, así que un
+  simple `require` del router crea `backend/data/overlayAssets/tmp`.
+- `app.get("*")` funciona en Express 4 pero es el patrón que rompe en Express 5.
+
 ## Trabajo a medias (C y E1) — cómo retomarlo
 
+**RESUELTO** — ambos se completaron y mergearon. Se conserva el registro porque
+explica por qué sus ramas llevan un commit `WIP` intermedio en la historia.
+
 Ambos lotes se cortaron por un límite de sesión de la plataforma, no por un
-problema del código. Su trabajo está commiteado en sus **ramas locales**, marcado
-`WIP` y **deliberadamente sin mergear**: media separación de rutas deja el árbol
-sin arrancar, y medio endurecimiento de autenticación es peor que ninguno.
+problema del código. Su trabajo quedó commiteado como `WIP` y deliberadamente
+sin mergear: media separación de rutas deja el árbol sin arrancar, y medio
+endurecimiento de autenticación es peor que ninguno.
 
 **C (`claude/legacy-refactor/c-router-split`, commit WIP)** — hecho:
 `backend/sessions.js` (318 LOC) y `routes/{ai,chat,overlays}.js` (579 LOC).
