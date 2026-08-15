@@ -381,12 +381,22 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
 
       if (code !== 0) {
         const msg = stderr.trim() || `${provider} CLI exited with code ${code}`;
+        // Deliberately NOT a bare "not found" match on stderr. We spawn with
+        // shell:false, so a genuinely missing executable can only ever arrive
+        // as ENOENT on the "error" event below — never as stderr text. Every
+        // CLI, on the other hand, says "not found" about sessions, models and
+        // files: grok answers a dead --resume id with `Session "…" not found
+        // locally` / `404 Not Found`, which used to be reported to the
+        // streamer as "Grok CLI not found" and, worse, told the caller not to
+        // retry (see runCLI) — so the stale session never got reset and the
+        // bot stayed wedged. The phrases kept below come from a shell that
+        // failed to resolve the command, so they can't be confused with that.
+        const lower = msg.toLowerCase();
         const notFound =
           code === 127 ||
-          msg.toLowerCase().includes("not found") ||
-          msg.toLowerCase().includes("no se reconoce") ||
-          msg.toLowerCase().includes("is not recognized") ||
-          msg.toLowerCase().includes("commandnotfoundexception");
+          lower.includes("no se reconoce") ||
+          lower.includes("is not recognized") ||
+          lower.includes("commandnotfoundexception");
         if (notFound) return reject(new Error("CLI_NOT_FOUND"));
         return reject(new Error(msg));
       }
