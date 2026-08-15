@@ -90,22 +90,33 @@ router.post("/say-as-streamer", (req, res) => {
   // Twitch doesn't echo a connection's own PRIVMSG back to itself, so this
   // message would otherwise never reach handleChat/broadcastToAccount — which
   // is what overlay/custom.html listens on for chat-command triggers (see
-  // its checkTriggers). Broadcast a synthetic equivalent so the streamer's
-  // own typed Live Chat messages can fire broadcaster-tier triggers too.
-  broadcastToAccount(req.user.twitchId, {
-    type: "chat",
-    msg: {
-      id: `say-as-streamer-${Date.now()}`,
-      username: req.user.login,
-      login: req.user.login,
-      text,
-      color: "#9147ff",
-      timestamp: Date.now(),
-      badges: [{ type: "broadcaster", version: "1", url: null, description: "broadcaster" }],
-      isHype: false,
-      isRedeem: false,
-      isTyped: true,
-    },
+  // its checkTriggers). Feed a synthetic equivalent through handleChat so the
+  // streamer's own typed Live Chat messages behave like anyone else's.
+  //
+  // Deliberately handleChat and not broadcastToAccount: broadcasting straight
+  // to the socket skipped everything handleChat does *around* the broadcast —
+  // notably the !sr song request (see sessions.js) and the XP award. Typing
+  // "!sr <song>" in the Live Chat panel posted to Twitch and appeared in the
+  // feed but queued nothing, while the identical message typed in Twitch's
+  // own chat worked, because that one comes back over the read connection.
+  //
+  // badgeTag rather than a hand-built badges array: handleChat runs the
+  // message through emotes.enrich, which derives `badges` from the raw tag
+  // and would otherwise overwrite it. "broadcaster/1" resolves to the same
+  // object this route used to construct by hand.
+  handleChat(req.user.twitchId, {
+    id: `say-as-streamer-${Date.now()}`,
+    username: req.user.login,
+    login: req.user.login,
+    text,
+    color: "#9147ff",
+    timestamp: Date.now(),
+    badgeTag: "broadcaster/1",
+    emoteTag: "",
+    roomId: req.user.twitchId,
+    isHype: false,
+    isRedeem: false,
+    isTyped: true,
   });
 
   res.json({ ok: true });
