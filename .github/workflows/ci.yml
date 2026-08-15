@@ -42,3 +42,15 @@ jobs:
       - name: Build frontend
         run: npm run build
         working-directory: frontend
+
+      # Fails the build on a high or critical advisory in either package, so a
+      # vulnerable dependency has to be dealt with rather than noticed months
+      # later. Moderate and low findings still show up in the log without
+      # blocking — dev-server-only advisories shouldn't stop a deploy.
+      - name: Audit backend dependencies
+        run: npm audit --audit-level=high
+        working-directory: backend
+
+      - name: Audit frontend dependencies
+        run: npm audit --audit-level=high
+        working-directory: frontend
