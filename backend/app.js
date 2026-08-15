@@ -82,9 +82,10 @@ app.post("/api/log-error", (req, res) => {
 app.use(authRouter);
 app.use(adminRouter);
 
-// Serve built frontend in production (Electron packaged app / VPS) — public,
-// so the login screen itself can load before the user is authenticated.
-const isProd = !process.env.VITE_DEV && !process.defaultApp;
+// Serve the built frontend on the VPS — public, so the login screen itself
+// can load before the user is authenticated. In dev, Vite serves it instead
+// and VITE_DEV is set.
+const isProd = !process.env.VITE_DEV;
 const distPath = path.join(__dirname, "../frontend/dist");
 
 // Only the canonical public host should be indexable. Everything else —

@@ -18,3 +18,5 @@ backend/piper/
 # listing subdirectories: overlayAssets/ was added later and was NOT covered,
 # so user uploads were one `git add -A` away from being committed.
 backend/data/
+# Ephemeral git worktrees created when subagents run with isolation.
+.claude/worktrees/

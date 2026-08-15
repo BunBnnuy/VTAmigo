@@ -29,9 +29,9 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 | Lote | Fase | Rama | Estado | Tests | Notas |
 |---|---|---|---|---|---|
 | A — Infra de pruebas y CI | A (barrera) | `claude/legacy-refactor/a-test-infra` | mergeado | 9 | `app.js` exportable; Vitest+supertest+RTL; CI de tests |
-| B1 — Purga backend | B | `claude/legacy-refactor/b1-backend-purge` | pendiente | — | |
-| B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | pendiente | — | |
-| B3 — Purga build/docs/i18n | B | `claude/legacy-refactor/b3-build-docs` | pendiente | — | |
+| B1 — Purga backend | B | `claude/legacy-refactor/b1-backend-purge` | mergeado | 67 | −2361 LOC; `/lipsync/*` → `/avatar/speaking/*` con `tts_state` intacto |
+| B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | en curso | — | |
+| B3 — Purga build/docs/i18n | B | `claude/legacy-refactor/b3-build-docs` | mergeado | 21 | −8070 LOC; `npm audit` del frontend de 7 a 2 |
 | C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | pendiente | — | Refactor puro: la suite de B debe pasar sin tocar un test |
 | D1 — Proveedores de IA | D | `claude/legacy-refactor/d1-ai-providers` | pendiente | — | |
 | D2 — Overlays | D | `claude/legacy-refactor/d2-overlays` | pendiente | — | |
@@ -104,9 +104,13 @@ base de desarrollo y ya cubierto por `.gitignore`.
     (addendum a D1, que ya reescribe ese archivo).
   - **Baja-media** — `cors({ origin: true, credentials: true })` refleja
     cualquier Origin; acotado en la práctica por las cookies `sameSite: "lax"` (E2).
-  - **Dependencias** — backend limpio; 6 de las 7 vulnerabilidades del frontend
-    (crítica de `protobufjs`, altas de `sharp`) cuelgan de `@xenova/transformers`,
-    que B3 ya borra por no tener referencias. Se resuelven con la purga (E3).
+  - **Dependencias** — backend limpio; 5 de las 7 vulnerabilidades del frontend
+    (crítica de `protobufjs`, altas de `sharp`) colgaban de `@xenova/transformers`,
+    que no tenía ni una referencia en el código. **Confirmado tras mergear B3:
+    `npm audit` del frontend baja de 7 (1 crítica, 5 altas, 1 moderada) a 2.**
+    Las dos restantes son la misma causa raíz — `esbuild` vía `vite` — y afectan
+    solo al servidor de desarrollo, no a producción; requieren subir Vite mayor
+    y las cubre E3.
   - Descartado como falso positivo: XSS en los overlays (todo entra por
     `textContent`), inyección SQL (sentencias preparadas), inyección de comandos
     (`spawn` con array, sin `shell`), path traversal en subidas (nombres
