@@ -2,7 +2,6 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App.jsx";
 import Admin from "./Admin.jsx";
-import Device from "./Device.jsx";
 import OverlayBuilder from "./OverlayBuilder.jsx";
 import NotFound from "./NotFound.jsx";
 import PrivacyPolicy from "./PrivacyPolicy.jsx";
@@ -22,7 +21,6 @@ const path = window.location.pathname;
 function page() {
   if (path === "/") return <App />;
   if (path.startsWith("/admin")) return <Admin />;
-  if (path.startsWith("/device")) return <Device />;
   if (path.startsWith("/overlay-builder")) return <OverlayBuilder />;
   // Keep in sync with the knownPath list in backend/index.js's catch-all —
   // a path missing there renders fine but is served with a 404 status.

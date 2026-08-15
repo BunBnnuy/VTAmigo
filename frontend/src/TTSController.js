@@ -1,21 +1,26 @@
 // TTS queue — responses play sequentially, never overlapping.
-// Providers: "windows" (Web Speech API, default), "elevenlabs" (backend proxy → Audio element),
-// or "piper" (local offline Piper CLI via backend proxy → Audio element).
+// Providers: "windows" (Web Speech API, default) or "piper" (local offline
+// Piper CLI via backend proxy → Audio element).
 
 import { apiFetch, apiUrl } from "./api.js";
 
 const AVG_CHARS_PER_SEC = 14;
 
-function lipsyncStart(text, durationMs) {
-  apiFetch("/lipsync/start", {
+// These two are the only driver of the avatar overlay: the backend answers
+// them by broadcasting {type:"tts_state", playing} over the WebSocket, which
+// is what swaps the overlay between its speaking and silent image. Call them
+// at the exact moments audio becomes/stops being audible, never around
+// generation, or the avatar's mouth desyncs from the voice.
+function speakingStart(text, durationMs) {
+  apiFetch("/avatar/speaking/start", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ text, durationMs }),
   }).catch(() => {});
 }
 
-function lipsyncStop() {
-  apiFetch("/lipsync/stop", { method: "POST" }).catch(() => {});
+function speakingStop() {
+  apiFetch("/avatar/speaking/stop", { method: "POST" }).catch(() => {});
 }
 
 class TTSController {
@@ -23,14 +28,12 @@ class TTSController {
     this.synth = window.speechSynthesis;
     this.queue = [];
     this.playing = false; // true while the queue has/is processing an item (including mid-generation)
-    this.speaking = false; // true only once audio is actually audible — same instant as lipsyncStart/lipsyncStop
+    this.speaking = false; // true only once audio is actually audible — same instant as speakingStart/speakingStop
     this.muted = false;
     this.volume = 1;
     this.rate = 1;
     this.voiceURI = null;
     this.provider = "windows";
-    this.elevenLabsKey = "";
-    this.elevenLabsVoiceId = "";
     this.piperVoice = "";
     this.currentAudio = null; // active remote-provider Audio element
     this.onStateChange = null; // () => void — called when playing/queue changes
@@ -57,11 +60,6 @@ class TTSController {
     this.provider = p || "windows";
   }
 
-  setElevenLabs({ apiKey, voiceId }) {
-    if (apiKey != null) this.elevenLabsKey = apiKey;
-    if (voiceId != null) this.elevenLabsVoiceId = voiceId;
-  }
-
   setPiper({ voice }) {
     if (voice != null) this.piperVoice = voice;
   }
@@ -69,7 +67,7 @@ class TTSController {
   setMuted(m) {
     this.muted = m;
     if (m) {
-      lipsyncStop();
+      speakingStop();
       this._setSpeaking(false);
       this._stopCurrentAudio();
       this.synth.cancel();
@@ -91,7 +89,7 @@ class TTSController {
   }
 
   skip() {
-    lipsyncStop();
+    speakingStop();
     this._setSpeaking(false);
     if (this.currentAudio) {
       this._stopCurrentAudio(true); // fires its onDone → _next()
@@ -102,7 +100,7 @@ class TTSController {
   }
 
   clearQueue() {
-    lipsyncStop();
+    speakingStop();
     this._setSpeaking(false);
     this.queue = [];
     this._stopCurrentAudio();
@@ -132,11 +130,7 @@ class TTSController {
     this.playing = true;
     this._notify();
 
-    if (this.provider === "elevenlabs" && this.elevenLabsKey && this.elevenLabsVoiceId) {
-      this._speakRemote(text, onDone, "ElevenLabs", "/tts/elevenlabs", {
-        text, apiKey: this.elevenLabsKey, voiceId: this.elevenLabsVoiceId,
-      });
-    } else if (this.provider === "piper") {
+    if (this.provider === "piper") {
       this._speakRemote(text, onDone, "Piper", "/tts/piper", {
         text, voice: this.piperVoice || undefined,
       });
@@ -157,19 +151,19 @@ class TTSController {
 
     utt.onstart = () => {
       const durationMs = Math.round((text.length / (AVG_CHARS_PER_SEC * this.rate)) * 1000);
-      lipsyncStart(text, durationMs);
+      speakingStart(text, durationMs);
       this._setSpeaking(true);
     };
 
     utt.onend = () => {
-      lipsyncStop();
+      speakingStop();
       this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
     };
 
     utt.onerror = () => {
-      lipsyncStop();
+      speakingStop();
       this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
@@ -212,13 +206,13 @@ class TTSController {
         this.currentAudio = null;
         if (audio.src) URL.revokeObjectURL(audio.src);
       }
-      lipsyncStop();
+      speakingStop();
       this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
     };
     audio._onFinished = () => {
-      lipsyncStop();
+      speakingStop();
       this._setSpeaking(false);
       if (onDone) onDone();
       this._next();
@@ -230,7 +224,7 @@ class TTSController {
       await audio.play();
       // Real clip length drives the mouth-sync phoneme timeline
       const durationMs = Math.round(((audio.duration || text.length / AVG_CHARS_PER_SEC) / this.rate) * 1000);
-      lipsyncStart(text, durationMs);
+      speakingStart(text, durationMs);
       this._setSpeaking(true);
     } catch {
       finish();

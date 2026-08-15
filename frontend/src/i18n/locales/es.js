@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigo lee tu chat de Twitch, responde en voz alta y anima tu avatar — para que tu stream siempre tenga con quién hablar, incluso cuando está tranquilo.",
     cta: "Inicia sesión con Twitch para empezar",
     ctaNote: "Gratis para probar — no se necesita tarjeta de crédito.",
-    footer: "VTAmigo funciona junto a tu configuración actual de Twitch y VTube Studio.",
+    footer: "VTAmigo funciona junto a tu configuración actual de Twitch.",
     privacy: "Política de Privacidad",
     faq: "Preguntas frecuentes",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "Anima un overlay de avatar en OBS",
-        desc: "Añade una Browser Source en OBS y tu avatar cambia entre las imágenes de hablando y en reposo en sincronía con el TTS — sin necesitar VTube Studio.",
+        desc: "Añade una Browser Source en OBS y tu avatar cambia entre las imágenes de hablando y en reposo en sincronía con el TTS.",
       },
       events: {
         title: "Reacciona a eventos",
@@ -63,13 +63,9 @@ export default {
         q: "Inicié sesión, pero dice que mi cuenta está pendiente de aprobación. ¿Por qué?",
         a: "Por ahora el acceso se concede manualmente. La primera vez que inicias sesión, tu cuenta entra en una cola y un administrador la aprueba antes de que puedas usar la aplicación. Es un paso único: una vez aprobada, al iniciar sesión irás directo al panel.",
       },
-      vtube: {
-        q: "¿Necesito VTube Studio o un modelo de VTuber?",
-        a: "No. VTAmigo puede animar por sí solo un overlay de avatar sencillo en OBS, alternando entre una imagen hablando y otra en reposo al ritmo de la voz. Si ya usas VTube Studio, funciona junto a él, pero no es obligatorio.",
-      },
       data: {
         q: "¿Qué pasa con los datos de mi chat?",
-        a: "Para escribir una respuesta, los mensajes de chat relevantes y tu prompt se envían al proveedor de IA configurado en tu cuenta. Si usas voces de ElevenLabs, el texto que se va a leer también se envía allí — elegir una voz local de Piper hace que eso se quede en nuestro servidor. También guardamos los datos de niveles y los eventos del directo de tu canal.",
+        a: "Para escribir una respuesta, los mensajes de chat relevantes y tu prompt se envían al proveedor de IA configurado en tu cuenta. La voz se sintetiza en tu propio navegador o, si eliges una voz de Piper, en nuestro servidor — nunca se envía a un servicio de voz de terceros. También guardamos los datos de niveles y los eventos del directo de tu canal.",
       },
     },
   },
@@ -95,13 +91,6 @@ export default {
       loadedOkDroppedBackend: "Configuración cargada (se ignoró un Backend URL de otro dominio guardado en el archivo) — revisa los campos y pulsa Guardar y aplicar para guardarla",
       invalidFile: "Archivo inválido: {error}",
       readError: "No se pudo leer {file}",
-    },
-
-    tunnel: {
-      title: "Cliente de túnel (VTube Studio desde otro PC)",
-      label: "Deja que un invitado ejecute el lip-sync de VTube Studio desde su propia computadora",
-      download: "Descargar tunnel-client.exe",
-      hint: "Ejecutan el .exe, aparece un código corto, y cualquier usuario aprobado inicia sesión en /device para aprobarlo — sin claves ni contraseñas que compartir. Misma idea que el túnel inverso integrado, pero para una segunda máquina.",
     },
 
     tiktok: {
@@ -152,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "Overlay de OBS — Avatar (sin necesidad de VTube Studio)",
+      title: "Overlay de OBS — Avatar",
       urlLabel: "URL de Browser Source",
       copy: "Copiar",
       copied: "Copiado",
@@ -177,50 +166,9 @@ export default {
       styleNarrator: "Narrador (comentarista)",
     },
 
-    reddit: {
-      title: "Historias de Reddit",
-      disabled: "(deshabilitado por ahora)",
-      enableLabel: "Contar una historia cuando el chat está inactivo",
-      thresholdLabel: "Contar una historia cada N batches vacíos",
-      thresholdHint: "Ej: 7 = leer una historia cada 7 veces que el temporizador se dispara sin mensajes (~{minutes} min con ventana de {window}s).",
-      subredditsLabel: "Subreddits (separados por coma)",
-      subredditsHint: "Solo subreddits públicos con posts de texto en español.",
-    },
-
-    youtube: {
-      title: "YouTube Peek",
-      disabled: "(deshabilitado por ahora)",
-      enableLabel: "Narrar periódicamente lo que hay en la pestaña de YouTube",
-      intervalLabel: "Intervalo (minutos)",
-      intervalHint: "Claude mirará la pestaña de YouTube cada {interval} minuto{plural} y narrará lo que ve. Requiere la extensión Claude in Chrome activa.",
-    },
-
-    trivia: {
-      title: "Preguntas en pantalla (Trivia)",
-      disabled: "(deshabilitado por ahora)",
-      enableLabel: "Detectar preguntas en pantalla y responder con ayuda del chat",
-      captureInterval: "Captura cada (segundos)",
-      waitChat: "Esperar al chat (segundos)",
-      processLabel: "Programa a capturar (opcional): nombre del ejecutable",
-      processPlaceholder: "TriviaGame.exe — vacío = monitor principal",
-      processHint: "Captura solo la ventana de ese programa, aunque esté detrás de otras ventanas. Si el juego aún no está abierto, espera a que se abra.",
-      regionLabel: "Región de captura (opcional): x,y,ancho,alto",
-      regionPlaceholder: "0,0,1920,1080 — vacío = todo",
-      regionHint: "Limita la captura a la zona donde aparecen las preguntas (menos falsos positivos y análisis más barato). Con un programa elegido, la región es relativa a su ventana; si no, al monitor principal. Detecta texto con OCR local (gratis) y solo usa la IA (haiku) cuando parece haber una pregunta. Al detectarla, espera la ventana de chat y responde teniendo en cuenta los votos.",
-      autoClickLabel: "Clic automático en la respuesta elegida",
-      clickTargetLabel: "Hacer clic en",
-      clickTargetAI: "La respuesta de la IA",
-      clickTargetChat: "La más votada por el chat (si hay votos)",
-      clickHint: "Localiza el texto de la opción en pantalla con OCR y hace clic sobre ella (trae la ventana del juego al frente). Después espera 3–5 segundos y hace clic de nuevo en el mismo punto para pasar a la siguiente pregunta.",
-      autoNavLabel: "Navegación automática entre rondas (Majotori)",
-      autoNavHint: "Al detectar la pantalla de resultados hace clics hasta volver al menú principal, ahí pulsa «Jugar», luego «Solo Trivia» y un clic más para llegar a la siguiente pregunta.",
-      testButton: "Probar con una pregunta de ejemplo",
-    },
-
     aiProvider: {
       title: "Proveedor de IA",
       providerLabel: "Proveedor",
-      onlyClaude: "(solo Claude disponible por ahora)",
       exportMemoryLabel: "Exportar memoria del modelo actual",
       exporting: "Exportando…",
       exportTo: "Exportar a {target}",
@@ -250,21 +198,11 @@ export default {
       title: "Texto a voz (TTS)",
       provider: "Proveedor de TTS",
       windows: "TTS de Windows (voces del sistema)",
-      elevenlabs: "ElevenLabs (requiere API key)",
-      unavailable: "no disponible temporalmente",
       piper: "Piper (voces locales en español, sin conexión)",
       voice: "Voz",
       systemDefault: "Predeterminada del sistema",
-      elevenApiKey: "API key de ElevenLabs",
-      elevenApiKeyHintPrefix: "Consigue una en",
-      elevenApiKeyHintSuffix: "— se guarda localmente, solo se envía al backend local. Vuelve al TTS de Windows si falla la generación.",
-      elevenVoice: "Voz de ElevenLabs",
-      selectVoice: "— selecciona una voz —",
-      savedVoice: "(guardada)",
       loadVoices: "Cargar voces",
       loading: "Cargando…",
-      pasteVoiceId: "O pega un ID de voz directamente",
-      pasteVoiceIdHint: "Útil para voces de biblioteca/compartidas que no aparecen en «Mis voces». Encuentra el ID en ElevenLabs → Voices → ⋯ → Copy voice ID.",
       piperVoice: "Voz de Piper",
       piperDefault: "Predeterminada (es_MX claude, alta calidad)",
       piperMissing: "Piper no está instalado en el servidor",
@@ -297,18 +235,6 @@ export default {
       titleDelimiterPlaceholder: "p. ej. |",
       titleDelimiterHint: "Si se define, el comando de voz \"cambia el título\" solo reemplaza la parte del título anterior a la primera aparición de este texto; el resto se mantiene igual.",
     },
-
-    vtube: {
-      title: "VTube Studio — Lip Sync",
-      wsUrl: "URL de WebSocket",
-      wsHint: "Activa la Plugin API en VTube Studio → Settings → General, y verifica que el puerto coincida.",
-      pluginName: "Nombre del plugin",
-      mouthParam: "Parámetro de boca (parámetro de tracking de VTS)",
-      mouthParamHint: "Usa nombres de input de face-tracking de VTS (MouthOpen, MouthSmile…), no nombres de parámetros de Live2D.",
-      sensitivity: "Sensibilidad de boca ({pct}%)",
-      sensitivityHint: "50% = movimiento sutil · 100% = rango completo",
-      testButton: "Probar animación de boca",
-    },
   },
 
   onboarding: {
@@ -330,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "Barra de estado",
-        body: "Esta barra muestra tu estado de conexión de un vistazo — Twitch, cuenta del bot, VTube Studio — además de la cuenta regresiva para la próxima respuesta de la IA.",
+        body: "Esta barra muestra tu estado de conexión de un vistazo — Twitch y la cuenta del bot — además de la cuenta regresiva para la próxima respuesta de la IA.",
       },
       openSettings: {
         title: "Abrir configuración",
@@ -353,6 +279,34 @@ export default {
       done: {
         title: "¡Eso es todo!",
         body: "Ya está todo listo. Siempre puedes volver a abrir la configuración más tarde para ajustar cualquier cosa. ¡Que tengas un gran stream!",
+      },
+    },
+  },
+
+  announcement: {
+    title: "Novedades de esta versión",
+    ok: "OK",
+    headings: {
+      action: "Una cosa que tienes que hacer",
+      fixed: "Arreglado",
+      removed: "Lo que se va",
+    },
+    v20260816: {
+      action: {
+        overlays: "Vuelve a copiar tus overlays en OBS. Los enlaces de overlay ahora pueden caducar y revocarse, así que los que tengas guardados dejaron de funcionar. Entra al panel, copia de nuevo cada URL (chat, avatar, niveles, vídeo) y pégalas en tus Browser Sources. Solo hace falta esta vez.",
+      },
+      fixed: {
+        songRequestPanel: "!sr ya funciona desde el chat de la app. Antes solo se encolaba la canción si el comando venía desde Twitch; escrito desde aquí se publicaba pero no hacía nada.",
+        botIgnoresSongRequests: "El bot ya no contesta a las peticiones de canción. !sr va a la cola, no a la conversación.",
+        noScrollJump: "La pantalla ya no salta. Cada respuesta de la IA empujaba la vista hacia abajo.",
+        chatReconnect: "El chat ya no se queda sin conectar al volver a iniciar sesión.",
+        aiWedge: "Adiós al bot mudo. Un error interno lo dejaba clavado dando «Grok CLI not found» hasta reiniciar; ahora se recupera solo.",
+      },
+      removed: {
+        vtubeStudio: "VTube Studio: VTAmigo ya no lo controla. Tu overlay de avatar (imagen hablando / en reposo) sigue funcionando igual y no necesita instalar nada.",
+        desktopApp: "La app de escritorio y el tunnel-client.exe dejan de distribuirse: todo vive en la web.",
+        disabledFeatures: "Historias de Reddit, YouTube Peek y Preguntas en pantalla desaparecen de Ajustes. Llevaban tiempo desactivadas.",
+        ttsVoices: "Voces de ElevenLabs: quedan las de Windows y las de Piper.",
       },
     },
   },
@@ -415,13 +369,6 @@ export default {
     botSiteSuffix: " (sitio)",
     botConnecting: "conectando…",
     botDisconnected: "desconectado",
-    screenWatch: {
-      collecting: "Pregunta — leyendo chat {seconds}s",
-      answering: "Respondiendo pregunta…",
-      error: "{message}",
-      errorDefault: "Error de captura",
-      watching: "Vigilando pantalla",
-    },
     countdown: "próxima en {seconds}s",
     buffered: "{count} en buffer",
     nowSessionExhausted: "Ya usaste el botón Now esta sesión (límite de tu plan)",
@@ -466,12 +413,8 @@ export default {
     voiceSection: "Voz",
     provider: "Proveedor",
     windowsOption: "Windows (navegador)",
-    elevenlabsOption: "ElevenLabs",
-    elevenlabsUnavailable: " (no disponible)",
     voice: "Voz",
     systemDefault: "Predeterminada del sistema",
-    chooseVoice: "Elegir voz",
-    saved: " (guardada)",
     defaultOption: "Predeterminada",
     piperMissing: "Piper no está instalado",
     hint: "Este panel se puede ocultar en modo compacto",

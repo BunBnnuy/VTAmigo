@@ -1,7 +1,7 @@
 // Central SQLite connection, one physical file per environment so dev/
 // staging/prod never share data. Every module that used to hand-roll its own
 // flat-JSON-file read/write (auth.js, chatOverlayConfig.js, siteConfig.js,
-// usage.js, errorLog.js, devices.js, memoryDownload.js, videoQueue.js, xp.js,
+// usage.js, errorLog.js, memoryDownload.js, videoQueue.js, xp.js,
 // claude.js's agent sessions) now goes through here instead.
 const fs = require("fs");
 const path = require("path");
@@ -40,7 +40,13 @@ db.exec(`
     botAccessTokenEnc TEXT,
     botRefreshTokenEnc TEXT,
     botTokenExpiresAt INTEGER,
-    botLinkedAt TEXT
+    botLinkedAt TEXT,
+    -- Bumped to invalidate an account's overlay token (see auth.js's
+    -- rotateOverlayToken). Overlay tokens travel in query strings, so they
+    -- leak into access logs and screen-shared OBS dialogs; before this there
+    -- was no way to take one back short of rotating SESSION_SECRET for every
+    -- account at once.
+    overlayTokenVersion INTEGER NOT NULL DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS chat_overlay_config (
@@ -60,17 +66,6 @@ db.exec(`
     twitchId TEXT PRIMARY KEY,
     settings TEXT NOT NULL,
     updatedAt TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS devices (
-    deviceCode TEXT PRIMARY KEY,
-    userCode TEXT,
-    publicKey TEXT,
-    twitchId TEXT,
-    status TEXT,
-    assignedPort INTEGER,
-    createdAt TEXT,
-    approvedAt TEXT
   );
 
   CREATE TABLE IF NOT EXISTS usage_log (
@@ -157,5 +152,23 @@ db.exec(`
     PRIMARY KEY (provider, twitchId)
   );
 `);
+
+// Device-code enrollment for the downloadable tunnel client was a desktop-era
+// feature: it granted a streamer's own PC an SSH port-forward so the hosted
+// backend could reach VTube Studio running on that machine. VTS support is
+// gone, so nothing reads this table any more — drop it rather than leave rows
+// of public keys lying around. Idempotent: a no-op on databases created after
+// the table stopped being declared above.
+db.exec(`DROP TABLE IF EXISTS devices;`);
+
+// `CREATE TABLE IF NOT EXISTS` above only shapes *new* databases, so columns
+// added later have to be backfilled onto existing ones by hand. SQLite has no
+// "ADD COLUMN IF NOT EXISTS", hence the table_info check.
+function addColumnIfMissing(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+}
+
+addColumnIfMissing("users", "overlayTokenVersion", "INTEGER NOT NULL DEFAULT 1");
 
 module.exports = { db, ENV, DB_PATH };

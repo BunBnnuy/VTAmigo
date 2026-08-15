@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigo는 Twitch 채팅을 지켜보고, 소리 내어 답하고, 아바타를 움직입니다 — 방송이 조용할 때도 항상 이야기할 상대가 있습니다.",
     cta: "Twitch로 로그인하고 시작하기",
     ctaNote: "무료로 체험해보세요 — 신용카드가 필요하지 않습니다.",
-    footer: "VTAmigo는 기존 Twitch 및 VTube Studio 설정과 함께 작동합니다.",
+    footer: "VTAmigo는 기존 Twitch 설정과 함께 작동합니다.",
     privacy: "개인정보 처리방침",
     faq: "자주 묻는 질문",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "OBS 아바타 오버레이 애니메이션",
-        desc: "OBS에 브라우저 소스를 추가하면 TTS에 맞춰 말하는 이미지와 대기 이미지가 전환됩니다 — VTube Studio가 필요 없어요.",
+        desc: "OBS에 브라우저 소스를 추가하면 TTS에 맞춰 말하는 이미지와 대기 이미지가 전환됩니다.",
       },
       events: {
         title: "이벤트에 반응해요",
@@ -63,13 +63,9 @@ export default {
         q: "로그인했는데 계정이 승인 대기 중이라고 나옵니다. 왜 그런가요?",
         a: "현재는 접근 권한을 수동으로 부여하고 있습니다. 처음 로그인하면 계정이 대기열에 들어가고, 관리자가 승인해야 앱을 사용할 수 있습니다. 최초 한 번만 거치는 절차이며, 승인 후에는 로그인하면 바로 대시보드로 이동합니다.",
       },
-      vtube: {
-        q: "VTube Studio나 VTuber 모델이 필요한가요?",
-        a: "아니요. VTAmigo는 단독으로 OBS에서 간단한 아바타 오버레이를 구동할 수 있으며, 음성에 맞춰 말하는 이미지와 대기 이미지를 전환합니다. 이미 VTube Studio를 쓰고 있다면 함께 사용할 수 있지만 필수는 아닙니다.",
-      },
       data: {
         q: "제 채팅 데이터는 어떻게 되나요?",
-        a: "답변을 생성하기 위해 관련 채팅 메시지와 프롬프트가 계정에 설정된 AI 제공업체로 전송됩니다. ElevenLabs 음성을 사용하면 읽어줄 텍스트도 그쪽으로 전송되며, 로컬 Piper 음성을 선택하면 해당 처리는 저희 서버 안에서만 이루어집니다. 또한 채널의 레벨링 데이터와 방송 이벤트도 저장합니다.",
+        a: "답변을 생성하기 위해 관련 채팅 메시지와 프롬프트가 계정에 설정된 AI 제공업체로 전송됩니다. 음성 합성은 사용자의 브라우저에서 실행되며, Piper 음성을 선택한 경우 저희 서버에서 처리됩니다. 제3자 음성 서비스로는 전송되지 않습니다. 또한 채널의 레벨링 데이터와 방송 이벤트도 저장합니다.",
       },
     },
   },
@@ -95,13 +91,6 @@ export default {
       loadedOkDroppedBackend: "설정을 불러왔습니다 (파일에 저장된 다른 도메인의 Backend URL은 무시됨) — 항목을 확인한 후 저장 및 적용을 눌러 저장하세요",
       invalidFile: "잘못된 파일입니다: {error}",
       readError: "{file} 파일을 읽을 수 없습니다",
-    },
-
-    tunnel: {
-      title: "터널 클라이언트 (다른 PC에서 VTube Studio 사용)",
-      label: "게스트가 자신의 컴퓨터에서 VTube Studio 립싱크를 실행하도록 허용",
-      download: "tunnel-client.exe 다운로드",
-      hint: "게스트가 exe를 실행하면 짧은 코드가 표시되고, 승인된 사용자가 /device 에서 로그인해 승인합니다 — 공유할 키나 비밀번호가 없습니다. 내장된 역방향 터널과 같은 방식이며, 두 번째 기기를 위한 것입니다.",
     },
 
     tiktok: {
@@ -152,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "OBS 오버레이 — 아바타 (VTube Studio 불필요)",
+      title: "OBS 오버레이 — 아바타",
       urlLabel: "브라우저 소스 URL",
       copy: "복사",
       copied: "복사됨",
@@ -177,50 +166,9 @@ export default {
       styleNarrator: "내레이터 (해설자 스타일)",
     },
 
-    reddit: {
-      title: "Reddit 스토리",
-      disabled: "(현재 비활성화됨)",
-      enableLabel: "채팅이 조용할 때 이야기 들려주기",
-      thresholdLabel: "N번의 빈 배치마다 이야기 들려주기",
-      thresholdHint: "예: 7 = 메시지 없이 타이머가 7번 발동될 때마다 이야기 하나 읽기 ({window}초 윈도우 기준 약 {minutes}분).",
-      subredditsLabel: "서브레딧 (쉼표로 구분)",
-      subredditsHint: "스페인어 텍스트 게시물이 있는 공개 서브레딧만 해당합니다.",
-    },
-
-    youtube: {
-      title: "YouTube Peek",
-      disabled: "(현재 비활성화됨)",
-      enableLabel: "YouTube 탭 내용을 주기적으로 설명",
-      intervalLabel: "간격 (분)",
-      intervalHint: "Claude가 {interval}분마다 YouTube 탭을 확인하고 본 내용을 설명합니다. Claude in Chrome 확장 프로그램이 활성화되어 있어야 합니다.",
-    },
-
-    trivia: {
-      title: "화면 질문 (트리비아)",
-      disabled: "(현재 비활성화됨)",
-      enableLabel: "화면의 질문을 감지하고 채팅의 도움으로 응답",
-      captureInterval: "캡처 간격 (초)",
-      waitChat: "채팅 대기 시간 (초)",
-      processLabel: "캡처할 프로그램 (선택 사항): 실행 파일 이름",
-      processPlaceholder: "TriviaGame.exe — 비워두면 기본 모니터",
-      processHint: "다른 창 뒤에 있어도 해당 프로그램의 창만 캡처합니다. 게임이 아직 열려 있지 않으면 열릴 때까지 기다립니다.",
-      regionLabel: "캡처 영역 (선택 사항): x,y,너비,높이",
-      regionPlaceholder: "0,0,1920,1080 — 비워두면 전체",
-      regionHint: "질문이 나타나는 영역으로 캡처를 제한합니다 (오탐 감소, 분석 비용 절감). 프로그램을 선택한 경우 해당 창을 기준으로, 그렇지 않으면 기본 모니터를 기준으로 합니다. 로컬 OCR(무료)로 텍스트를 감지하고, 질문으로 보일 때만 AI(haiku)를 사용합니다. 감지되면 채팅 창을 기다린 후 투표를 고려해 응답합니다.",
-      autoClickLabel: "선택한 답변 자동 클릭",
-      clickTargetLabel: "클릭 대상",
-      clickTargetAI: "AI의 답변",
-      clickTargetChat: "채팅에서 가장 많이 투표된 답변 (투표가 있는 경우)",
-      clickHint: "OCR로 화면에서 선택지 텍스트를 찾아 클릭합니다 (게임 창을 앞으로 가져옵니다). 이후 3~5초 기다린 다음 같은 위치를 다시 클릭해 다음 질문으로 넘어갑니다.",
-      autoNavLabel: "라운드 간 자동 탐색 (Majotori)",
-      autoNavHint: "결과 화면을 감지하면 메인 메뉴로 돌아갈 때까지 클릭한 후, \"Play\"를 누르고 이어서 \"Trivia Only\"를 누른 뒤 한 번 더 클릭해 다음 질문으로 이동합니다.",
-      testButton: "샘플 질문으로 테스트",
-    },
-
     aiProvider: {
       title: "AI 제공자",
       providerLabel: "제공자",
-      onlyClaude: "(현재 Claude만 사용 가능)",
       exportMemoryLabel: "현재 모델의 메모리 내보내기",
       exporting: "내보내는 중…",
       exportTo: "{target}(으)로 내보내기",
@@ -250,21 +198,11 @@ export default {
       title: "텍스트 음성 변환 (TTS)",
       provider: "TTS 제공자",
       windows: "Windows TTS (시스템 음성)",
-      elevenlabs: "ElevenLabs (API 키 필요)",
-      unavailable: "일시적으로 사용 불가",
       piper: "Piper (로컬 스페인어 음성, 오프라인)",
       voice: "음성",
       systemDefault: "시스템 기본값",
-      elevenApiKey: "ElevenLabs API 키",
-      elevenApiKeyHintPrefix: "발급받기:",
-      elevenApiKeyHintSuffix: "— 로컬에 저장되며 로컬 백엔드로만 전송됩니다. 생성에 실패하면 Windows TTS로 대체됩니다.",
-      elevenVoice: "ElevenLabs 음성",
-      selectVoice: "— 음성 선택 —",
-      savedVoice: "(저장됨)",
       loadVoices: "음성 불러오기",
       loading: "불러오는 중…",
-      pasteVoiceId: "또는 음성 ID를 직접 붙여넣기",
-      pasteVoiceIdHint: "\"My voices\"에 표시되지 않는 라이브러리/공유 음성에 유용합니다. ID는 ElevenLabs → Voices → ⋯ → Copy voice ID 에서 확인할 수 있습니다.",
       piperVoice: "Piper 음성",
       piperDefault: "기본값 (es_MX claude, 고품질)",
       piperMissing: "projects\\piperttsspanish 에서 piper.exe를 찾을 수 없습니다",
@@ -297,18 +235,6 @@ export default {
       titleDelimiterPlaceholder: "예: |",
       titleDelimiterHint: "설정하면 \"제목을 바꿔줘\" 음성 명령이 이 텍스트가 처음 나타나는 부분 앞쪽만 교체합니다. 그 이후 내용은 그대로 유지됩니다.",
     },
-
-    vtube: {
-      title: "VTube Studio — 립싱크",
-      wsUrl: "WebSocket URL",
-      wsHint: "VTube Studio → Settings → General 에서 Plugin API를 활성화하고 포트가 일치하는지 확인하세요.",
-      pluginName: "플러그인 이름",
-      mouthParam: "입 파라미터 (VTS 트래킹 파라미터)",
-      mouthParamHint: "Live2D 파라미터 이름이 아닌 VTS 페이스 트래킹 입력 이름(MouthOpen, MouthSmile 등)을 사용하세요.",
-      sensitivity: "입 감도 ({pct}%)",
-      sensitivityHint: "50% = 미묘한 움직임 · 100% = 전체 범위",
-      testButton: "입 움직임 테스트",
-    },
   },
 
   onboarding: {
@@ -330,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "상태 표시줄",
-        body: "이 바는 Twitch, 봇 계정, VTube Studio의 연결 상태와 다음 AI 응답까지의 카운트다운을 한눈에 보여줍니다.",
+        body: "이 바는 Twitch와 봇 계정의 연결 상태와 다음 AI 응답까지의 카운트다운을 한눈에 보여줍니다.",
       },
       openSettings: {
         title: "설정 열기",
@@ -353,6 +279,34 @@ export default {
       done: {
         title: "이것으로 끝입니다!",
         body: "모든 준비가 끝났습니다. 언제든 설정을 다시 열어 조정할 수 있습니다. 즐거운 방송 되세요!",
+      },
+    },
+  },
+
+  announcement: {
+    title: "이번 버전의 새로운 소식",
+    ok: "확인",
+    headings: {
+      action: "한 가지 해주셔야 할 일",
+      fixed: "수정된 사항",
+      removed: "사라지는 기능",
+    },
+    v20260816: {
+      action: {
+        overlays: "OBS의 오버레이 주소를 다시 복사해 주세요. 이제 오버레이 링크가 만료되거나 취소될 수 있어서, 저장해 두신 주소는 더 이상 작동하지 않습니다. 패널에서 각 URL(채팅, 아바타, 레벨, 동영상)을 다시 복사해 브라우저 소스에 붙여넣어 주세요. 이번 한 번만 하시면 됩니다.",
+      },
+      fixed: {
+        songRequestPanel: "앱의 채팅창에서도 !sr이 작동합니다. 이전에는 트위치에서 보낸 명령만 대기열에 들어갔고, 여기서 입력하면 전송은 되지만 아무 일도 일어나지 않았습니다.",
+        botIgnoresSongRequests: "봇이 더 이상 신청곡에 답하지 않습니다. !sr은 대화가 아니라 대기열로 갑니다.",
+        noScrollJump: "화면이 더 이상 밀리지 않습니다. AI가 답할 때마다 화면이 아래로 내려갔습니다.",
+        chatReconnect: "다시 로그인한 뒤 채팅이 연결되지 않던 문제를 고쳤습니다.",
+        aiWedge: "봇이 말이 없어지는 문제를 해결했습니다. 내부 오류로 「Grok CLI not found」에서 멈춘 채 재시작할 때까지 그대로였지만, 이제 스스로 복구합니다.",
+      },
+      removed: {
+        vtubeStudio: "VTube Studio: VTAmigo가 더 이상 제어하지 않습니다. 아바타 오버레이(말하는 이미지 / 대기 이미지)는 그대로 작동하며 따로 설치할 것은 없습니다.",
+        desktopApp: "데스크톱 앱과 tunnel-client.exe 배포를 중단합니다. 모든 기능은 웹에서 이용하실 수 있습니다.",
+        disabledFeatures: "레딧 스토리, YouTube Peek, 화면 질문 기능이 설정에서 사라집니다. 한동안 꺼져 있던 기능입니다.",
+        ttsVoices: "ElevenLabs 음성: Windows와 Piper 음성은 계속 사용할 수 있습니다.",
       },
     },
   },
@@ -415,13 +369,6 @@ export default {
     botSiteSuffix: " (사이트)",
     botConnecting: "연결 중…",
     botDisconnected: "연결 해제됨",
-    screenWatch: {
-      collecting: "질문 — 채팅 읽는 중 {seconds}초",
-      answering: "질문에 답변 중…",
-      error: "{message}",
-      errorDefault: "캡처 오류",
-      watching: "화면 감시 중",
-    },
     countdown: "{seconds}초 후",
     buffered: "{count}개 버퍼링됨",
     nowSessionExhausted: "이번 세션에서 Now 버튼을 이미 사용했습니다 (플랜 제한)",
@@ -466,12 +413,8 @@ export default {
     voiceSection: "음성",
     provider: "제공자",
     windowsOption: "Windows (브라우저)",
-    elevenlabsOption: "ElevenLabs",
-    elevenlabsUnavailable: " (사용 불가)",
     voice: "음성",
     systemDefault: "시스템 기본값",
-    chooseVoice: "음성 선택",
-    saved: " (저장됨)",
     defaultOption: "기본값",
     piperMissing: "Piper가 설치되어 있지 않습니다",
     hint: "이 패널은 컴팩트 모드에서 숨길 수 있습니다",

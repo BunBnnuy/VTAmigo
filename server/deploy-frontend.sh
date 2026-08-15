@@ -14,8 +14,11 @@ echo "==> Installing backend dependencies"
 cd "$REPO_DIR/backend"
 npm ci --omit=dev
 
-echo "==> Importing any legacy JSON data into SQLite (no-op if already migrated)"
-APP_ENV=production node migrate-to-sqlite.js
+# The one-off flat-JSON → SQLite import used to run here. backend/db.js has
+# been the only storage since, every environment finished importing long ago,
+# and the script itself is gone from the repo — under `set -e` calling it now
+# aborts the deploy before the frontend build and the backend restart, leaving
+# the box with new code pulled, a stale dist, and a service never restarted.
 
 echo "==> Building frontend"
 cd "$REPO_DIR/frontend"

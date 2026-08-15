@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigo watches your Twitch chat, replies out loud, and animates your avatar — so your stream always has someone to talk to, even when it's quiet.",
     cta: "Log in with Twitch to get started",
     ctaNote: "Free to try — no credit card required.",
-    footer: "VTAmigo works alongside your existing Twitch and VTube Studio setup.",
+    footer: "VTAmigo works alongside your existing Twitch setup.",
     privacy: "Privacy Policy",
     faq: "FAQ",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "Animates an OBS avatar overlay",
-        desc: "Drop a Browser Source into OBS and your avatar switches between speaking and idle images in sync with the TTS — no VTube Studio required.",
+        desc: "Drop a Browser Source into OBS and your avatar switches between speaking and idle images in sync with the TTS.",
       },
       events: {
         title: "Reacts to events",
@@ -63,13 +63,9 @@ export default {
         q: "I logged in, but it says my account is awaiting approval. Why?",
         a: "Access is granted manually at the moment. The first time you log in, your account joins a queue and an admin approves it before you can use the app. It's a one-time step — once you're approved, logging in takes you straight to the dashboard.",
       },
-      vtube: {
-        q: "Do I need VTube Studio or a VTuber model?",
-        a: "No. VTAmigo can drive a simple avatar overlay in OBS by itself, switching between a speaking image and an idle image in time with the voice. If you already use VTube Studio it works alongside it, but it isn't required.",
-      },
       data: {
         q: "What happens to my chat data?",
-        a: "To write a reply, the relevant chat messages and your prompt are sent to the AI provider configured for your account. If you use ElevenLabs voices, the text being spoken is sent there too — picking a local Piper voice keeps that on our server instead. We also store leveling data and stream events for your channel.",
+        a: "To write a reply, the relevant chat messages and your prompt are sent to the AI provider configured for your account. Speech is synthesised either in your own browser or, if you pick a Piper voice, on our server — it never goes to a third-party voice service. We also store leveling data and stream events for your channel.",
       },
     },
   },
@@ -95,13 +91,6 @@ export default {
       loadedOkDroppedBackend: "Settings loaded (a Backend URL from a different domain saved in the file was ignored) — review the fields and press Save & Apply to save them",
       invalidFile: "Invalid file: {error}",
       readError: "Could not read {file}",
-    },
-
-    tunnel: {
-      title: "Tunnel client (VTube Studio from another PC)",
-      label: "Let a guest run VTube Studio lip-sync from their own computer",
-      download: "Download tunnel-client.exe",
-      hint: "They run the exe, it shows a short code, and any approved user logs in at /device to approve it — no keys or passwords to share. Same idea as the built-in reverse tunnel, just for a second machine.",
     },
 
     tiktok: {
@@ -152,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "OBS Overlay — Avatar (no VTube Studio needed)",
+      title: "OBS Overlay — Avatar",
       urlLabel: "Browser Source URL",
       copy: "Copy",
       copied: "Copied",
@@ -177,50 +166,9 @@ export default {
       styleNarrator: "Narrator (color commentator)",
     },
 
-    reddit: {
-      title: "Reddit Stories",
-      disabled: "(disabled for now)",
-      enableLabel: "Tell a story when chat is idle",
-      thresholdLabel: "Tell a story every N empty batches",
-      thresholdHint: "E.g.: 7 = read a story every 7 times the timer fires with no messages (~{minutes} min with a {window}s window).",
-      subredditsLabel: "Subreddits (comma-separated)",
-      subredditsHint: "Only public subreddits with Spanish-language text posts.",
-    },
-
-    youtube: {
-      title: "YouTube Peek",
-      disabled: "(disabled for now)",
-      enableLabel: "Periodically narrate what's on the YouTube tab",
-      intervalLabel: "Interval (minutes)",
-      intervalHint: "Claude will look at the YouTube tab every {interval} minute{plural} and narrate what it sees. Requires the Claude in Chrome extension active.",
-    },
-
-    trivia: {
-      title: "On-Screen Questions (Trivia)",
-      disabled: "(disabled for now)",
-      enableLabel: "Detect on-screen questions and answer with chat's help",
-      captureInterval: "Capture every (seconds)",
-      waitChat: "Wait for chat (seconds)",
-      processLabel: "Program to capture (optional): executable name",
-      processPlaceholder: "TriviaGame.exe — empty = main monitor",
-      processHint: "Captures only that program's window, even if it's behind other windows. If the game isn't open yet, it waits for it.",
-      regionLabel: "Capture region (optional): x,y,width,height",
-      regionPlaceholder: "0,0,1920,1080 — empty = everything",
-      regionHint: "Limits capture to the area where questions appear (fewer false positives, cheaper analysis). With a program selected, the region is relative to its window; otherwise, to the main monitor. Detects text with local OCR (free) and only uses AI (haiku) when a question seems to be present. When detected, waits for the chat window and answers taking votes into account.",
-      autoClickLabel: "Auto-click the chosen answer",
-      clickTargetLabel: "Click on",
-      clickTargetAI: "The AI's answer",
-      clickTargetChat: "The most-voted by chat (if there are votes)",
-      clickHint: "Locates the option's text on screen with OCR and clicks it (brings the game window to the front). Then waits 3–5 seconds and clicks the same spot again to move to the next question.",
-      autoNavLabel: "Auto-navigate between rounds (Majotori)",
-      autoNavHint: "When it detects the results screen it clicks until it's back at the main menu, then presses \"Play\", then \"Trivia Only\" and one more click to reach the next question.",
-      testButton: "Test with a sample question",
-    },
-
     aiProvider: {
       title: "AI Provider",
       providerLabel: "Provider",
-      onlyClaude: "(only Claude available for now)",
       exportMemoryLabel: "Export current model's memory",
       exporting: "Exporting…",
       exportTo: "Export to {target}",
@@ -250,21 +198,11 @@ export default {
       title: "Text-to-Speech",
       provider: "TTS Provider",
       windows: "Windows TTS (system voices)",
-      elevenlabs: "ElevenLabs (API key required)",
-      unavailable: "temporarily unavailable",
       piper: "Piper (local Spanish voices, offline)",
       voice: "Voice",
       systemDefault: "System default",
-      elevenApiKey: "ElevenLabs API key",
-      elevenApiKeyHintPrefix: "Get one at",
-      elevenApiKeyHintSuffix: "— stored locally, only sent to the local backend. Falls back to Windows TTS if generation fails.",
-      elevenVoice: "ElevenLabs voice",
-      selectVoice: "— select a voice —",
-      savedVoice: "(saved)",
       loadVoices: "Load voices",
       loading: "Loading…",
-      pasteVoiceId: "Or paste a voice ID directly",
-      pasteVoiceIdHint: "Useful for library/shared voices that don't appear in \"My voices\". Find the ID in ElevenLabs → Voices → ⋯ → Copy voice ID.",
       piperVoice: "Piper voice",
       piperDefault: "Default (es_MX claude, high quality)",
       piperMissing: "piper.exe not found in projects\\piperttsspanish",
@@ -297,18 +235,6 @@ export default {
       titleDelimiterPlaceholder: "e.g. |",
       titleDelimiterHint: "When set, the \"change the title\" voice command only replaces the part of the title before the first instance of this text — everything from there on stays as-is.",
     },
-
-    vtube: {
-      title: "VTube Studio — Lip Sync",
-      wsUrl: "WebSocket URL",
-      wsHint: "Enable Plugin API in VTube Studio → Settings → General, then make sure the port matches.",
-      pluginName: "Plugin name",
-      mouthParam: "Mouth parameter (VTS tracking param)",
-      mouthParamHint: "Use VTS face-tracking input names (MouthOpen, MouthSmile…), not Live2D parameter names.",
-      sensitivity: "Mouth sensitivity ({pct}%)",
-      sensitivityHint: "50% = subtle movement · 100% = full range",
-      testButton: "Test mouth animation",
-    },
   },
 
   onboarding: {
@@ -330,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "Status Footer",
-        body: "This bar shows your connection status at a glance — Twitch, bot account, VTube Studio — plus the countdown to the next AI response.",
+        body: "This bar shows your connection status at a glance — Twitch and your bot account — plus the countdown to the next AI response.",
       },
       openSettings: {
         title: "Open Settings",
@@ -353,6 +279,34 @@ export default {
       done: {
         title: "That's all!",
         body: "You're all set. You can always reopen Settings later to tweak anything. Have a great stream!",
+      },
+    },
+  },
+
+  announcement: {
+    title: "What's new in this version",
+    ok: "OK",
+    headings: {
+      action: "One thing you need to do",
+      fixed: "Fixed",
+      removed: "Going away",
+    },
+    v20260816: {
+      action: {
+        overlays: "Re-copy your overlays into OBS. Overlay links can now expire and be revoked, so the ones you had saved have stopped working. Open the panel, copy each URL again (chat, avatar, levels, video) and paste them into your Browser Sources. You only need to do this once.",
+      },
+      fixed: {
+        songRequestPanel: "!sr now works from the app's own chat box. Before, a song was only queued if the command came from Twitch — typed here it got posted but did nothing.",
+        botIgnoresSongRequests: "The bot no longer replies to song requests. !sr goes to the queue, not into the conversation.",
+        noScrollJump: "The screen no longer jumps. Every AI reply used to push the view down.",
+        chatReconnect: "Chat no longer fails to connect after you log in again.",
+        aiWedge: "No more silent bot. An internal error left it stuck on “Grok CLI not found” until a restart; now it recovers on its own.",
+      },
+      removed: {
+        vtubeStudio: "VTube Studio: VTAmigo no longer drives it. Your avatar overlay (speaking / idle image) works exactly as before and needs nothing installed.",
+        desktopApp: "The desktop app and tunnel-client.exe are no longer distributed — everything lives on the web.",
+        disabledFeatures: "Reddit stories, YouTube Peek and on-screen questions are gone from Settings. They had been switched off for a while.",
+        ttsVoices: "ElevenLabs voices: the Windows and Piper voices remain.",
       },
     },
   },
@@ -417,13 +371,6 @@ export default {
     botSiteSuffix: " (site)",
     botConnecting: "connecting…",
     botDisconnected: "disconnected",
-    screenWatch: {
-      collecting: "Question — reading chat {seconds}s",
-      answering: "Answering question…",
-      error: "{message}",
-      errorDefault: "Capture error",
-      watching: "Watching screen",
-    },
     countdown: "next in {seconds}s",
     buffered: "{count} buffered",
     nowSessionExhausted: "You already used the Now button this session (plan limit)",
@@ -473,12 +420,8 @@ export default {
     voiceSection: "Voice",
     provider: "Provider",
     windowsOption: "Windows (browser)",
-    elevenlabsOption: "ElevenLabs",
-    elevenlabsUnavailable: " (unavailable)",
     voice: "Voice",
     systemDefault: "System default",
-    chooseVoice: "Choose a voice",
-    saved: " (saved)",
     defaultOption: "Default",
     piperMissing: "Piper is not installed",
     hint: "This panel can be hidden in compact mode",
