@@ -31,16 +31,21 @@ jobs:
         run: npm ci
         working-directory: frontend
 
+      # Built before the tests, not after. The backend serves frontend/dist
+      # statically and the SPA catch-all answers from it, so with no build the
+      # suite can only check that those routes aren't auth-gated, not that they
+      # actually serve the app shell. Building first lets the stronger
+      # assertions run here too, and surfaces a broken build sooner.
+      - name: Build frontend
+        run: npm run build
+        working-directory: frontend
+
       - name: Test backend
         run: npm test
         working-directory: backend
 
       - name: Test frontend
         run: npm test
-        working-directory: frontend
-
-      - name: Build frontend
-        run: npm run build
         working-directory: frontend
 
       # Fails the build on a high or critical advisory in either package, so a

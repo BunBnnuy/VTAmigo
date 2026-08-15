@@ -17,6 +17,8 @@
 // cookie, and the four deliberate OBS-facing exclusions must still be
 // reachable without one.
 import request from "supertest";
+import fs from "node:fs";
+import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 const { app } = require("../app");
@@ -114,8 +116,22 @@ describe("OBS-facing exclusions from the auth gate", () => {
 
   it("GET /overlay-builder falls through to the SPA shell, unauthenticated", async () => {
     const res = await request(app).get("/overlay-builder");
-    expect(res.status).toBe(200);
-    expect(res.headers["content-type"]).toMatch(/html/);
+
+    // The invariant is that the bare page is not gated — it must reach the SPA
+    // catch-all rather than be answered by requireApprovedUser. Asserting a
+    // flat 200 tied this to `frontend/dist/index.html` existing, which is a
+    // build artifact the backend suite never produces: it passed locally only
+    // because a build had been run at some point, and failed in CI, where
+    // tests run on a fresh checkout. Not-401 is the property actually under
+    // test, and it holds either way.
+    expect(res.status).not.toBe(401);
+
+    // Where the frontend has been built, still hold the stronger line: the
+    // catch-all really does serve the app shell.
+    if (fs.existsSync(path.join(__dirname, "..", "..", "frontend", "dist", "index.html"))) {
+      expect(res.status).toBe(200);
+      expect(res.headers["content-type"]).toMatch(/html/);
+    }
   });
 
   // The bare page is public, but the API under it is not — this is the line
