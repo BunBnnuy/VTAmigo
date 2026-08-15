@@ -1,5 +1,5 @@
 // The contents below were written by reading what the code actually does
-// (backend/auth.js, db.js, claude.js, elevenlabs.js, analytics.js, devices.js).
+// (backend/auth.js, db.js, claude.js, analytics.js).
 // If you add a new third-party service or start storing a new field, this page
 // needs updating too — nothing here is generated automatically.
 import React from "react";
@@ -80,10 +80,6 @@ export default function PrivacyPolicy() {
               the message, stack trace, page URL, your browser's user-agent
               string, and your Twitch login, so we can fix it.
             </li>
-            <li style={styles.li}>
-              <strong>Linked devices</strong> — if you use the desktop tunnel
-              client, we store the device registration needed to route to it.
-            </li>
           </ul>
         </Section>
 
@@ -122,11 +118,6 @@ export default function PrivacyPolicy() {
               included in what is sent.
             </li>
             <li style={styles.li}>
-              <strong>ElevenLabs</strong> — if you use ElevenLabs voices, the
-              text to be spoken is sent there to be turned into audio. If you
-              use local Piper voices instead, no text leaves the server for TTS.
-            </li>
-            <li style={styles.li}>
               <strong>Twitch</strong> — we call Twitch's API to read chat and
               events and to post messages as you.
             </li>
@@ -139,8 +130,8 @@ export default function PrivacyPolicy() {
               to display third-party emotes in chat.
             </li>
             <li style={styles.li}>
-              <strong>YouTube and Reddit</strong> — only when you use the video
-              queue or Reddit story features, to fetch that public content.
+              <strong>YouTube</strong> — only when you use the video queue, to
+              fetch that public content.
             </li>
             <li style={styles.li}>
               <strong>Google Fonts</strong> — the site loads its fonts from
@@ -222,8 +213,9 @@ export default function PrivacyPolicy() {
               and we'll delete your account and associated data.
             </li>
             <li style={styles.li}>
-              <strong>Avoid third-party TTS</strong> — choose a local Piper
-              voice instead of ElevenLabs and no text is sent to a TTS vendor.
+              <strong>Text-to-speech stays here</strong> — the co-host speaks
+              with a voice from your own browser or with a Piper voice running
+              on our server, so spoken text is not sent to a TTS vendor.
             </li>
             <li style={styles.li}>
               <strong>Ask what we hold</strong> — email us for a copy of the
