@@ -3,7 +3,7 @@
 // POSTed here so they're visible from the Admin panel instead of only living
 // in a viewer's own devtools console. Stored in the error_log SQLite table
 // (see db.js) — previously a flat JSON file (error-log.json), same pattern
-// siteConfig.js / devices.js used to follow.
+// siteConfig.js used to follow.
 const { db } = require("./db");
 
 const MAX_ENTRIES = 500;

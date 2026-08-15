@@ -8,25 +8,30 @@ and how work actually flows.
 ## What it is
 
 VTAmigo is an AI co-host for Twitch/TikTok Live streams: it reads chat,
-batches messages, generates spoken replies, and drives an avatar (VTube Studio
-lip-sync or a simple speaking/silent image swap) plus a set of OBS overlays.
+batches messages, generates spoken replies, and drives a speaking/silent avatar
+image swap plus a set of OBS overlays.
 
-It ships two ways from the same `frontend/` + `backend/` code:
+It ships **one** way: a hosted multi-account web app on a VPS, with Twitch OAuth
+login, admin approval, per-user tiers, and an admin panel.
 
-- **Local Electron app** (`electron/main.js`, `npm run dist:win`).
-- **Hosted multi-account web app** on a VPS, with Twitch OAuth login, admin
-  approval, per-user tiers, and an admin panel.
+It began as a single-streamer Electron desktop app for Windows, and for a long
+time carried the leftovers of that: the Electron packaging, a device tunnel that
+bridged VTube Studio on a second PC, PowerShell screen-OCR scripts, and four
+features shipped-but-disabled in Settings. All of that has been removed — see
+`REFACTOR_STATUS.md` for what went and what is still in flight. If a file or doc
+still implies a desktop build exists, it is stale; fix it.
 
 ## Repo layout
 
 | Path | What lives there |
 |---|---|
-| `backend/` | Express + `ws` server, one module per feature (`eventsub.js`, `claude.js`, `piper.js`, `overlayLayouts.js`, `activity.js`, …). Entry: `backend/index.js`, port from `process.env.PORT`. |
-| `backend/db.js` | SQLite persistence, per-environment file (`vtamigo.<env>.sqlite3`). Users, tiers, usage, overlay layouts/assets, chat-overlay config, Activity Panel history, XP. Replaced the old flat-JSON storage (`migrate-to-sqlite.js` is the one-off migration). |
+| `backend/app.js` | Builds the Express app and wires every route, but never listens. Exports `{ app, server, wss, startBackgroundJobs, PORT }`. |
+| `backend/index.js` | Process entry point only: starts background timers, calls `listen()`, handles fatal errors. The split is what lets tests drive the app with supertest without binding a port. |
+| `backend/` | One module per feature (`eventsub.js`, `claude.js`, `piper.js`, `overlayLayouts.js`, `activity.js`, …). Port from `process.env.PORT`. |
+| `backend/db.js` | SQLite persistence, per-environment file (`vtamigo.<env>.sqlite3`). Users, tiers, usage, overlay layouts/assets, chat-overlay config, Activity Panel history, XP. |
+| `backend/test/`, `frontend/test/` | Vitest suites. Backend uses supertest and runs against `APP_ENV=test`; frontend uses jsdom + Testing Library. |
 | `frontend/` | Vite + React. Flat `src/` — one file per panel/page, no deep component tree. |
-| `server/` | VPS provisioning + deploy scripts, systemd units, tunnel helpers, and `server/README.md` (the ops source of truth). |
-| `client/` | `tunnel-client.js` — the guest-device tunnel, packaged to an `.exe` via `npm run build:tunnel-client`. |
-| `electron/` | Desktop wrapper only. |
+| `server/` | VPS provisioning + deploy scripts, systemd units, and `server/README.md` (the ops source of truth). |
 
 The frontend UI is a canvas of draggable/resizable windows (`Window.jsx`,
 `WindowManager.jsx`, `PanelsMenu.jsx`); layout is saved per account.
@@ -39,11 +44,16 @@ The frontend UI is a canvas of draggable/resizable windows (`Window.jsx`,
   Typography: Quicksand for headings/buttons/labels, Nunito for body.
 - Icons are flat `lucide-react` icons — emoji were deliberately removed.
 - User-facing strings go through i18n (`frontend/src/i18n`): en, es, ja, ko.
-- Several features are intentionally **shipped but disabled** in Settings —
-  Reddit stories, screen question watcher (+ auto-click, Majotori
-  auto-navigation), YouTube peek, ElevenLabs TTS, and the non-Claude AI
-  providers. The code paths are finished; the UI forces them off. Don't
-  "fix" them by re-enabling without asking.
+- The features that used to be **shipped but disabled** are now **gone**:
+  Reddit stories, the screen question watcher (+ auto-click and Majotori
+  auto-navigation), YouTube peek, ElevenLabs TTS, VTube Studio lip-sync and
+  the guest device tunnel. Code, routes, settings keys, i18n and docs all
+  went with them. Don't reintroduce one without a deliberate decision.
+- The four **AI providers are all real** (Claude, Grok, AGY, ChatGPT) and the
+  Settings picker is no longer locked to Claude.
+- **Tests are not optional any more.** `npm test` runs both packages; CI runs
+  them plus the frontend build on every push and PR, and fails on any `high`
+  or `critical` npm advisory in either package.
 
 ## Environments and how work flows
 
@@ -86,5 +96,11 @@ Twitch app credentials (OAuth + EventSub), and env vars in
 `/etc/vtamigo.env` / `/etc/vtamigo-dev.env` — `TWITCH_CLIENT_ID`,
 `TWITCH_CLIENT_SECRET`, `TWITCH_REDIRECT_URI`, `SESSION_SECRET`,
 `ADMIN_PASSWORD`, optional `YOUTUBE_API_KEY` and `OPENAI_API_KEY`.
-AI responses go through the Claude CLI as a child process (Grok/AGY/ChatGPT
-paths exist but are locked off). TTS is Windows TTS or local Piper.
+AI responses go through a provider CLI as a child process — Claude, Grok or AGY —
+or the OpenAI HTTP API for ChatGPT; all four are selectable. TTS is the
+browser's own `speechSynthesis` (labelled "Windows TTS") or local Piper.
+
+`SESSION_SECRET` deserves care: the user session JWTs, the admin JWTs, the
+AES-256-GCM key that encrypts Twitch tokens at rest, and the overlay-token HMAC
+are all derived from it. Losing or changing it logs everyone out and makes
+already-encrypted Twitch tokens unreadable, forcing a re-login.

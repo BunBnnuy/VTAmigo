@@ -13,7 +13,6 @@ import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { parseVoiceCommand } from "./voiceCommands.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
-import { logError } from "./errorLogger.js";
 import { detectLanguage, useTranslation } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
 import logo from "./img/logo.png";
@@ -28,20 +27,12 @@ const DEFAULT_SETTINGS = {
   maxMessages: 20,
   style: "auto",
   basePrompt: "",
-  idleRedditStories: true,
-  idleStoryThreshold: 7,
-  subreddits: "HistoriasDeReddit, AskRedditEsp, confesiones, anecdotasgraciosas, es",
+  provider: "claude",
   voiceURI: "",
   ttsRate: 1,
   ttsVolume: 1,
   ttsProvider: "windows",
-  elevenLabsKey: "",
-  elevenLabsVoiceId: "",
   piperVoice: "",
-  vtubeUrl: "ws://localhost:8001",
-  vtubePlugin: "Twitch Chat Bot",
-  vtubeMouthParam: "MouthOpen",
-  vtubeSensitivity: 0.8,
   micMode: "off", // "off" | "voice" | "commands" | "full" — see App.jsx's voice.onTranscript handler
   micDeviceId: "",
   micLang: "es-ES",
@@ -51,18 +42,39 @@ const DEFAULT_SETTINGS = {
   botToken: "",
   autoSendToChat: false,
   aiResponsesEnabled: true,
-  youtubePeekEnabled: false,
-  youtubePeekInterval: 5,
-  screenWatchEnabled: false,
-  screenWatchInterval: 4,
-  screenWatchWindow: 20,
-  screenWatchRegion: "",
-  screenWatchProcess: "",
-  screenClickEnabled: false,
-  screenClickTarget: "ai",
-  screenAutoNavigate: false,
   ignoredUsers: "jonejo_ia, streamelements, nightbot, moobot, fossabot, streamlabs, soundalerts, wizebot, botisimo, coebot, sery_bot, kofistreambot, commanderroot, virgoproz, aparatchik, logviewer, electricallongboard, anotherttvviewer, twitchraidshadow",
 };
+
+// Every key a stored settings blob is allowed to carry. VTAmigo spent years
+// as a Windows desktop app, and each feature retired in the move to a hosted
+// web app left its keys behind in the localStorage of every existing user.
+// Nothing reads them any more, yet App still syncs the whole blob up to the
+// server once per login — so they would outlive the code that understood
+// them, and reappear in any settings export. Drop them on load instead.
+const KNOWN_SETTING_KEYS = new Set([
+  ...Object.keys(DEFAULT_SETTINGS),
+  // No default of its own: api.js reads it straight out of localStorage.
+  "backendUrl",
+]);
+
+// Turns whatever is in localStorage into a settings object this build
+// understands: legacy shapes are migrated, unknown keys are discarded, and
+// anything missing falls back to DEFAULT_SETTINGS. Pure — exported so it can
+// be tested without mounting the app.
+export function migrateSettings(saved) {
+  const raw = saved && typeof saved === "object" ? saved : {};
+  const kept = {};
+  for (const [key, value] of Object.entries(raw)) {
+    if (KNOWN_SETTING_KEYS.has(key)) kept[key] = value;
+  }
+  return {
+    ...DEFAULT_SETTINGS,
+    ...kept,
+    // Old on/off mic checkbox → the 4-way mic mode
+    micMode: raw.micMode === undefined ? (raw.micEnabled ? "voice" : "off") : raw.micMode,
+    panelLayout: mergePanelLayout(raw.panelLayout),
+  };
+}
 
 const HYPE_KEYWORDS = ["pogchamp", "pog", "omegalul", "lul", "kekw", "lets go", "let's go", "clip it", "letsgo", "hype"];
 const BURST_SILENCE_MS = 3000; // how long silence after burst triggers response
@@ -112,7 +124,10 @@ export default function App() {
     if (!authState?.loggedIn || !authState?.approved || settingsSyncedRef.current) return;
     settingsSyncedRef.current = true;
     try {
-      const localSettings = JSON.parse(localStorage.getItem("settings") || "{}");
+      // Migrated, not raw: this is the one path that copies a browser's
+      // settings blob onto the server, so it must not carry keys from
+      // retired features up with it.
+      const localSettings = migrateSettings(JSON.parse(localStorage.getItem("settings") || "{}"));
       apiFetch("/settings", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -134,21 +149,10 @@ export default function App() {
 function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [settings, setSettings] = useState(() => {
     try {
-      const saved = { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem("settings") || "{}") };
-      // Migrate old Live2D param name to correct VTS tracking param name
-      if (saved.vtubeMouthParam === "ParamMouthOpenY") saved.vtubeMouthParam = "MouthOpen";
-      // Migrate old on/off mic checkbox to the 4-way mic mode
-      if (saved.micMode === undefined) saved.micMode = saved.micEnabled ? "voice" : "off";
-      // Temporarily disabled features — grayed out in Settings, forced off here
-      // regardless of any previously saved value.
-      saved.idleRedditStories = false;
-      saved.youtubePeekEnabled = false;
-      saved.screenWatchEnabled = false;
-      saved.provider = "claude";
-      saved.panelLayout = mergePanelLayout(saved.panelLayout);
-      return saved;
+      return migrateSettings(JSON.parse(localStorage.getItem("settings") || "{}"));
     } catch {
-      return DEFAULT_SETTINGS;
+      // Unreadable or malformed localStorage — start from the defaults.
+      return migrateSettings({});
     }
   });
   const { t } = useTranslation(settings.language);
@@ -265,7 +269,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [ttsPlaying, setTtsPlaying] = useState(false);
   const [ttsSpeaking, setTtsSpeaking] = useState(false); // true only once audio is actually audible, unlike ttsPlaying (true from the start of generation)
   const [countdown, setCountdown] = useState(null);
-  const [vtubeStatus, setVtubeStatus] = useState({ connected: false, authenticated: false });
   const [micActive, setMicActive] = useState(false);
   const [micError, setMicError] = useState(null);
   const [micSpeaking, setMicSpeaking] = useState(false);
@@ -274,7 +277,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [activeBotUsername, setActiveBotUsername] = useState(null);
   const [usingSiteBot, setUsingSiteBot] = useState(false);
   const [micLastText, setMicLastText] = useState("");
-  const [screenWatch, setScreenWatch] = useState({ state: "off", question: null, remaining: 0 });
   const [nowCooldownUntil, setNowCooldownUntil] = useState(0);
   const [nowSessionUsed, setNowSessionUsed] = useState(0);
   const [, forceNowTick] = useState(0);
@@ -302,13 +304,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   }, []);
   const batchTimerRef = useRef(null);
   const burstTimerRef = useRef(null);
-  const idleCountRef = useRef(0);
-  const idleThresholdRef = useRef(null); // set on first empty batch from settings
   const countdownIntervalRef = useRef(null);
-  const youtubePeekTimerRef = useRef(null);
-  const screenCollectRef = useRef(null); // { question, options, messages } while collecting chat
-  const screenTimerRef = useRef(null);
-  const screenCountdownRef = useRef(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
   const tierRef = useRef(tier);
@@ -477,33 +473,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     else voice.stop();
   }, [settings.micMode]);
 
-  // VTube Studio status polling
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await apiFetch("/vtube/status");
-        if (res.ok) setVtubeStatus(await res.json());
-      } catch {}
-    };
-    poll();
-    const id = setInterval(poll, 3000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Push VTube config to backend whenever relevant settings change
-  useEffect(() => {
-    apiFetch("/vtube/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        url: settings.vtubeUrl,
-        pluginName: settings.vtubePlugin,
-        mouthParam: settings.vtubeMouthParam,
-        sensitivity: settings.vtubeSensitivity,
-      }),
-    }).catch(() => {});
-  }, [settings.vtubeUrl, settings.vtubePlugin, settings.vtubeMouthParam, settings.vtubeSensitivity]);
-
   // Push XP ignore list to backend whenever it changes (also on startup)
   useEffect(() => {
     apiFetch("/xp/config", {
@@ -519,9 +488,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     tts.setRate(settings.ttsRate);
     tts.setVolume(settings.ttsVolume);
     tts.setProvider(settings.ttsProvider);
-    tts.setElevenLabs({ apiKey: settings.elevenLabsKey, voiceId: settings.elevenLabsVoiceId });
     tts.setPiper({ voice: settings.piperVoice });
-  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.elevenLabsKey, settings.elevenLabsVoiceId, settings.piperVoice]);
+  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice]);
 
   // ── Batch triggering ──────────────────────────────────────────────────────
 
@@ -540,33 +508,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     setQueuedCount(bufferRef.current.length);
 
     if (batch.length === 0) {
-      if (settingsRef.current.idleRedditStories !== false) {
-        const t = settingsRef.current.idleStoryThreshold || 7;
-        if (idleThresholdRef.current === null) idleThresholdRef.current = t;
-        idleCountRef.current += 1;
-        if (idleCountRef.current >= idleThresholdRef.current) {
-          idleCountRef.current = 0;
-          idleThresholdRef.current = t;
-          triggerRedditStory();
-        }
-      }
       startCountdown();
       return;
     }
 
     setLoading(true);
-    apiFetch("/vtube/thinking", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ active: true }),
-    }).catch(() => {});
-
-    const stopThinking = () =>
-      apiFetch("/vtube/thinking", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ active: false }),
-      }).catch(() => {});
 
     try {
       const res = await apiFetch("/respond", {
@@ -585,9 +531,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         messageCount: batch.length,
       };
       setResponses((prev) => [...prev.slice(-49), entry]);
-      if (data.error) {
-        stopThinking();
-      } else {
+      if (!data.error) {
         if (settingsRef.current.autoSendToChat) {
           apiFetch("/say", {
             method: "POST",
@@ -601,10 +545,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           }).catch((e) => console.warn("[bot/say]", e.message));
         }
         tts.enqueue(text);
-        // Thinking stops when TTS fires onstart → /lipsync/start → startSpeaking()
       }
     } catch (err) {
-      stopThinking();
       setResponses((prev) => [
         ...prev.slice(-49),
         { id: uid(), timestamp: Date.now(), text: `Network error: ${err.message}`, error: true },
@@ -614,300 +556,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       startCountdown();
     }
   }, []);
-
-  const triggerRedditStory = useCallback(async () => {
-    setLoading(true);
-    try {
-      const subreddits = (settingsRef.current.subreddits || "")
-        .split(",").map((s) => s.trim()).filter(Boolean);
-      const res = await apiFetch("/reddit-story", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ subreddits }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-
-      const { story } = data;
-      const label = `r/${story.subreddit} — ${story.title}`;
-
-      // Show the story text in the response panel
-      setResponses((prev) => [...prev.slice(-49), {
-        id: uid(),
-        timestamp: Date.now(),
-        text: `${story.title}\n\n${story.text}`,
-        error: false,
-        eventLabel: label,
-        isStory: true,
-      }]);
-
-      // Read the story aloud; when done, ask Claude for thoughts on the last paragraph
-      const lastParagraph = story.text
-        .split(/\n+/)
-        .map((p) => p.trim())
-        .filter(Boolean)
-        .at(-1) || story.text.slice(-300);
-
-      tts.enqueue(`${story.title}. ${story.text}`, async () => {
-        try {
-          const thoughtsRes = await apiFetch("/reddit-thoughts", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              paragraph: lastParagraph,
-              title: story.title,
-              subreddit: story.subreddit,
-              basePrompt: settingsRef.current.basePrompt,
-              provider: settingsRef.current.provider || "claude",
-            }),
-          });
-          const thoughtsData = await thoughtsRes.json();
-          const thoughtsText = thoughtsData.response || thoughtsData.error || t("app.noResponse");
-          setResponses((prev) => [...prev.slice(-49), {
-            id: uid(),
-            timestamp: Date.now(),
-            text: thoughtsText,
-            error: !!thoughtsData.error,
-            eventLabel: `Pensamientos — ${story.title}`,
-          }]);
-          if (!thoughtsData.error) tts.enqueue(thoughtsText);
-        } catch (err) {
-          console.error("[reddit-thoughts]", err.message);
-          logError("reddit-thoughts", err);
-        }
-      });
-    } catch (err) {
-      logError("reddit-story", err);
-      setResponses((prev) => [...prev.slice(-49), {
-        id: uid(), timestamp: Date.now(), text: `Error: ${err.message}`, error: true,
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  }, []);
-
-  const triggerYouTubePeek = useCallback(async () => {
-    try {
-      const res = await apiFetch("/youtube-narrate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ basePrompt: settingsRef.current.basePrompt }),
-      });
-      const data = await res.json();
-      const text = data.response || data.error || t("app.noResponse");
-      setResponses((prev) => [...prev.slice(-49), {
-        id: uid(),
-        timestamp: Date.now(),
-        text,
-        error: !!data.error,
-        eventLabel: "YouTube Peek",
-      }]);
-      if (!data.error) tts.enqueue(text);
-    } catch (err) {
-      console.error("[youtube-peek]", err.message);
-      logError("youtube-peek", err);
-    }
-  }, []);
-
-  // YouTube peek timer — restart whenever enabled/interval changes
-  useEffect(() => {
-    clearInterval(youtubePeekTimerRef.current);
-    if (!settings.youtubePeekEnabled) return;
-    const ms = (settings.youtubePeekInterval || 5) * 60 * 1000;
-    youtubePeekTimerRef.current = setInterval(triggerYouTubePeek, ms);
-    return () => clearInterval(youtubePeekTimerRef.current);
-  }, [settings.youtubePeekEnabled, settings.youtubePeekInterval, triggerYouTubePeek]);
-
-  // ── Screen question watcher ───────────────────────────────────────────────
-
-  // Push watcher config to backend whenever settings change (also on startup)
-  useEffect(() => {
-    apiFetch("/screenwatch/config", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        enabled: settings.screenWatchEnabled,
-        intervalSec: settings.screenWatchInterval,
-        region: settings.screenWatchRegion,
-        processName: settings.screenWatchProcess,
-        autoNavigate: settings.screenAutoNavigate,
-      }),
-    }).catch(() => {});
-    if (!settings.screenWatchEnabled) {
-      clearTimeout(screenTimerRef.current);
-      clearInterval(screenCountdownRef.current);
-      screenCollectRef.current = null;
-      setScreenWatch({ state: "off", question: null, remaining: 0 });
-    } else {
-      setScreenWatch((s) => (s.state === "off" ? { state: "watching", question: null, remaining: 0 } : s));
-    }
-  }, [settings.screenWatchEnabled, settings.screenWatchInterval, settings.screenWatchRegion, settings.screenWatchProcess, settings.screenAutoNavigate]);
-
-  const answerScreenQuestion = useCallback(async () => {
-    clearInterval(screenCountdownRef.current);
-    const collect = screenCollectRef.current;
-    screenCollectRef.current = null;
-    if (!collect) return;
-
-    setScreenWatch({ state: "answering", question: collect.question, remaining: 0 });
-    setLoading(true);
-    let data = {};
-    try {
-      const res = await apiFetch("/screen-answer", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          question: collect.question,
-          options: collect.options,
-          messages: collect.messages,
-          basePrompt: settingsRef.current.basePrompt,
-          provider: settingsRef.current.provider || "claude",
-          windowSec: settingsRef.current.screenWatchWindow || 20,
-        }),
-      });
-      data = await res.json();
-      const text = data.response || data.error || t("app.noResponse");
-      setResponses((prev) => [...prev.slice(-49), {
-        id: uid(),
-        timestamp: Date.now(),
-        text,
-        error: !!data.error,
-        eventLabel: `Respuesta — ${collect.question.slice(0, 60)}`,
-        messageCount: collect.messages.length || null,
-      }]);
-      if (!data.error) {
-        tts.enqueue(text);
-        if (settingsRef.current.autoSendToChat) {
-          apiFetch("/say", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ text }),
-          }).catch(() => {});
-        }
-      }
-
-    } catch (err) {
-      setResponses((prev) => [...prev.slice(-49), {
-        id: uid(), timestamp: Date.now(), text: t("app.networkError", { error: err.message }), error: true,
-      }]);
-    } finally {
-      // Auto-click the chosen option (AI's pick or chat's top vote), then
-      // the backend clicks again after 3-5 s to advance to the next question.
-      // Runs even when the AI errored, nobody picked anything, or the request
-      // itself failed: fall back to the first option so the game never stays
-      // stuck on the question.
-      if (settingsRef.current.screenClickEnabled) {
-        let idx = settingsRef.current.screenClickTarget === "chat"
-          ? (data.topVoteIndex ?? data.choiceIndex)
-          : (data.choiceIndex ?? data.topVoteIndex);
-        if (idx == null || collect.options[idx] == null) idx = 0;
-        if (collect.options[idx] != null) {
-          apiFetch("/screenwatch/click", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              optionText: collect.options[idx],
-              processName: settingsRef.current.screenWatchProcess,
-              region: settingsRef.current.screenWatchRegion,
-            }),
-          }).then(async (r) => {
-            if (!r.ok) {
-              const d = await r.json().catch(() => ({}));
-              setResponses((prev) => [...prev.slice(-49), {
-                id: uid(), timestamp: Date.now(), text: `No pude hacer clic: ${d.error || r.status}`, error: true, eventLabel: "Auto-click",
-              }]);
-            }
-          }).catch(() => {});
-        }
-      }
-      setLoading(false);
-      setScreenWatch({
-        state: settingsRef.current.screenWatchEnabled ? "watching" : "off",
-        question: null,
-        remaining: 0,
-      });
-    }
-  }, []);
-
-  const handleScreenQuestion = useCallback((question, options) => {
-    if (screenCollectRef.current) return; // already collecting for another question
-    const windowSec = settingsRef.current.screenWatchWindow || 20;
-    screenCollectRef.current = { question, options, messages: [] };
-    setScreenWatch({ state: "collecting", question, remaining: windowSec });
-
-    // Show the detected question in the response panel right away
-    const optionText = options
-      .map((o, i) => `${String.fromCharCode(65 + i)} ) ${o}`)
-      .join("\n");
-    setResponses((prev) => [...prev.slice(-49), {
-      id: uid(),
-      timestamp: Date.now(),
-      text: `${question}\n\n${optionText}\n\nEsperando al chat ${windowSec}s…`,
-      error: false,
-      eventLabel: "Pregunta detectada en pantalla",
-    }]);
-
-    // Post the question to chat so viewers can vote (Twitch caps ~500 chars)
-    if (settingsRef.current.autoSendToChat) {
-      const inline = options.map((o, i) => `${String.fromCharCode(65 + i)} ) ${o}`).join("  ");
-      let chatMsg = `❓ ${question}  ${inline}  — ¡vota A/B/C/D! (${windowSec}s)`;
-      if (chatMsg.length > 490) chatMsg = chatMsg.slice(0, 487) + "…";
-      apiFetch("/say", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ text: chatMsg }),
-      }).catch(() => {});
-    }
-
-    clearTimeout(screenTimerRef.current);
-    screenTimerRef.current = setTimeout(answerScreenQuestion, windowSec * 1000);
-
-    clearInterval(screenCountdownRef.current);
-    let remaining = windowSec;
-    screenCountdownRef.current = setInterval(() => {
-      remaining -= 1;
-      setScreenWatch((s) =>
-        s.state === "collecting" ? { ...s, remaining: Math.max(remaining, 0) } : s
-      );
-    }, 1000);
-  }, [answerScreenQuestion]);
-
-  // Manual scan: read the screen right now and look for a question. If one is
-  // found, the backend broadcasts screen_question and the normal flow starts.
-  const triggerScreenScan = useCallback(async () => {
-    setLoading(true);
-    try {
-      const res = await apiFetch("/screenwatch/scan", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          region: settingsRef.current.screenWatchRegion,
-          processName: settingsRef.current.screenWatchProcess,
-        }),
-      });
-      const data = await res.json();
-      if (data.error) throw new Error(data.error);
-      if (data.hasQuestion) {
-        // Start the flow directly — no dependency on the WS broadcast
-        // (handleScreenQuestion ignores duplicates if the broadcast also lands)
-        handleScreenQuestion(data.question, data.options || []);
-      } else {
-        setResponses((prev) => [...prev.slice(-49), {
-          id: uid(),
-          timestamp: Date.now(),
-          text: "No encontré ninguna pregunta con opciones en la pantalla.",
-          error: false,
-          eventLabel: "Escaneo manual",
-        }]);
-      }
-    } catch (err) {
-      setResponses((prev) => [...prev.slice(-49), {
-        id: uid(), timestamp: Date.now(), text: `Error: ${err.message}`, error: true, eventLabel: "Escaneo manual",
-      }]);
-    } finally {
-      setLoading(false);
-    }
-  }, [handleScreenQuestion]);
 
   const triggerEventResponse = useCallback(async (event) => {
     setLoading(true);
@@ -1016,11 +664,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             }]);
           }
 
-          // While a screen question is open, also collect messages for it
-          if (screenCollectRef.current) {
-            screenCollectRef.current.messages.push({ username: msg.username, text: msg.text });
-          }
-
           // Burst detection: lots of hype → wait for silence then fire
           const isHype = HYPE_KEYWORDS.some((kw) => msg.text.toLowerCase().includes(kw));
           if (isHype) {
@@ -1042,18 +685,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           const tiktokStatusType = data.status.type;
           setTiktokStatus(tiktokStatusType);
           setTiktokConnected(tiktokStatusType === "connected");
-        } else if (data.type === "screen_question") {
-          handleScreenQuestion(data.question, data.options || []);
-        } else if (data.type === "screenwatch_status") {
-          if (data.status.type === "error") {
-            setScreenWatch((s) =>
-              s.state === "collecting" || s.state === "answering"
-                ? s
-                : { state: "error", question: null, remaining: 0, message: data.status.message }
-            );
-          } else if (data.status.type === "watching") {
-            setScreenWatch((s) => (s.state === "error" ? { state: "watching", question: null, remaining: 0 } : s));
-          }
         } else if (data.type === "twitch_event") {
           const event = data.event;
           // Show event as a special entry in the chat feed
@@ -1074,7 +705,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         // ignore parse errors
       }
     };
-  }, [triggerResponse, handleScreenQuestion, pushToBuffer]);
+  }, [triggerResponse, pushToBuffer]);
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
@@ -1415,29 +1046,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
                   ? `${activeBotUsername || settings.botUsername}${usingSiteBot ? t("app.botSiteSuffix") : ""}`
                   : botStatus === "connecting" ? t("app.botConnecting") : t("app.botDisconnected"),
               })}
-            </span>
-          </div>
-        )}
-
-        {/* Screen watch status */}
-        {settings.screenWatchEnabled && (
-          <div style={styles.statusGroup}>
-            <span style={{
-              ...styles.dot,
-              background:
-                screenWatch.state === "collecting" ? "var(--yellow)"
-                : screenWatch.state === "answering" ? "var(--accent)"
-                : screenWatch.state === "error" ? "var(--red)"
-                : "var(--green)",
-            }} />
-            <span style={styles.statusText}>
-              {screenWatch.state === "collecting"
-                ? t("app.screenWatch.collecting", { seconds: screenWatch.remaining })
-                : screenWatch.state === "answering"
-                ? t("app.screenWatch.answering")
-                : screenWatch.state === "error"
-                ? t("app.screenWatch.error", { message: screenWatch.message || t("app.screenWatch.errorDefault") })
-                : t("app.screenWatch.watching")}
             </span>
           </div>
         )}

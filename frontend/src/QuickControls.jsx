@@ -40,8 +40,6 @@ export default function QuickControls({
 
   // ── TTS provider / voice ─────────────────────────────────────────────────
   const [voices, setVoices] = useState([]);
-  const [elevenVoices, setElevenVoices] = useState([]);
-  const [elevenVoicesStatus, setElevenVoicesStatus] = useState("");
   const [piperVoices, setPiperVoices] = useState([]);
   const [piperStatus, setPiperStatus] = useState("");
 
@@ -64,28 +62,8 @@ export default function QuickControls({
     }
   };
 
-  const loadElevenVoices = async (apiKey) => {
-    if (!apiKey) return;
-    setElevenVoicesStatus("loading");
-    try {
-      const res = await apiFetch("/tts/elevenlabs/voices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setElevenVoices(data.voices || []);
-      setElevenVoicesStatus("");
-    } catch (err) {
-      setElevenVoices([]);
-      setElevenVoicesStatus(err.message);
-    }
-  };
-
   useEffect(() => {
     if (!settings) return;
-    if (settings.ttsProvider === "elevenlabs" && settings.elevenLabsKey) loadElevenVoices(settings.elevenLabsKey);
     if (settings.ttsProvider === "piper") loadPiperVoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -162,9 +140,6 @@ export default function QuickControls({
                 }}
               >
                 <option value="windows">{t("quickControls.windowsOption")}</option>
-                <option value="elevenlabs" disabled={ttsProvider !== "elevenlabs"}>
-                  {t("quickControls.elevenlabsOption")}{ttsProvider !== "elevenlabs" ? t("quickControls.elevenlabsUnavailable") : ""}
-                </option>
                 <option value="piper">Piper</option>
               </select>
             </div>
@@ -183,40 +158,6 @@ export default function QuickControls({
                     </option>
                   ))}
                 </select>
-              </div>
-            )}
-
-            {ttsProvider === "elevenlabs" && (
-              <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <select
-                    value={settings.elevenLabsVoiceId || ""}
-                    onChange={(e) => onUpdateSetting("elevenLabsVoiceId", e.target.value)}
-                    style={{ flex: 1 }}
-                  >
-                    <option value="">{t("quickControls.chooseVoice")}</option>
-                    {elevenVoices.map((v) => (
-                      <option key={v.voice_id} value={v.voice_id}>
-                        {v.name}{v.category ? ` (${v.category})` : ""}
-                      </option>
-                    ))}
-                    {settings.elevenLabsVoiceId && !elevenVoices.some((v) => v.voice_id === settings.elevenLabsVoiceId) && (
-                      <option value={settings.elevenLabsVoiceId}>{settings.elevenLabsVoiceId}{t("quickControls.saved")}</option>
-                    )}
-                  </select>
-                  <button
-                    type="button"
-                    style={styles.smallBtn}
-                    onClick={() => loadElevenVoices(settings.elevenLabsKey)}
-                    disabled={!settings.elevenLabsKey || elevenVoicesStatus === "loading"}
-                  >
-                    <RefreshCw size={14} color="var(--accent)" />
-                  </button>
-                </div>
-                {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
-                  <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {elevenVoicesStatus}</span>
-                )}
               </div>
             )}
 

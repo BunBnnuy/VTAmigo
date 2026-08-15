@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from "react";
-import { X, XCircle, CheckCircle2, Check, AlertTriangle, RefreshCw, Monitor, Download, Upload, Link2, Clipboard } from "lucide-react";
+import { X, XCircle, CheckCircle2, Check, AlertTriangle, RefreshCw, Download, Upload, Link2, Clipboard } from "lucide-react";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, apiUrl } from "./api.js";
@@ -24,8 +24,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const micChromeAllowed = voice.supported && isChromeBrowser();
   const [voices, setVoices] = useState([]);
   const [micDevices, setMicDevices] = useState([]);
-  const [elevenVoices, setElevenVoices] = useState([]);
-  const [elevenVoicesStatus, setElevenVoicesStatus] = useState(""); // "", "loading", "error message"
   const [piperVoices, setPiperVoices] = useState([]);
   const [piperStatus, setPiperStatus] = useState(""); // "", "loading", "ok", "missing", "error message"
   const [exportTarget, setExportTarget] = useState("");
@@ -350,30 +348,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     }
   };
 
-  const loadElevenVoices = async (apiKey) => {
-    if (!apiKey) return;
-    setElevenVoicesStatus("loading");
-    try {
-      const res = await apiFetch("/tts/elevenlabs/voices", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ apiKey }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      setElevenVoices(data.voices || []);
-      setElevenVoicesStatus("");
-    } catch (err) {
-      setElevenVoices([]);
-      setElevenVoicesStatus(err.message);
-    }
-  };
-
-  // Auto-load ElevenLabs voices when opening settings with a saved key
   useEffect(() => {
-    if (settings.ttsProvider === "elevenlabs" && settings.elevenLabsKey) {
-      loadElevenVoices(settings.elevenLabsKey);
-    }
     if (settings.ttsProvider === "piper") loadPiperVoices();
   }, []);
 
@@ -699,204 +674,22 @@ export default function Settings({ settings, tier, onSave, onClose }) {
             </div>
           </section>
 
-          <section style={{ ...styles.section, ...styles.disabledSection }}>
-            <fieldset disabled style={styles.disabledFieldset}>
-              <h3 style={styles.sectionTitle}>{t("settings.reddit.title")} <span style={styles.comingSoon}>{t("settings.reddit.disabled")}</span></h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  id="idleReddit"
-                  checked={false}
-                  onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--accent)" }}
-                />
-                <label htmlFor="idleReddit" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  {t("settings.reddit.enableLabel")}
-                </label>
-              </div>
-              <div style={styles.field}>
-                <label>{t("settings.reddit.thresholdLabel")}</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={50}
-                  value={form.idleStoryThreshold ?? 7}
-                  onChange={(e) => set("idleStoryThreshold", Number(e.target.value))}
-                />
-                <span style={styles.hint}>
-                  {t("settings.reddit.thresholdHint", {
-                    minutes: Math.round((form.idleStoryThreshold ?? 7) * (form.batchWindow ?? 20) / 60),
-                    window: form.batchWindow ?? 20,
-                  })}
-                </span>
-              </div>
-              <div style={styles.field}>
-                <label>{t("settings.reddit.subredditsLabel")}</label>
-                <input
-                  value={form.subreddits ?? "HistoriasDeReddit, AskRedditEsp, confesiones, anecdotasgraciosas, es"}
-                  onChange={(e) => set("subreddits", e.target.value)}
-                  placeholder="HistoriasDeReddit, AskRedditEsp, es"
-                />
-                <span style={styles.hint}>{t("settings.reddit.subredditsHint")}</span>
-              </div>
-            </fieldset>
-          </section>
-
-          <section style={{ ...styles.section, ...styles.disabledSection }}>
-            <fieldset disabled style={styles.disabledFieldset}>
-              <h3 style={styles.sectionTitle}>{t("settings.youtube.title")} <span style={styles.comingSoon}>{t("settings.youtube.disabled")}</span></h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  id="youtubePeek"
-                  checked={false}
-                  onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--accent)" }}
-                />
-                <label htmlFor="youtubePeek" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  {t("settings.youtube.enableLabel")}
-                </label>
-              </div>
-              <div style={styles.field}>
-                <label>{t("settings.youtube.intervalLabel")}</label>
-                <input
-                  type="number"
-                  min={1}
-                  max={60}
-                  value={form.youtubePeekInterval ?? 5}
-                  onChange={(e) => set("youtubePeekInterval", Number(e.target.value))}
-                />
-                <span style={styles.hint}>
-                  {t("settings.youtube.intervalHint", {
-                    interval: form.youtubePeekInterval ?? 5,
-                    plural: (form.youtubePeekInterval ?? 5) !== 1 ? "s" : "",
-                  })}
-                </span>
-              </div>
-            </fieldset>
-          </section>
-
-          <section style={{ ...styles.section, ...styles.disabledSection }}>
-            <fieldset disabled style={styles.disabledFieldset}>
-              <h3 style={styles.sectionTitle}>{t("settings.trivia.title")} <span style={styles.comingSoon}>{t("settings.trivia.disabled")}</span></h3>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  id="screenWatch"
-                  checked={false}
-                  onChange={() => {}}
-                  style={{ width: "auto", accentColor: "var(--accent)" }}
-                />
-                <label htmlFor="screenWatch" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  {t("settings.trivia.enableLabel")}
-                </label>
-              </div>
-              <div style={styles.row2}>
-                <div style={styles.field}>
-                  <label>{t("settings.trivia.captureInterval")}</label>
-                  <input
-                    type="number"
-                    min={2}
-                    max={30}
-                    value={form.screenWatchInterval ?? 4}
-                    onChange={(e) => set("screenWatchInterval", Number(e.target.value))}
-                  />
-                </div>
-                <div style={styles.field}>
-                  <label>{t("settings.trivia.waitChat")}</label>
-                  <input
-                    type="number"
-                    min={5}
-                    max={120}
-                    value={form.screenWatchWindow ?? 20}
-                    onChange={(e) => set("screenWatchWindow", Number(e.target.value))}
-                  />
-                </div>
-              </div>
-              <div style={styles.field}>
-                <label>{t("settings.trivia.processLabel")}</label>
-                <input
-                  value={form.screenWatchProcess || ""}
-                  onChange={(e) => set("screenWatchProcess", e.target.value)}
-                  placeholder={t("settings.trivia.processPlaceholder")}
-                />
-                <span style={styles.hint}>{t("settings.trivia.processHint")}</span>
-              </div>
-              <div style={styles.field}>
-                <label>{t("settings.trivia.regionLabel")}</label>
-                <input
-                  value={form.screenWatchRegion || ""}
-                  onChange={(e) => set("screenWatchRegion", e.target.value)}
-                  placeholder={t("settings.trivia.regionPlaceholder")}
-                />
-                <span style={styles.hint}>{t("settings.trivia.regionHint")}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
-                <input
-                  type="checkbox"
-                  id="screenClick"
-                  checked={form.screenClickEnabled || false}
-                  onChange={(e) => set("screenClickEnabled", e.target.checked)}
-                  style={{ width: "auto", accentColor: "var(--accent)" }}
-                />
-                <label htmlFor="screenClick" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  {t("settings.trivia.autoClickLabel")}
-                </label>
-              </div>
-              <div style={styles.field}>
-                <label>{t("settings.trivia.clickTargetLabel")}</label>
-                <select
-                  value={form.screenClickTarget || "ai"}
-                  onChange={(e) => set("screenClickTarget", e.target.value)}
-                >
-                  <option value="ai">{t("settings.trivia.clickTargetAI")}</option>
-                  <option value="chat">{t("settings.trivia.clickTargetChat")}</option>
-                </select>
-                <span style={styles.hint}>{t("settings.trivia.clickHint")}</span>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 6 }}>
-                <input
-                  type="checkbox"
-                  id="screenAutoNav"
-                  checked={form.screenAutoNavigate || false}
-                  onChange={(e) => set("screenAutoNavigate", e.target.checked)}
-                  style={{ width: "auto", accentColor: "var(--accent)" }}
-                />
-                <label htmlFor="screenAutoNav" style={{ margin: 0, color: "var(--text)", fontSize: 13 }}>
-                  {t("settings.trivia.autoNavLabel")}
-                </label>
-              </div>
-              <div style={styles.field}>
-                <span style={styles.hint}>{t("settings.trivia.autoNavHint")}</span>
-              </div>
-              <div style={styles.field}>
-                <button
-                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", width: "100%" }}
-                  type="button"
-                  onClick={() => {
-                    apiFetch("/screenwatch/test", { method: "POST" }).catch(() => {});
-                    onClose();
-                  }}
-                >
-                  <Monitor size={14} color="var(--accent)" /> {t("settings.trivia.testButton")}
-                </button>
-              </div>
-            </fieldset>
-          </section>
-
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>{t("settings.aiProvider.title")}</h3>
-            <div style={{ ...styles.disabledSection, marginBottom: 12 }}>
-            <fieldset disabled style={styles.disabledFieldset}>
+            {/* The option list is still hardcoded — D1 replaces it with what
+                GET /ai/providers reports the server can actually reach. */}
             <div style={styles.field}>
-              <label>{t("settings.aiProvider.providerLabel")} <span style={styles.comingSoon}>{t("settings.aiProvider.onlyClaude")}</span></label>
-              <select value="claude" onChange={() => {}}>
+              <label>{t("settings.aiProvider.providerLabel")}</label>
+              <select value={form.provider || "claude"} onChange={(e) => set("provider", e.target.value)}>
                 <option value="claude">Claude (claude -p)</option>
                 <option value="grok">Grok (grok -p)</option>
                 <option value="agy">AGY CLI (agy -p)</option>
                 <option value="chatgpt">ChatGPT (OpenAI API)</option>
               </select>
             </div>
+            {/* Memory export between provider CLIs is still hidden pending D1. */}
+            <div style={{ ...styles.disabledSection, marginBottom: 12 }}>
+            <fieldset disabled style={styles.disabledFieldset}>
             {(() => {
               const current = form.provider || "claude";
               const targets = ["claude", "grok", "agy"].filter((p) => p !== current);
@@ -1095,9 +888,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 }}
               >
                 <option value="windows">{t("settings.tts.windows")}</option>
-                <option value="elevenlabs" disabled={form.ttsProvider !== "elevenlabs"}>
-                  {t("settings.tts.elevenlabs")} {form.ttsProvider !== "elevenlabs" ? `(${t("settings.tts.unavailable")})` : ""}
-                </option>
                 <option value="piper">{t("settings.tts.piper")}</option>
               </select>
             </div>
@@ -1113,67 +903,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                   ))}
                 </select>
               </div>
-            )}
-            {form.ttsProvider === "elevenlabs" && (
-              <>
-                <div style={styles.field}>
-                  <label>{t("settings.tts.elevenApiKey")}</label>
-                  <input
-                    type="password"
-                    value={form.elevenLabsKey || ""}
-                    onChange={(e) => set("elevenLabsKey", e.target.value)}
-                    onBlur={() => loadElevenVoices(form.elevenLabsKey)}
-                    placeholder="sk_xxxxxxxxxxxxxxxxxxxx"
-                  />
-                  <span style={styles.hint}>
-                    {t("settings.tts.elevenApiKeyHintPrefix")}{" "}
-                    <a href="https://elevenlabs.io/app/settings/api-keys" target="_blank" rel="noreferrer" style={styles.link}>
-                      elevenlabs.io
-                    </a>
-                    {" "}{t("settings.tts.elevenApiKeyHintSuffix")}
-                  </span>
-                </div>
-                <div style={styles.field}>
-                  <label>{t("settings.tts.elevenVoice")}</label>
-                  <div style={{ display: "flex", gap: 8 }}>
-                    <select
-                      value={form.elevenLabsVoiceId || ""}
-                      onChange={(e) => set("elevenLabsVoiceId", e.target.value)}
-                      style={{ flex: 1 }}
-                    >
-                      <option value="">{t("settings.tts.selectVoice")}</option>
-                      {elevenVoices.map((v) => (
-                        <option key={v.voice_id} value={v.voice_id}>
-                          {v.name}{v.category ? ` (${v.category})` : ""}
-                        </option>
-                      ))}
-                      {form.elevenLabsVoiceId && !elevenVoices.some((v) => v.voice_id === form.elevenLabsVoiceId) && (
-                        <option value={form.elevenLabsVoiceId}>{form.elevenLabsVoiceId} {t("settings.tts.savedVoice")}</option>
-                      )}
-                    </select>
-                    <button
-                      type="button"
-                      style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
-                      onClick={() => loadElevenVoices(form.elevenLabsKey)}
-                      disabled={!form.elevenLabsKey || elevenVoicesStatus === "loading"}
-                    >
-                      {elevenVoicesStatus === "loading" ? t("settings.tts.loading") : (<><RefreshCw size={14} color="var(--accent)" /> {t("settings.tts.loadVoices")}</>)}
-                    </button>
-                  </div>
-                  {elevenVoicesStatus && elevenVoicesStatus !== "loading" && (
-                    <span style={{ ...styles.hint, color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} /> {elevenVoicesStatus}</span>
-                  )}
-                </div>
-                <div style={styles.field}>
-                  <label>{t("settings.tts.pasteVoiceId")}</label>
-                  <input
-                    value={form.elevenLabsVoiceId || ""}
-                    onChange={(e) => set("elevenLabsVoiceId", e.target.value.trim())}
-                    placeholder="21m00Tcm4TlvDq8ikWAM"
-                  />
-                  <span style={styles.hint}>{t("settings.tts.pasteVoiceIdHint")}</span>
-                </div>
-              </>
             )}
             {form.ttsProvider === "piper" && (
               <div style={styles.field}>

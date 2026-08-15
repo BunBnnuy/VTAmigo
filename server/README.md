@@ -1,6 +1,8 @@
 # Headless backend deployment (Linux)
 
-Scripts for running the VTAmigo backend on a headless Linux VPS (tested target: Ubuntu 22.04). Only the parts of the app that don't need Windows are deployed this way — see the README's "Requirements" section for what's desktop-only (VTube Studio, screen OCR, mic transcription, Windows TTS).
+Scripts for running the VTAmigo backend on a headless Linux VPS (tested target: Ubuntu 22.04). This is how VTAmigo runs — there is no desktop build; the VPS serves both the API and the built frontend.
+
+Two things still run in the viewer's/streamer's browser rather than on the server: mic transcription (Web Speech API, Chromium-based browsers only) and the default "Windows TTS" voice, which is really the browser's `speechSynthesis`. Piper TTS runs server-side, installed by `setup.sh`.
 
 ## Usage
 
@@ -22,59 +24,13 @@ sudo journalctl -u vtamigo-backend -f
 
 ## Hosting the frontend too
 
-The backend already serves the built frontend statically when running outside Electron dev mode (see `backend/index.js`'s `isProd` block), so the same domain can serve the whole app instead of running the client locally:
+The backend serves the built frontend statically in production (see the `isProd` block in `backend/app.js`), so the same domain serves the whole app:
 
 ```bash
 bash server/deploy-frontend.sh   # builds frontend/dist and restarts the service
 ```
 
-Once deployed, visiting the site directly (e.g. `https://vtamigo.top`) serves the full app — no local `npm run dev`/`dev:remote` needed, and no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
-
-## VTube Studio lip-sync
-
-VTube Studio only listens on `ws://localhost:8001` on your own PC. Once the backend runs on the VPS instead of locally, "localhost" from the backend's point of view means the VPS itself — the lip-sync connection will fail (`ECONNREFUSED 127.0.0.1:8001`) unless something bridges the two.
-
-Fix: an SSH reverse tunnel that forwards the VPS's `localhost:8001` back to your PC's `localhost:8001`. Run this locally whenever streaming with the client pointed at the VPS:
-
-```powershell
-powershell -File server/vtube-tunnel.ps1
-```
-
-Leave the window open for the stream's duration — it auto-reconnects if the connection drops. No app config changes needed; the backend's `vtubeUrl` setting stays `ws://localhost:8001` as normal, it just now resolves through the tunnel.
-
-This is needed regardless of how you reach the app — whether running the client locally (`npm run dev:remote`, which starts the tunnel automatically) or just opening the hosted site in a browser (in which case run `vtube-tunnel.ps1` on its own, standalone, since there's no `dev:remote` process to bundle it into). Either way, VTube Studio itself still only runs on your PC, so the tunnel is what makes the remote backend able to reach it.
-
-## Guest tunnel client (VTube Studio from a second PC)
-
-Anyone approved in the app can enroll a second machine's VTube Studio (e.g. a co-streamer's PC) via a downloadable client (`Settings > Tunnel client`, built from `client/tunnel-client.js` with `npm run build:tunnel-client`). It never handles the shared SSH key — it generates its own local keypair and gets approved through a device-code flow (`backend/devices.js`) at `/device?code=...`, reusing the existing Twitch login + approval.
-
-**One-time VPS setup** — a dedicated, unprivileged SSH user that only ever does restricted port-forwarding, so a device's key can never do anything but forward its assigned port:
-
-```bash
-sudo adduser --disabled-password --gecos "" --shell /usr/sbin/nologin tunnel
-sudo chmod 755 /opt/vtamigo/server/tunnel-authorized-keys.sh
-sudo chown root:root /opt/vtamigo/server/tunnel-authorized-keys.sh
-
-sudo tee -a /etc/ssh/sshd_config >/dev/null <<'EOF'
-
-Match User tunnel
-    AuthorizedKeysFile none
-    AuthorizedKeysCommand /opt/vtamigo/server/tunnel-authorized-keys.sh
-    AuthorizedKeysCommandUser nobody
-    PasswordAuthentication no
-    PubkeyAuthentication yes
-    AllowTcpForwarding remote
-    X11Forwarding no
-    PermitTTY no
-EOF
-sudo sshd -t && sudo systemctl reload sshd
-```
-
-There's deliberately no `/home/tunnel/.ssh/authorized_keys` file at all — sshd instead runs `server/tunnel-authorized-keys.sh` on every connection attempt (as `AuthorizedKeysCommandUser`), which reads `backend/devices.json` and prints the matching key on the fly. This sidesteps a real footgun: a group-writable (or ACL-writable) `authorized_keys` file gets **silently ignored** by sshd's `StrictModes` — no error, it just falls back to `PasswordAuthentication`, which looks like the setup "worked" until you notice you're being asked for a password that was never supposed to exist. `AuthorizedKeysCommand` has no such permission conflict: `backend/devices.js` only ever needs to write `devices.json`, which it already owns with normal permissions — no sudo, ACLs, or shared group needed.
-
-`AuthorizedKeysCommand` requires the script to be owned by root and not group/other-writable (`chown root:root`, `chmod 755` as above) — sshd itself refuses to run it otherwise. Each approved device in `devices.json` gets its own restricted line (`restrict,port-forwarding,permitopen="127.0.0.1:8001",permitlisten="<port>"`) generated at lookup time, with its own incrementing remote port starting at 8002 (8001 stays reserved for the owner's own `vtube-tunnel.ps1`). Revoking a device from the admin panel just flips its `status` in `devices.json` — the next connection attempt won't find it anymore.
-
-If a client ever hits a `password:` prompt instead of connecting silently, something is misconfigured — never type a password at that prompt. Check `sudo sshd -T | grep -A6 -i 'Match User tunnel\|authorizedkeys'` reflects the block above, and `journalctl -u ssh` for `AuthorizedKeysCommand` errors.
+Once deployed, visiting the site directly (e.g. `https://vtamigo.top`) serves the full app, with no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
 
 ## Dev instance (dev.vtamigo.top), edit-in-place
 

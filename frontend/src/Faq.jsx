@@ -8,7 +8,7 @@ import logo from "./img/logo.png";
 // language on the landing page carries over to this page and back.
 const LANDING_LANG_KEY = "landingLang";
 
-const ITEM_KEYS = ["what", "need", "approval", "vtube", "data"];
+const ITEM_KEYS = ["what", "need", "approval", "data"];
 
 export default function Faq() {
   const [lang, setLang] = useState(() => localStorage.getItem(LANDING_LANG_KEY) || detectLanguage());

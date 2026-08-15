@@ -1,7 +1,7 @@
 // Central SQLite connection, one physical file per environment so dev/
 // staging/prod never share data. Every module that used to hand-roll its own
 // flat-JSON-file read/write (auth.js, chatOverlayConfig.js, siteConfig.js,
-// usage.js, errorLog.js, devices.js, memoryDownload.js, videoQueue.js, xp.js,
+// usage.js, errorLog.js, memoryDownload.js, videoQueue.js, xp.js,
 // claude.js's agent sessions) now goes through here instead.
 const fs = require("fs");
 const path = require("path");
@@ -60,17 +60,6 @@ db.exec(`
     twitchId TEXT PRIMARY KEY,
     settings TEXT NOT NULL,
     updatedAt TEXT NOT NULL
-  );
-
-  CREATE TABLE IF NOT EXISTS devices (
-    deviceCode TEXT PRIMARY KEY,
-    userCode TEXT,
-    publicKey TEXT,
-    twitchId TEXT,
-    status TEXT,
-    assignedPort INTEGER,
-    createdAt TEXT,
-    approvedAt TEXT
   );
 
   CREATE TABLE IF NOT EXISTS usage_log (
@@ -157,5 +146,13 @@ db.exec(`
     PRIMARY KEY (provider, twitchId)
   );
 `);
+
+// Device-code enrollment for the downloadable tunnel client was a desktop-era
+// feature: it granted a streamer's own PC an SSH port-forward so the hosted
+// backend could reach VTube Studio running on that machine. VTS support is
+// gone, so nothing reads this table any more — drop it rather than leave rows
+// of public keys lying around. Idempotent: a no-op on databases created after
+// the table stopped being declared above.
+db.exec(`DROP TABLE IF EXISTS devices;`);
 
 module.exports = { db, ENV, DB_PATH };

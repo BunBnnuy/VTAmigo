@@ -6,7 +6,7 @@ export default {
     subtitle: "VTAmigoはTwitchチャットを読み取り、声で返信し、アバターをアニメーションさせます — 静かな時間でも、配信には常に話し相手がいます。",
     cta: "Twitchでログインして始める",
     ctaNote: "無料でお試しいただけます — クレジットカード不要。",
-    footer: "VTAmigoは、既存のTwitchおよびVTube Studioの設定と一緒に動作します。",
+    footer: "VTAmigoは、既存のTwitchの設定と一緒に動作します。",
     privacy: "プライバシーポリシー",
     faq: "よくある質問",
     features: {
@@ -20,7 +20,7 @@ export default {
       },
       overlay: {
         title: "OBSアバターオーバーレイをアニメーション",
-        desc: "OBSにBrowser Sourceを追加するだけで、TTSに合わせてアバターが「話している」画像と「待機」画像を切り替えます — VTube Studio不要。",
+        desc: "OBSにBrowser Sourceを追加するだけで、TTSに合わせてアバターが「話している」画像と「待機」画像を切り替えます。",
       },
       events: {
         title: "イベントに反応",
@@ -63,13 +63,9 @@ export default {
         q: "ログインしましたが「承認待ち」と表示されます。なぜですか？",
         a: "現在、アクセスは手動で許可しています。初回ログイン時にアカウントが順番待ちに入り、管理者が承認してから利用できるようになります。これは最初の一度だけで、承認後はログインするとそのままダッシュボードに進みます。",
       },
-      vtube: {
-        q: "VTube StudioやVTuberモデルは必要ですか？",
-        a: "いいえ。VTAmigoは単体でOBS上のシンプルなアバターオーバーレイを動かせます。音声に合わせて「話している画像」と「待機画像」を切り替えます。すでにVTube Studioをお使いなら併用できますが、必須ではありません。",
-      },
       data: {
         q: "チャットのデータはどう扱われますか？",
-        a: "返答を生成するために、該当するチャットメッセージとあなたのプロンプトが、アカウントに設定されたAIプロバイダーへ送信されます。ElevenLabsの音声を使う場合は、読み上げるテキストもそちらへ送られます。ローカルのPiper音声を選べば、その処理は当社のサーバー内にとどまります。また、チャンネルのレベリングデータや配信イベントも保存しています。",
+        a: "返答を生成するために、該当するチャットメッセージとあなたのプロンプトが、アカウントに設定されたAIプロバイダーへ送信されます。音声合成はお使いのブラウザ内で行われ、Piper音声を選んだ場合は当社のサーバー内で処理されます。第三者の音声サービスへ送信されることはありません。また、チャンネルのレベリングデータや配信イベントも保存しています。",
       },
     },
   },
@@ -95,13 +91,6 @@ export default {
       loadedOkDroppedBackend: "設定を読み込みました（ファイルに保存されていた別ドメインのBackend URLは無視されました）— 項目を確認し、「保存して適用」を押して保存してください",
       invalidFile: "無効なファイルです: {error}",
       readError: "{file} を読み込めませんでした",
-    },
-
-    tunnel: {
-      title: "トンネルクライアント（別のPCからVTube Studioを使用）",
-      label: "ゲストが自分のPCからVTube Studioのリップシンクを実行できるようにする",
-      download: "tunnel-client.exe をダウンロード",
-      hint: "ゲストがexeを実行すると短いコードが表示され、承認済みユーザーが /device でログインして承認します。共有する鍵やパスワードは不要です。内蔵のリバーストンネルと同じ仕組みを、2台目のマシン向けに使います。",
     },
 
     tiktok: {
@@ -152,7 +141,7 @@ export default {
     },
 
     avatarOverlay: {
-      title: "OBSオーバーレイ — アバター（VTube Studio不要）",
+      title: "OBSオーバーレイ — アバター",
       urlLabel: "ブラウザソースURL",
       copy: "コピー",
       copied: "コピーしました",
@@ -177,50 +166,9 @@ export default {
       styleNarrator: "ナレーター（実況風）",
     },
 
-    reddit: {
-      title: "Redditストーリー",
-      disabled: "（現在無効）",
-      enableLabel: "チャットがアイドル状態のときにストーリーを話す",
-      thresholdLabel: "N回の空バッチごとにストーリーを話す",
-      thresholdHint: "例: 7 = タイマーがメッセージなしで7回発火するごとに1回ストーリーを読む（ウィンドウ{window}秒の場合、約{minutes}分）。",
-      subredditsLabel: "サブレディット（カンマ区切り）",
-      subredditsHint: "スペイン語のテキスト投稿がある公開サブレディットのみ。",
-    },
-
-    youtube: {
-      title: "YouTube Peek",
-      disabled: "（現在無効）",
-      enableLabel: "YouTubeタブの内容を定期的にナレーションする",
-      intervalLabel: "間隔（分）",
-      intervalHint: "Claudeは{interval}分ごとにYouTubeタブを確認し、見た内容をナレーションします。Claude in Chrome拡張機能が有効である必要があります。",
-    },
-
-    trivia: {
-      title: "画面上の質問（トリビア）",
-      disabled: "（現在無効）",
-      enableLabel: "画面上の質問を検出し、チャットの助けを借りて回答する",
-      captureInterval: "キャプチャ間隔（秒）",
-      waitChat: "チャットを待つ時間（秒）",
-      processLabel: "キャプチャするプログラム（任意）: 実行ファイル名",
-      processPlaceholder: "TriviaGame.exe — 空欄の場合はメインモニター",
-      processHint: "他のウィンドウの背後にあっても、そのプログラムのウィンドウのみをキャプチャします。ゲームがまだ開いていない場合は開くまで待ちます。",
-      regionLabel: "キャプチャ領域（任意）: x,y,幅,高さ",
-      regionPlaceholder: "0,0,1920,1080 — 空欄の場合はすべて",
-      regionHint: "質問が表示される領域にキャプチャを限定します（誤検出が減り、解析コストも下がります）。プログラムを選択した場合、領域はそのウィンドウ基準に、そうでない場合はメインモニター基準になります。ローカルOCR（無料）でテキストを検出し、質問がありそうな場合のみAI（haiku）を使用します。検出すると、チャットウィンドウを待ってから投票を考慮して回答します。",
-      autoClickLabel: "選択した回答を自動クリック",
-      clickTargetLabel: "クリック対象",
-      clickTargetAI: "AIの回答",
-      clickTargetChat: "チャットで最も投票された回答（投票がある場合）",
-      clickHint: "OCRで画面上の選択肢のテキストを見つけてクリックします（ゲームウィンドウを前面に表示します）。その後3〜5秒待ってから同じ位置を再度クリックし、次の質問へ進みます。",
-      autoNavLabel: "ラウンド間の自動ナビゲーション（Majotori）",
-      autoNavHint: "結果画面を検出すると、メインメニューに戻るまでクリックし、そこで「Play」、続いて「Trivia Only」を押し、さらに1回クリックして次の質問に進みます。",
-      testButton: "サンプル質問でテスト",
-    },
-
     aiProvider: {
       title: "AIプロバイダー",
       providerLabel: "プロバイダー",
-      onlyClaude: "（現在はClaudeのみ利用可能）",
       exportMemoryLabel: "現在のモデルのメモリをエクスポート",
       exporting: "エクスポート中…",
       exportTo: "{target} へエクスポート",
@@ -250,21 +198,11 @@ export default {
       title: "音声合成（TTS）",
       provider: "TTSプロバイダー",
       windows: "Windows TTS（システム音声）",
-      elevenlabs: "ElevenLabs（APIキーが必要）",
-      unavailable: "一時的に利用不可",
       piper: "Piper（ローカルのスペイン語音声、オフライン）",
       voice: "音声",
       systemDefault: "システムのデフォルト",
-      elevenApiKey: "ElevenLabs APIキー",
-      elevenApiKeyHintPrefix: "取得先:",
-      elevenApiKeyHintSuffix: "— ローカルに保存され、ローカルバックエンドにのみ送信されます。生成に失敗した場合はWindows TTSにフォールバックします。",
-      elevenVoice: "ElevenLabsの音声",
-      selectVoice: "— 音声を選択 —",
-      savedVoice: "（保存済み）",
       loadVoices: "音声を読み込む",
       loading: "読み込み中…",
-      pasteVoiceId: "または音声IDを直接貼り付け",
-      pasteVoiceIdHint: "「My voices」に表示されないライブラリ/共有音声に便利です。IDはElevenLabs → Voices → ⋯ → Copy voice ID から確認できます。",
       piperVoice: "Piperの音声",
       piperDefault: "デフォルト（es_MX claude、高品質）",
       piperMissing: "projects\\piperttsspanish に piper.exe が見つかりません",
@@ -297,18 +235,6 @@ export default {
       titleDelimiterPlaceholder: "例: |",
       titleDelimiterHint: "設定すると、「タイトルを変更して」という音声コマンドは、この文字列が最初に現れる位置より前の部分だけを置き換えます。それ以降はそのまま残ります。",
     },
-
-    vtube: {
-      title: "VTube Studio — リップシンク",
-      wsUrl: "WebSocket URL",
-      wsHint: "VTube Studioの Settings → General で Plugin API を有効にし、ポートが一致していることを確認してください。",
-      pluginName: "プラグイン名",
-      mouthParam: "口のパラメーター（VTSトラッキングパラメーター）",
-      mouthParamHint: "Live2Dのパラメーター名ではなく、VTSのフェイストラッキングの入力名（MouthOpen、MouthSmileなど）を使用してください。",
-      sensitivity: "口の感度（{pct}%）",
-      sensitivityHint: "50% = 控えめな動き ・ 100% = フルレンジ",
-      testButton: "口の動きをテスト",
-    },
   },
 
   onboarding: {
@@ -330,7 +256,7 @@ export default {
       },
       statusFooter: {
         title: "ステータスバー",
-        body: "このバーでは、Twitch、ボットアカウント、VTube Studioの接続状況と、次のAI返信までのカウントダウンを一目で確認できます。",
+        body: "このバーでは、Twitchとボットアカウントの接続状況と、次のAI返信までのカウントダウンを一目で確認できます。",
       },
       openSettings: {
         title: "設定を開く",
@@ -415,13 +341,6 @@ export default {
     botSiteSuffix: "（サイト）",
     botConnecting: "接続中…",
     botDisconnected: "切断済み",
-    screenWatch: {
-      collecting: "質問 — チャットを{seconds}秒間読み取り中",
-      answering: "質問に回答中…",
-      error: "{message}",
-      errorDefault: "キャプチャエラー",
-      watching: "画面を監視中",
-    },
     countdown: "次まで {seconds}秒",
     buffered: "{count} 件バッファ中",
     nowSessionExhausted: "このセッションではNowボタンを使い切りました（プランの上限）",
@@ -466,12 +385,8 @@ export default {
     voiceSection: "音声",
     provider: "プロバイダー",
     windowsOption: "Windows（ブラウザ）",
-    elevenlabsOption: "ElevenLabs",
-    elevenlabsUnavailable: "（利用不可）",
     voice: "音声",
     systemDefault: "システムのデフォルト",
-    chooseVoice: "音声を選択",
-    saved: "（保存済み）",
     defaultOption: "デフォルト",
     piperMissing: "Piperがインストールされていません",
     hint: "このパネルはコンパクトモードで非表示にできます",
