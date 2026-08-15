@@ -150,9 +150,16 @@ router.post("/connect-tiktok", (req, res) => {
   const existing = sessions.getTikTokClient();
   if (existing) existing.disconnect();
 
+  // handleChat's signature is (twitchId, msg). This used to pass only the
+  // message, so the message object arrived as twitchId and msg was undefined —
+  // every incoming TikTok message threw on `msg.login` instead of reaching the
+  // chat feed. Bind it to the account that opened the connection, the same way
+  // the Twitch path does in sessions.js.
+  const twitchId = req.user.twitchId;
+
   const client = new TikTokChatClient({
     username,
-    onMessage: (msg) => handleChat(msg),
+    onMessage: (msg) => handleChat(twitchId, msg),
     onStatus: (status) => broadcast({ type: "tiktok_status", status }),
   });
   sessions.setTikTokClient(client);
