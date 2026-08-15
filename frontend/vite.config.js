@@ -28,4 +28,10 @@ export default defineConfig({
       "/memory": "http://localhost:3001",
     },
   },
+  test: {
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./test/setup.js"],
+    include: ["test/**/*.test.{js,jsx}"],
+  },
 });
