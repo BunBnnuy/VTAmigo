@@ -1,15 +1,31 @@
 // Separate, password-only session for /admin — independent of Twitch login.
 const express = require("express");
+const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { readUsers, writeUsers, clearTwitchTokens } = require("./auth");
+const { readUsers, writeUsers, clearTwitchTokens, deriveKey } = require("./auth");
 const sysmonitor = require("./sysmonitor");
 const usage = require("./usage");
 const siteConfig = require("./siteConfig");
 const errorLog = require("./errorLog");
 
-const ADMIN_SECRET = process.env.SESSION_SECRET || "dev-insecure-session-secret";
+// Its own subkey off the shared trust root, rather than SESSION_SECRET
+// directly. requireAdmin does check `subject: "admin"`, so a user session JWT
+// was never usable here — but that safety rested entirely on one verifier
+// option being right. With separate keys, a user token is not even the right
+// signature, so forgetting the claim check somewhere can't escalate.
+const ADMIN_JWT_KEY = deriveKey("admin-jwt");
 const ADMIN_COOKIE = "admin_session";
 const SESSION_MAX_AGE_MS = 4 * 60 * 60 * 1000; // 4h inactivity timeout
+
+// The password is compared byte-for-byte in constant time. timingSafeEqual
+// throws on length mismatch — which would leak the length by itself — so both
+// sides are hashed to a fixed 32 bytes first.
+function passwordMatches(supplied, expected) {
+  if (typeof supplied !== "string" || typeof expected !== "string") return false;
+  const a = crypto.createHash("sha256").update(supplied).digest();
+  const b = crypto.createHash("sha256").update(expected).digest();
+  return crypto.timingSafeEqual(a, b);
+}
 
 // Sliding session: every authenticated request re-signs the cookie with a
 // fresh 4h expiry, so the admin only gets logged out after 4h of no activity
@@ -18,8 +34,8 @@ function requireAdmin(req, res, next) {
   const token = req.cookies && req.cookies[ADMIN_COOKIE];
   if (!token) return res.status(401).json({ error: "Not authorized" });
   try {
-    jwt.verify(token, ADMIN_SECRET, { subject: "admin" });
-    const fresh = jwt.sign({}, ADMIN_SECRET, { subject: "admin", expiresIn: "4h" });
+    jwt.verify(token, ADMIN_JWT_KEY, { subject: "admin" });
+    const fresh = jwt.sign({}, ADMIN_JWT_KEY, { subject: "admin", expiresIn: "4h" });
     res.cookie(ADMIN_COOKIE, fresh, { httpOnly: true, sameSite: "lax", maxAge: SESSION_MAX_AGE_MS });
     next();
   } catch {
@@ -33,9 +49,9 @@ router.post("/admin/login", (req, res) => {
   const { password } = req.body || {};
   const expected = process.env.ADMIN_PASSWORD;
   if (!expected) return res.status(503).json({ error: "ADMIN_PASSWORD is not configured on this server" });
-  if (password !== expected) return res.status(401).json({ error: "Wrong password" });
+  if (!passwordMatches(password, expected)) return res.status(401).json({ error: "Wrong password" });
 
-  const token = jwt.sign({}, ADMIN_SECRET, { subject: "admin", expiresIn: "4h" });
+  const token = jwt.sign({}, ADMIN_JWT_KEY, { subject: "admin", expiresIn: "4h" });
   res.cookie(ADMIN_COOKIE, token, { httpOnly: true, sameSite: "lax", maxAge: SESSION_MAX_AGE_MS });
   res.json({ ok: true });
 });
@@ -133,4 +149,6 @@ router.delete("/admin/error-log", requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-module.exports = { router, requireAdmin };
+// ADMIN_JWT_KEY and passwordMatches are exported for the test suite, which
+// asserts key separation from user sessions and the constant-time compare.
+module.exports = { router, requireAdmin, passwordMatches, ADMIN_JWT_KEY };

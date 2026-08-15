@@ -40,7 +40,13 @@ db.exec(`
     botAccessTokenEnc TEXT,
     botRefreshTokenEnc TEXT,
     botTokenExpiresAt INTEGER,
-    botLinkedAt TEXT
+    botLinkedAt TEXT,
+    -- Bumped to invalidate an account's overlay token (see auth.js's
+    -- rotateOverlayToken). Overlay tokens travel in query strings, so they
+    -- leak into access logs and screen-shared OBS dialogs; before this there
+    -- was no way to take one back short of rotating SESSION_SECRET for every
+    -- account at once.
+    overlayTokenVersion INTEGER NOT NULL DEFAULT 1
   );
 
   CREATE TABLE IF NOT EXISTS chat_overlay_config (
@@ -154,5 +160,15 @@ db.exec(`
 // of public keys lying around. Idempotent: a no-op on databases created after
 // the table stopped being declared above.
 db.exec(`DROP TABLE IF EXISTS devices;`);
+
+// `CREATE TABLE IF NOT EXISTS` above only shapes *new* databases, so columns
+// added later have to be backfilled onto existing ones by hand. SQLite has no
+// "ADD COLUMN IF NOT EXISTS", hence the table_info check.
+function addColumnIfMissing(table, column, definition) {
+  const exists = db.prepare(`PRAGMA table_info(${table})`).all().some((c) => c.name === column);
+  if (!exists) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${definition};`);
+}
+
+addColumnIfMissing("users", "overlayTokenVersion", "INTEGER NOT NULL DEFAULT 1");
 
 module.exports = { db, ENV, DB_PATH };

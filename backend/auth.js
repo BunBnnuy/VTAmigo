@@ -798,4 +798,13 @@ module.exports = {
   getValidBotTwitchToken,
   forceRefreshBotToken,
   clearBotTwitchTokens,
+  rotateOverlayToken,
+  // Exported for adminAuth.js, which needs its own subkey off the same trust
+  // root, and for the test suite, which asserts the boot-time contract without
+  // spawning a process.
+  deriveKey,
+  resolveSessionSecret,
+  encryptToken,
+  decryptToken,
+  DEV_FALLBACK_SECRET,
 };
