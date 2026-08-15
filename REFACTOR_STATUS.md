@@ -38,6 +38,9 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 | D3 — Chat / Twitch / actividad | D | `claude/legacy-refactor/d3-chat-twitch` | pendiente | — | |
 | D4 — Descomposición frontend | D | `claude/legacy-refactor/d4-frontend-split` | pendiente | — | |
 | D5 — Settings server-side | D | `claude/legacy-refactor/d5-settings-source` | pendiente | — | Único con cambio observable; mergea al final |
+| E1 — Raíz de confianza y auth | E | `claude/legacy-refactor/e1-auth-hardening` | pendiente | — | Independiente; puede correr en paralelo con D |
+| E2 — Rate limits, CORS, cabeceras | E | `claude/legacy-refactor/e2-limits-headers` | pendiente | — | Requiere C mergeado; va tras D2/D3 |
+| E3 — Dependencias | E | `claude/legacy-refactor/e3-deps` | pendiente | — | Puede arrancar en cuanto B3 esté mergeado |
 
 ## Restricciones duras
 
@@ -53,6 +56,15 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
    aunque `reddit.js` muera. Sí se quita del `package.json` **raíz**.
 4. **Cero cambios de comportamiento visible** fuera de las features borradas.
 5. **`frontend/DESIGN.md` es la fuente de verdad visual** (ver `CLAUDE.md`).
+6. **`PROTECTED_PREFIXES` en `backend/app.js` es lo único que autentica varias
+   rutas.** Renombrar una ruta sin actualizar esa lista la deja sin autenticar
+   en silencio — `req.user` pasa a ser `undefined`. Al mover `/lipsync` a
+   `/avatar`, hay que añadir `/avatar` a la lista. `/xp/ranking`, `/video/state`,
+   `/video/ended` y `/overlay/*` se saltan el guard **a propósito** (OBS no tiene
+   cookie de sesión) y hacen su propia comprobación inline.
+7. **No desinstales `express-rate-limit`** al borrar `devices.js`. Es el único
+   consumidor hoy, pero el lote E2 lo reutiliza para devolver limitación de tasa
+   a `/admin/login`, `/respond` y las subidas.
 
 ## Cómo correr las pruebas
 
@@ -77,3 +89,26 @@ base de desarrollo y ya cubierto por `.gitignore`.
 - **[Fase A]** `electron/main.js`, el script `dev` de la raíz y `.claude/launch.json`
   apuntan a `backend/index.js`. Sigue existiendo como entry point, así que nada
   se rompe; B3 se lleva `electron/` por delante de todos modos.
+- **[Auditoría de seguridad]** Añadida la Fase E al plan. Resultado de la
+  auditoría sobre el código real:
+  - **Alta** — `SESSION_SECRET` cae a `"dev-insecure-session-secret"`, y de ese
+    valor cuelgan los JWT de usuario, los de admin, la clave AES que cifra los
+    tokens de Twitch en reposo y el HMAC de los overlay tokens. Debe fallar al
+    arrancar en producción (E1).
+  - **Alta** — la purga de `devices.js` elimina el **único** rate limiter del
+    backend. Sin acción deliberada, la Fase B deja `/admin/login` sin protección
+    contra fuerza bruta (E2).
+  - **Media** — `ADMIN_PASSWORD` se compara con `!==`, no en tiempo constante (E1).
+  - **Media** — `wrapUntrusted` no neutraliza `</untrusted_data>` dentro del
+    contenido, así que un mensaje de chat puede escaparse del envoltorio
+    (addendum a D1, que ya reescribe ese archivo).
+  - **Baja-media** — `cors({ origin: true, credentials: true })` refleja
+    cualquier Origin; acotado en la práctica por las cookies `sameSite: "lax"` (E2).
+  - **Dependencias** — backend limpio; 6 de las 7 vulnerabilidades del frontend
+    (crítica de `protobufjs`, altas de `sharp`) cuelgan de `@xenova/transformers`,
+    que B3 ya borra por no tener referencias. Se resuelven con la purga (E3).
+  - Descartado como falso positivo: XSS en los overlays (todo entra por
+    `textContent`), inyección SQL (sentencias preparadas), inyección de comandos
+    (`spawn` con array, sin `shell`), path traversal en subidas (nombres
+    derivados de `twitchId` + UUID + extensión de un mapa MIME cerrado), y
+    escalada de sesión de usuario a admin (`requireAdmin` valida `subject`).
