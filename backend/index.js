@@ -2,7 +2,6 @@
 // app.js — this file only starts it: background timers, the listen() call,
 // and the fatal-error handler. Keeping the two apart is what lets the test
 // suite import the app and drive it with supertest without binding a port.
-const vtubeManager = require("./vtubeManager");
 const { server, startBackgroundJobs, PORT } = require("./app");
 
 startBackgroundJobs();
@@ -18,5 +17,4 @@ server.on("error", (err) => {
 
 server.listen(PORT, () => {
   console.log(`[server] listening on http://localhost:${PORT}`);
-  vtubeManager.bootstrap();
 });

@@ -1,12 +1,15 @@
 // Per-account speaking/silent avatar images for the OBS avatar-swap overlay
-// (backend/overlay/avatar.html) — an alternative to VTube Studio for users
-// who can't run VTS. Images are stored on disk, one file per account+slot,
+// (backend/overlay/avatar.html), the site's on-screen character: the overlay
+// swaps between these two images as POST /avatar/speaking/start|stop
+// broadcast the TTS playing state. Images are stored on disk, one file per account+slot,
 // with a flat JSON manifest (same style as users.json/xp-data.json) tracking
 // which mime type each file was uploaded as.
 const fs = require("fs");
 const path = require("path");
 
-const AVATARS_DIR = path.join(__dirname, "data", "avatars");
+// Overridable so the unit suite can point the store at a throwaway tmpdir
+// instead of writing test images into the real data directory.
+const AVATARS_DIR = process.env.AVATARS_DIR || path.join(__dirname, "data", "avatars");
 const MANIFEST_PATH = path.join(AVATARS_DIR, "manifest.json");
 const MAX_BYTES = 5 * 1024 * 1024;
 const SLOTS = ["speaking", "silent"];
