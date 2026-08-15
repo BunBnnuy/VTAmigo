@@ -503,15 +503,13 @@ function getApprovedUserFromCookieHeader(cookieHeader) {
       return [c.slice(0, idx).trim(), decodeURIComponent(c.slice(idx + 1).trim())];
     })
   );
-  const token = cookies[SESSION_COOKIE];
-  if (!token) return null;
-  try {
-    const { twitchId } = jwt.verify(token, SESSION_SECRET);
-    const user = findUser(twitchId);
-    return user && user.approved ? user : null;
-  } catch {
-    return null;
-  }
+  // Must go through verifySessionToken like readSession does: cookies are
+  // signed with SESSION_JWT_KEY, so verifying against the bare SESSION_SECRET
+  // here would accept only pre-subkey cookies and reject every current one.
+  const payload = verifySessionToken(cookies[SESSION_COOKIE]);
+  if (!payload || !payload.twitchId) return null;
+  const user = findUser(payload.twitchId);
+  return user && user.approved ? user : null;
 }
 
 const router = express.Router();

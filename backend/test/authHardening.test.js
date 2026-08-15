@@ -188,6 +188,68 @@ describe("overlay token rotation", () => {
   });
 });
 
+// The WS upgrade path (app.js) authenticates off the raw Cookie header rather
+// than an Express req, so it needs its own coverage: verifying there against
+// the bare secret instead of the session subkey rejected every cookie issued
+// after the subkey change, which took the /chat socket down while ordinary
+// HTTP routes (readSession) kept working.
+describe("getApprovedUserFromCookieHeader", () => {
+  const twitchId = "cookie-header-test";
+  const sessionKey = auth.deriveKey("session-jwt");
+
+  function seedUser(approved = true) {
+    db.prepare(`DELETE FROM users WHERE twitchId = ?`).run(twitchId);
+    const users = auth.readUsers();
+    users.push({ twitchId, login: "socketeer", approved, overlayTokenVersion: 1 });
+    auth.writeUsers(users);
+  }
+
+  const cookie = (token) => `session=${token}`;
+
+  it("accepts a current cookie, the one signed with the session subkey", () => {
+    seedUser();
+    const token = jwt.sign({ twitchId }, sessionKey, { expiresIn: "30d" });
+    expect(auth.getApprovedUserFromCookieHeader(cookie(token))?.twitchId).toBe(twitchId);
+  });
+
+  it("still accepts a pre-subkey cookie, so the deploy doesn't drop live sockets", () => {
+    seedUser();
+    const legacy = jwt.sign({ twitchId }, auth.DEV_FALLBACK_SECRET, { expiresIn: "30d" });
+    expect(auth.getApprovedUserFromCookieHeader(cookie(legacy))?.twitchId).toBe(twitchId);
+  });
+
+  it("agrees with the HTTP path on the same cookie", () => {
+    seedUser();
+    const token = jwt.sign({ twitchId }, sessionKey, { expiresIn: "30d" });
+    // requireApprovedUser reads req.cookies; both must reach the same verdict
+    // or a user is logged in for pages but not for the socket.
+    let authorized = false;
+    auth.requireApprovedUser({ cookies: { session: token } }, { status: () => ({ json: () => {} }) }, () => {
+      authorized = true;
+    });
+    expect(authorized).toBe(true);
+    expect(auth.getApprovedUserFromCookieHeader(cookie(token))).not.toBeNull();
+  });
+
+  it("rejects a cookie signed with the wrong key", () => {
+    seedUser();
+    const forged = jwt.sign({ twitchId }, "not-the-secret", { expiresIn: "30d" });
+    expect(auth.getApprovedUserFromCookieHeader(cookie(forged))).toBeNull();
+  });
+
+  it("rejects an unapproved account holding a valid cookie", () => {
+    seedUser(false);
+    const token = jwt.sign({ twitchId }, sessionKey, { expiresIn: "30d" });
+    expect(auth.getApprovedUserFromCookieHeader(cookie(token))).toBeNull();
+  });
+
+  it("returns null for a missing or malformed header", () => {
+    expect(auth.getApprovedUserFromCookieHeader(undefined)).toBeNull();
+    expect(auth.getApprovedUserFromCookieHeader("")).toBeNull();
+    expect(auth.getApprovedUserFromCookieHeader("other=1; junk")).toBeNull();
+  });
+});
+
 describe("random-looking outputs are actually keyed", () => {
   it("derives overlay tokens from the subkey, not the bare secret", () => {
     const bare = crypto
