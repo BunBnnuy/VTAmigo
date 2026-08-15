@@ -8,22 +8,17 @@ const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader
 const { sendEvent } = require("./analytics");
 const errorLog = require("./errorLog");
 const { router: adminRouter } = require("./adminAuth");
-const { router: devicesRouter } = require("./devices");
-const { queryClaudeCLI, queryYouTubeNarration, queryScreenAnswer, importMemory, containsPromptLeak } = require("./claude");
+const { queryClaudeCLI, importMemory, containsPromptLeak } = require("./claude");
 const usage = require("./usage");
 const siteConfig = require("./siteConfig");
 const memoryExport = require("./memoryExport");
 const memoryDownload = require("./memoryDownload");
-const screenwatch = require("./screenwatch");
 const { TwitchIRCClient } = require("./twitch");
 const emotes = require("./emotes");
 const { EventSubClient } = require("./eventsub");
 const { TikTokChatClient } = require("./tiktok");
-const { fetchRandomStory } = require("./reddit");
-const vtubeManager = require("./vtubeManager");
 const xp = require("./xp");
 const activity = require("./activity");
-const elevenlabs = require("./elevenlabs");
 const piper = require("./piper");
 const avatarOverlay = require("./avatarOverlay");
 const videoQueue = require("./videoQueue");
@@ -86,7 +81,6 @@ app.post("/api/log-error", (req, res) => {
 // own middleware); everything else requires an approved, logged-in user.
 app.use(authRouter);
 app.use(adminRouter);
-app.use(devicesRouter);
 
 // Serve built frontend in production (Electron packaged app / VPS) — public,
 // so the login screen itself can load before the user is authenticated.
@@ -113,11 +107,6 @@ app.use((req, res, next) => {
 });
 
 if (isProd) {
-  app.get("/downloads/tunnel-client.exe", (req, res) => {
-    const user = getApprovedUserFromCookieHeader(req.headers.cookie);
-    sendEvent("tunnel_client_download", { req, twitchLogin: user?.login });
-    res.sendFile(path.join(distPath, "downloads/tunnel-client.exe"));
-  });
   // robots.txt is generated per-host rather than shipped as a static file:
   // prod and staging build from the same repo, so a single committed file
   // would let dev.vtamigo.top get indexed and compete with prod in search.
@@ -129,7 +118,7 @@ if (isProd) {
     // The app pages below all require an approved Twitch login, so there's
     // nothing for a crawler to index there — keep it on the public pages.
     res.send(
-      "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /device\nDisallow: /overlay-builder\nDisallow: /overlay/\n"
+      "User-agent: *\nAllow: /\nDisallow: /admin\nDisallow: /overlay-builder\nDisallow: /overlay/\n"
     );
   });
   app.use(express.static(distPath));
@@ -141,8 +130,7 @@ if (isProd) {
 // and shows the login/pending screen client-side, so this reveals no data.
 const PROTECTED_PREFIXES = [
   "/respond", "/memory", "/connect", "/disconnect", "/say",
-  "/reddit-story", "/reddit-thoughts", "/event-response", "/youtube-narrate",
-  "/screenwatch", "/screen-answer", "/xp", "/vtube", "/lipsync", "/tts", "/video",
+  "/event-response", "/xp", "/avatar", "/tts", "/video",
   "/activity", "/overlay-builder",
 ];
 app.use((req, res, next) => {
@@ -152,7 +140,7 @@ app.use((req, res, next) => {
   // cookie. They do their own auth inline (cookie session OR ?token= overlay
   // token) instead of the blanket check.
   // "/overlay-builder" bare (no trailing segment) is the Overlay Studio SPA
-  // page itself, not an API call — like /admin and /device, it does its own
+  // page itself, not an API call — like /admin, it does its own
   // client-side /auth/me check (see OverlayBuilder.jsx), so it must fall
   // through to the SPA catch-all unauthenticated. Everything under
   // "/overlay-builder/..." (the actual API routes) still matches the prefix
@@ -266,7 +254,7 @@ app.post("/respond", async (req, res) => {
   if (manual) sendEvent("now_button_click", { req, twitchLogin: req.user?.login });
 
   try {
-    const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, null, null, provider, twitchId);
+    const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, provider, twitchId);
     usage.recordGeneration({
       twitchId: req.user?.twitchId,
       login: req.user?.login,
@@ -681,47 +669,13 @@ app.post("/disconnect-tiktok", (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /reddit-story — scrape and return a random story (no Claude)
-app.post("/reddit-story", async (req, res) => {
-  const { subreddits } = req.body || {};
-  try {
-    const story = await fetchRandomStory(subreddits?.length ? subreddits : undefined);
-    res.json({ story });
-  } catch (err) {
-    console.error("[reddit]", err.message);
-    res.status(502).json({ error: err.message });
-  }
-});
-
-// POST /reddit-thoughts — Claude reacts to the last paragraph of a story
-app.post("/reddit-thoughts", async (req, res) => {
-  const { paragraph, title, subreddit, basePrompt } = req.body || {};
-  if (!paragraph) return res.status(400).json({ error: "paragraph is required" });
-  const provider = siteConfig.getProvider();
-  try {
-    const response = await queryClaudeCLI([], "auto", basePrompt || "", null, null, { paragraph, title, subreddit }, provider, req.user?.twitchId);
-    res.json({ response });
-  } catch (err) {
-    if (err.message === "OPENAI_API_KEY_MISSING") {
-      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
-    }
-    if (err.message === "CLI_NOT_FOUND") {
-      const name = provider.charAt(0).toUpperCase() + provider.slice(1);
-      return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
-    }
-    if (err.message === "TIMEOUT") return res.status(504).json({ error: "Claude CLI timed out" });
-    console.error("[reddit-thoughts]", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
 // POST /event-response — generate an immediate Claude reaction to a Twitch event
 app.post("/event-response", async (req, res) => {
   const { event, basePrompt } = req.body;
   if (!event) return res.status(400).json({ error: "event is required" });
   const provider = siteConfig.getProvider();
   try {
-    const response = await queryClaudeCLI([], "auto", basePrompt || "", event, null, null, provider, req.user?.twitchId);
+    const response = await queryClaudeCLI([], "auto", basePrompt || "", event, provider, req.user?.twitchId);
     res.json({ response });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {
@@ -735,151 +689,6 @@ app.post("/event-response", async (req, res) => {
       return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
     }
     console.error("[ai/event]", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /youtube-narrate — Claude looks at the YouTube tab and narrates what's playing
-app.post("/youtube-narrate", async (req, res) => {
-  const { basePrompt } = req.body || {};
-  try {
-    const response = await queryYouTubeNarration(basePrompt || "", siteConfig.getProvider(), req.user?.twitchId);
-    res.json({ response });
-  } catch (err) {
-    if (err.message === "OPENAI_API_KEY_MISSING") {
-      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
-    }
-    if (err.message === "CLI_NOT_FOUND") {
-      return res.status(503).json({ error: "Claude CLI not found — make sure it is installed and on your PATH" });
-    }
-    if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: "Claude CLI timed out while narrating YouTube" });
-    }
-    console.error("[youtube-narrate]", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// ── Screen question watcher ──────────────────────────────────────────────────
-
-// POST /screenwatch/config — { enabled, intervalSec, region: "x,y,w,h" | "", processName, autoNavigate }
-app.post("/screenwatch/config", (req, res) => {
-  const { enabled, intervalSec, region, processName, autoNavigate } = req.body || {};
-  if (enabled) {
-    screenwatch.start({
-      intervalSec,
-      region,
-      processName,
-      autoNavigate,
-      onQuestion: (q) =>
-        broadcast({ type: "screen_question", ...q, id: `sq-${Date.now()}`, timestamp: Date.now() }),
-      onStatus: (status) => broadcast({ type: "screenwatch_status", status }),
-    });
-  } else {
-    screenwatch.stop();
-  }
-  res.json({ ok: true, running: screenwatch.isRunning() });
-});
-
-// POST /screenwatch/scan — manual one-shot: capture now, extract a question,
-// and if found broadcast it so the normal collect-and-answer flow kicks in
-app.post("/screenwatch/scan", async (req, res) => {
-  const { region, processName } = req.body || {};
-  try {
-    const result = await screenwatch.scanOnce({ region, processName });
-    if (result.hasQuestion) {
-      broadcast({
-        type: "screen_question",
-        question: result.question,
-        options: result.options,
-        id: `sq-${Date.now()}`,
-        timestamp: Date.now(),
-      });
-    }
-    res.json({ ok: true, ...result });
-  } catch (err) {
-    if (err.message === "WINDOW_NOT_FOUND") {
-      return res.status(404).json({ error: `No se encontró la ventana de ${processName}` });
-    }
-    if (err.message === "OCR_UNAVAILABLE") {
-      return res.status(503).json({ error: "OCR no disponible en este Windows" });
-    }
-    if (err.message === "CLI_NOT_FOUND") {
-      return res.status(503).json({ error: "Claude CLI not found — make sure it is installed and on your PATH" });
-    }
-    if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: "Claude CLI timed out (>60s)" });
-    }
-    console.error("[screenwatch/scan]", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /screenwatch/click — locate an option's text on screen, click it, then
-// after 3-5 s click again to advance. { optionText, processName, region, dryRun }
-app.post("/screenwatch/click", async (req, res) => {
-  const { optionText, processName, region, dryRun } = req.body || {};
-  if (!optionText) return res.status(400).json({ error: "optionText is required" });
-  try {
-    const result = await screenwatch.clickOption({ optionText, processName, region, dryRun: !!dryRun });
-    console.log("[screenwatch/click]", result.replace(/\r?\n/g, " | "));
-    res.json({ ok: true, result });
-  } catch (err) {
-    if (err.message === "WINDOW_NOT_FOUND") {
-      return res.status(404).json({ error: `No se encontró la ventana de ${processName}` });
-    }
-    if (err.message === "TEXT_NOT_FOUND") {
-      return res.status(404).json({ error: `No encontré "${optionText}" en la pantalla` });
-    }
-    if (err.message === "OCR_UNAVAILABLE") {
-      return res.status(503).json({ error: "OCR no disponible en este Windows" });
-    }
-    console.error("[screenwatch/click]", err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// POST /screenwatch/test — broadcast a sample question to try the full flow
-app.post("/screenwatch/test", (req, res) => {
-  broadcast({
-    type: "screen_question",
-    id: `sq-test-${Date.now()}`,
-    timestamp: Date.now(),
-    question: "¿Cuál es el planeta más grande del sistema solar?",
-    options: ["Marte", "Júpiter", "Saturno", "La Tierra"],
-  });
-  res.json({ ok: true });
-});
-
-// POST /screen-answer — answer a detected on-screen question using collected chat
-app.post("/screen-answer", async (req, res) => {
-  const { question, options, messages, basePrompt, windowSec } = req.body || {};
-  if (!question) return res.status(400).json({ error: "question is required" });
-  const provider = siteConfig.getProvider();
-  try {
-    const result = await queryScreenAnswer({
-      question,
-      options: Array.isArray(options) ? options : [],
-      messages: Array.isArray(messages) ? messages : [],
-      basePrompt: basePrompt || "",
-      provider,
-      twitchId: req.user?.twitchId,
-      windowSec: Number(windowSec) || 20,
-    });
-    // { response, choiceIndex, topVoteIndex }
-    res.json(result);
-  } catch (err) {
-    if (err.message === "OPENAI_API_KEY_MISSING") {
-      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
-    }
-    if (err.message === "CLI_NOT_FOUND") {
-      const name = provider.charAt(0).toUpperCase() + provider.slice(1);
-      return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
-    }
-    if (err.message === "TIMEOUT") {
-      return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
-    }
-    console.error("[screen-answer]", err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -918,11 +727,11 @@ app.get("/activity/recent", (req, res) => {
   res.json({ events: activity.getRecent(req.user.twitchId, 30) });
 });
 
-// ── Avatar-swap overlay (OBS alternative to VTube Studio) ────────────────────
+// ── Avatar-swap overlay ──────────────────────────────────────────────────────
 // Shows one of two user-uploaded images (speaking/silent) depending on
 // whether TTS audio is currently playing, driven over the same /chat WS the
 // XP overlay uses ({ type: "tts_state", playing }), broadcast from the
-// /lipsync/start and /lipsync/stop handlers below.
+// /avatar/speaking/start and /avatar/speaking/stop handlers below.
 
 // GET /overlay/avatar?token=... — transparent overlay page (OBS browser
 // source), public like /overlay/xp since OBS can't send the session cookie.
@@ -1619,106 +1428,35 @@ app.post("/xp/test", (req, res) => {
 app.get("/health", (req, res) => res.json({ ok: true }));
 
 
-// ── VTube Studio endpoints ────────────────────────────────────────────────────
+// ── Avatar speaking state ─────────────────────────────────────────────────────
+//
+// These two routes are the *only* driver of the avatar-swap overlay
+// (backend/overlay/avatar.html): it flips between the uploaded speaking and
+// silent images purely on the { type: "tts_state", playing } messages
+// broadcast here over the /chat WS. The frontend TTS player calls start
+// right before it plays a clip and stop when playback ends or is cancelled.
+//
+// They used to be POST /lipsync/start|stop and also drove VTube Studio (mouth
+// phonemes + head-bob animations) through a per-account VTS tunnel — a
+// leftover from the single-streamer Windows desktop build, where the backend
+// ran on the streamer's own PC next to VTube Studio. The hosted multi-account
+// site can't reach anyone's local VTS, so that half is gone; the broadcast,
+// which every account's overlay depends on, is not.
 
-// Each account's VTS traffic is fully independent (own connection, own idle/
-// speaking animation loop, own phoneme scheduler) — see vtubeManager.js.
-// Accounts without an approved tunnel have nowhere to send VTS data.
-function requireVTubeContext(req, res) {
-  const ctx = vtubeManager.getContext(req.user.twitchId);
-  if (!ctx) res.status(409).json({ error: "No approved VTube Studio tunnel for this account" });
-  return ctx;
-}
-
-// GET /vtube/status — { connected, authenticated }
-app.get("/vtube/status", (req, res) => {
-  const ctx = vtubeManager.getContext(req.user.twitchId);
-  res.json(ctx ? ctx.connection.getStatus() : { connected: false, authenticated: false, lastError: "no_tunnel" });
-});
-
-// POST /vtube/config — update this account's mouth param / sensitivity
-app.post("/vtube/config", (req, res) => {
-  const { mouthParam, sensitivity } = req.body;
-  const ctx = requireVTubeContext(req, res);
-  if (!ctx) return;
-  if (mouthParam) ctx.phonemes.setMouthParam(mouthParam);
-  if (sensitivity != null) ctx.phonemes.setSensitivity(Number(sensitivity));
-  res.json({ ok: true });
-});
-
-// POST /vtube/reconnect — manual reconnect trigger for this account's tunnel
-app.post("/vtube/reconnect", (req, res) => {
-  const ctx = requireVTubeContext(req, res);
-  if (!ctx) return;
-  ctx.connection.disconnect();
-  ctx.connection.connect();
-  res.json({ ok: true });
-});
-
-// ── Lip-sync endpoints ────────────────────────────────────────────────────────
-
-// POST /vtube/thinking — { active: boolean } — eyes close while Claude generates
-app.post("/vtube/thinking", (req, res) => {
-  const ctx = vtubeManager.getContext(req.user.twitchId);
-  if (ctx) {
-    if (req.body.active) ctx.animations.startThinking();
-    else ctx.animations.stopThinking();
-  }
-  res.json({ ok: true });
-});
-
-// POST /lipsync/start — { text, durationMs }
-app.post("/lipsync/start", (req, res) => {
-  const { text, durationMs } = req.body;
+// POST /avatar/speaking/start — { text, durationMs } — tells this account's
+// avatar overlay to show the "speaking" image.
+app.post("/avatar/speaking/start", (req, res) => {
+  const { text, durationMs } = req.body || {};
   if (!text || !durationMs) return res.status(400).json({ error: "text and durationMs required" });
 
-  // Broadcast regardless of a VTS tunnel — the avatar-swap overlay is
-  // specifically for accounts that don't have VTube Studio connected.
   broadcastToAccount(req.user.twitchId, { type: "tts_state", playing: true });
-
-  const ctx = vtubeManager.getContext(req.user.twitchId);
-  if (!ctx) return res.json({ ok: true, skipped: "no_tunnel" });
-
-  ctx.animations.startSpeaking();
-  ctx.phonemes.schedulePhonemes(text, Number(durationMs));
   res.json({ ok: true });
 });
 
-// ── ElevenLabs TTS ────────────────────────────────────────────────────────────
-
-// POST /tts/elevenlabs/voices — { apiKey } → { voices: [{ voice_id, name }] }
-app.post("/tts/elevenlabs/voices", async (req, res) => {
-  const { apiKey } = req.body || {};
-  if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
-  try {
-    const voices = await elevenlabs.listVoices(apiKey);
-    res.json({ voices });
-  } catch (err) {
-    if (err.message === "ELEVENLABS_UNAUTHORIZED") {
-      return res.status(401).json({ error: "ElevenLabs rejected the API key" });
-    }
-    console.error("[elevenlabs/voices]", err.message);
-    res.status(502).json({ error: err.message });
-  }
-});
-
-// POST /tts/elevenlabs — { text, apiKey, voiceId, modelId? } → audio/mpeg
-app.post("/tts/elevenlabs", async (req, res) => {
-  const { text, apiKey, voiceId, modelId } = req.body || {};
-  if (!text) return res.status(400).json({ error: "text is required" });
-  if (!apiKey) return res.status(400).json({ error: "apiKey is required" });
-  if (!voiceId) return res.status(400).json({ error: "voiceId is required" });
-  try {
-    const audio = await elevenlabs.generateSpeech({ text, apiKey, voiceId, modelId });
-    res.set("Content-Type", "audio/mpeg");
-    res.send(audio);
-  } catch (err) {
-    if (err.message === "ELEVENLABS_UNAUTHORIZED") {
-      return res.status(401).json({ error: "ElevenLabs rejected the API key" });
-    }
-    console.error("[elevenlabs/tts]", err.message);
-    res.status(502).json({ error: err.message });
-  }
+// POST /avatar/speaking/stop — back to the "silent" image.
+app.post("/avatar/speaking/stop", (req, res) => {
+  broadcastToAccount(req.user.twitchId, { type: "tts_state", playing: false });
+  res.json({ ok: true });
 });
 
 // ── Piper TTS (local CLI) ─────────────────────────────────────────────────────
@@ -1748,18 +1486,6 @@ app.post("/tts/piper", async (req, res) => {
   }
 });
 
-// POST /lipsync/stop — cancel timeline and reset mouth
-app.post("/lipsync/stop", (req, res) => {
-  broadcastToAccount(req.user.twitchId, { type: "tts_state", playing: false });
-
-  const ctx = vtubeManager.getContext(req.user.twitchId);
-  if (ctx) {
-    ctx.phonemes.cancelSchedule();
-    ctx.animations.stopSpeaking();
-  }
-  res.json({ ok: true });
-});
-
 // SPA catch-all — must be registered after every specific API route above so
 // it acts only as a fallback for client-side routes ("/", "/admin"). It stays
 // public: the guard above only blocks PROTECTED_PREFIXES, and the SPA itself
@@ -1771,7 +1497,7 @@ if (isProd) {
     // so it gets the right status code even though the SPA itself renders
     // the NotFound page for it.
     // Keep in sync with the page() switch in frontend/src/main.jsx.
-    const knownPath = req.path === "/" || ["/admin", "/device", "/overlay-builder", "/privacy", "/faq"].some((p) => req.path.startsWith(p));
+    const knownPath = req.path === "/" || ["/admin", "/overlay-builder", "/privacy", "/faq"].some((p) => req.path.startsWith(p));
     res.status(knownPath ? 200 : 404).sendFile(path.join(distPath, "index.html"));
   });
 }

@@ -6,7 +6,7 @@ const DEFAULT_IGNORED = "jonejo_ia, streamelements, nightbot, moobot, fossabot, 
 
 // Per-account state, keyed by twitchId — each connected Twitch account has its
 // own viewer XP pool and its own save file, mirroring the twitchId-keyed maps
-// used elsewhere (vtubeManager's contexts, index.js's twitchSessions) so one
+// used elsewhere (app.js's twitchSessions) so one
 // streamer's viewers/resets/ignore-list can't affect another's.
 const accounts = new Map(); // twitchId -> { users, ignored, saveTimer }
 
