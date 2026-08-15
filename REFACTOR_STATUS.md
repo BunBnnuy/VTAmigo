@@ -40,7 +40,7 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 | D5 — Settings server-side | D | `claude/legacy-refactor/d5-settings-source` | pendiente | — | Único con cambio observable; mergea al final |
 | E1 — Raíz de confianza y auth | E | `claude/legacy-refactor/e1-auth-hardening` | pendiente | — | Independiente; puede correr en paralelo con D |
 | E2 — Rate limits, CORS, cabeceras | E | `claude/legacy-refactor/e2-limits-headers` | pendiente | — | Requiere C mergeado; va tras D2/D3 |
-| E3 — Dependencias | E | `claude/legacy-refactor/e3-deps` | pendiente | — | Puede arrancar en cuanto B3 esté mergeado |
+| E3 — Dependencias | E | `claude/legacy-refactor/e3-deps` | mergeado | — | `npm audit` a 0 en ambos paquetes; puerta de auditoría en CI |
 
 ## Restricciones duras
 
@@ -125,8 +125,12 @@ base de desarrollo y ya cubierto por `.gitignore`.
     que no tenía ni una referencia en el código. **Confirmado tras mergear B3:
     `npm audit` del frontend baja de 7 (1 crítica, 5 altas, 1 moderada) a 2.**
     Las dos restantes son la misma causa raíz — `esbuild` vía `vite` — y afectan
-    solo al servidor de desarrollo, no a producción; requieren subir Vite mayor
-    y las cubre E3.
+    solo al servidor de desarrollo, no a producción. **Cerrado en E3** con
+    `vite@6.4.3`: el aviso cubre `vite <=6.4.2`, así que basta un salto mayor en
+    vez de los tres que proponía `npm audit fix` (vite@8), y Vitest 3 y
+    `@vitejs/plugin-react` 4 siguen funcionando sin tocarlos. **Ambos paquetes
+    reportan ahora 0 vulnerabilidades**, y el CI falla ante cualquier aviso
+    `high` o `critical` nuevo.
   - Descartado como falso positivo: XSS en los overlays (todo entra por
     `textContent`), inyección SQL (sentencias preparadas), inyección de comandos
     (`spawn` con array, sin `shell`), path traversal en subidas (nombres
