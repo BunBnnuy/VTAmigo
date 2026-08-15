@@ -32,15 +32,15 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 | B1 — Purga backend | B | `claude/legacy-refactor/b1-backend-purge` | mergeado | 67 | −2361 LOC; `/lipsync/*` → `/avatar/speaking/*` con `tts_state` intacto |
 | B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | mergeado | 47 | `App.jsx` 1641→1035, `Settings.jsx` 1500→1096; bundle bajo 500 kB |
 | B3 — Purga build/docs/i18n | B | `claude/legacy-refactor/b3-build-docs` | mergeado | 21 | −8070 LOC; `npm audit` del frontend de 7 a 2 |
-| C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | pendiente | — | Refactor puro: la suite de B debe pasar sin tocar un test |
+| C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | **bloqueado (WIP)** | — | Interrumpido por límite de plataforma; ver abajo. **No mergeado** |
 | D1 — Proveedores de IA | D | `claude/legacy-refactor/d1-ai-providers` | pendiente | — | |
 | D2 — Overlays | D | `claude/legacy-refactor/d2-overlays` | pendiente | — | |
 | D3 — Chat / Twitch / actividad | D | `claude/legacy-refactor/d3-chat-twitch` | pendiente | — | |
 | D4 — Descomposición frontend | D | `claude/legacy-refactor/d4-frontend-split` | pendiente | — | |
 | D5 — Settings server-side | D | `claude/legacy-refactor/d5-settings-source` | pendiente | — | Único con cambio observable; mergea al final |
-| E1 — Raíz de confianza y auth | E | `claude/legacy-refactor/e1-auth-hardening` | pendiente | — | Independiente; puede correr en paralelo con D |
+| E1 — Raíz de confianza y auth | E | `claude/legacy-refactor/e1-auth-hardening` | **bloqueado (WIP)** | — | Interrumpido por límite de plataforma; ver abajo. **No mergeado** |
 | E2 — Rate limits, CORS, cabeceras | E | `claude/legacy-refactor/e2-limits-headers` | pendiente | — | Requiere C mergeado; va tras D2/D3 |
-| E3 — Dependencias | E | `claude/legacy-refactor/e3-deps` | pendiente | — | Puede arrancar en cuanto B3 esté mergeado |
+| E3 — Dependencias | E | `claude/legacy-refactor/e3-deps` | mergeado | — | `npm audit` a 0 en ambos paquetes; puerta de auditoría en CI |
 
 ## Restricciones duras
 
@@ -76,6 +76,67 @@ npm --prefix frontend test    # solo frontend (Vitest + jsdom + Testing Library)
 
 El backend corre contra `backend/data/db/vtamigo.test.sqlite3`, separado de la
 base de desarrollo y ya cubierto por `.gitignore`.
+
+## Publicación en dev.vtamigo.top
+
+Destino acordado: `https://dev.vtamigo.top` (checkout `/opt/vtamigo-dev`, rama
+`dev`, puerto 3002). **`master` no se toca** — es producción y se despliega sola
+por GitHub Actions al recibir un push.
+
+El flujo sancionado (`MEMORIES.md`, `server/README.md` en `dev`) es: rama de
+trabajo → merge en `dev` → `push origin dev` → en la caja, `git pull`. **No hay
+auto-deploy desde `origin/dev`**: el timer que lo hacía se retiró porque corría
+`git reset --hard` y destruía las ediciones in situ.
+
+Pasos, y quién puede hacer cada uno:
+
+| Paso | Quién |
+|---|---|
+| 1. Mergear la rama base en `dev` y `git push origin dev` | El agente |
+| 2. `cd /opt/vtamigo-dev && git pull` | **Requiere acceso a la caja** |
+| 3. `npm ci` en `backend/` **y** en `frontend/` | **Requiere acceso a la caja** |
+
+El paso 3 es **obligatorio esta vez**, no opcional: los dos `package.json`
+cambiaron de forma sustancial (Vitest + supertest en backend; Vitest, jsdom y
+Testing Library en frontend, `@xenova/transformers` fuera y Vite 5→6.4.3). La
+instalación de dependencias es justo lo que los watchers *no* hacen solos.
+
+Hecho eso, los watchers se encargan del resto: `node --watch` reinicia el
+backend en ~1s y `vite build --watch` reconstruye el frontend en 1-3s.
+
+### Riesgo a verificar antes del paso 2
+
+El lote E1 hace que el backend **se niegue a arrancar** en producción sin
+`SESSION_SECRET`, y la unidad systemd fija `APP_ENV=production` también en dev.
+`MEMORIES.md` documenta que `SESSION_SECRET` sí está en `/etc/vtamigo-dev.env`,
+así que en principio arranca — pero conviene confirmarlo en la caja antes de
+tirar del pull, porque si falta, el servicio queda caído y `dev.vtamigo.top`
+devuelve 502.
+
+## Trabajo a medias (C y E1) — cómo retomarlo
+
+Ambos lotes se cortaron por un límite de sesión de la plataforma, no por un
+problema del código. Su trabajo está commiteado en sus **ramas locales**, marcado
+`WIP` y **deliberadamente sin mergear**: media separación de rutas deja el árbol
+sin arrancar, y medio endurecimiento de autenticación es peor que ninguno.
+
+**C (`claude/legacy-refactor/c-router-split`, commit WIP)** — hecho:
+`backend/sessions.js` (318 LOC) y `routes/{ai,chat,overlays}.js` (579 LOC).
+Falta: reescribir `app.js` para montarlos, los routers `overlayBuilder`, `video`,
+`xp`, `stream`, `tts`, `settings` y `activity`, y `test/routing.test.js`.
+Recordatorio del criterio: **la suite de la Fase B debe pasar sin tocar un solo
+test**, y el guard de `PROTECTED_PREFIXES` tiene que seguir montándose antes que
+todos los routers de dominio.
+
+**E1 (`claude/legacy-refactor/e1-auth-hardening`, commit WIP)** — hecho:
+`auth.js` con derivación de subclaves por propósito y la comprobación de
+`SESSION_SECRET` (163 líneas). Falta: `adminAuth.js` (`timingSafeEqual` y la
+subclave de admin), la persistencia de la versión del overlay token, y
+`test/authHardening.test.js`. **Sin verificar** — no mergear sin tests en verde.
+
+Al retomarlos: las ramas son locales de este contenedor. Si se perdieron, el
+plan de arriba basta para rehacerlos; nada de lo pendiente depende de código que
+solo exista ahí.
 
 ## Bloqueos y decisiones abiertas
 
@@ -125,8 +186,12 @@ base de desarrollo y ya cubierto por `.gitignore`.
     que no tenía ni una referencia en el código. **Confirmado tras mergear B3:
     `npm audit` del frontend baja de 7 (1 crítica, 5 altas, 1 moderada) a 2.**
     Las dos restantes son la misma causa raíz — `esbuild` vía `vite` — y afectan
-    solo al servidor de desarrollo, no a producción; requieren subir Vite mayor
-    y las cubre E3.
+    solo al servidor de desarrollo, no a producción. **Cerrado en E3** con
+    `vite@6.4.3`: el aviso cubre `vite <=6.4.2`, así que basta un salto mayor en
+    vez de los tres que proponía `npm audit fix` (vite@8), y Vitest 3 y
+    `@vitejs/plugin-react` 4 siguen funcionando sin tocarlos. **Ambos paquetes
+    reportan ahora 0 vulnerabilidades**, y el CI falla ante cualquier aviso
+    `high` o `critical` nuevo.
   - Descartado como falso positivo: XSS en los overlays (todo entra por
     `textContent`), inyección SQL (sentencias preparadas), inyección de comandos
     (`spawn` con array, sin `shell`), path traversal en subidas (nombres
