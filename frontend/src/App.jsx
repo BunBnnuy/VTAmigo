@@ -6,11 +6,19 @@ import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowM
 import PanelsMenu from "./PanelsMenu.jsx";
 import Settings from "./Settings.jsx";
 import OnboardingTour from "./OnboardingTour.jsx";
+import AnnouncementModal from "./AnnouncementModal.jsx";
 import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { parseVoiceCommand } from "./voiceCommands.js";
+import { isSongRequest } from "./chatCommands.js";
+import {
+  CURRENT_ANNOUNCEMENT,
+  shouldShowAnnouncement,
+  readSeenVersion,
+  markAnnouncementSeen,
+} from "./announcements.js";
 import { apiFetch, wsUrl } from "./api.js";
 import { track } from "./analytics.js";
 import { detectLanguage, useTranslation } from "./i18n/index.js";
@@ -243,6 +251,33 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       // localStorage unavailable — tour will just replay next launch.
     }
   };
+
+  // Read once at mount, not from tourActive: that flips to false the moment a
+  // new user finishes the tour, and reusing it would pop the changelog in
+  // their face straight afterwards.
+  const [announcement, setAnnouncement] = useState(() => {
+    let isNewUser = false;
+    try {
+      isNewUser = localStorage.getItem("onboarding_done_v1") !== "1";
+    } catch {
+      // Unreadable storage — treat as an existing user and let the modal show.
+    }
+    return shouldShowAnnouncement({ seenVersion: readSeenVersion(), isNewUser }) ? CURRENT_ANNOUNCEMENT : null;
+  });
+
+  // Whenever the modal is *not* shown, record this release as seen anyway:
+  // it catches a brand-new user up so the next release is their first real
+  // announcement, and is a no-op for anyone who already dismissed this one.
+  useEffect(() => {
+    if (!announcement && CURRENT_ANNOUNCEMENT) markAnnouncementSeen(CURRENT_ANNOUNCEMENT.version);
+    // Mount only: `announcement` becoming null on dismiss is handled below.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const dismissAnnouncement = useCallback(() => {
+    if (CURRENT_ANNOUNCEMENT) markAnnouncementSeen(CURRENT_ANNOUNCEMENT.version);
+    setAnnouncement(null);
+  }, []);
 
   const tourAdvance = (skip) => {
     setTourStep((s) => {
@@ -647,12 +682,18 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             seenMsgIds.current.delete(first);
           }
           setMessages((prev) => [...prev.slice(-199), msg]);
-          pushToBuffer({
-            username: msg.username,
-            text: msg.text,
-            isRedeem: msg.isRedeem || false,
-            rewardTitle: msg.rewardTitle || null,
-          });
+          // A song request is an instruction to the video queue, not something
+          // said to the co-host: it stays in the chat feed but never reaches
+          // the AI buffer, so the bot doesn't reply to "!sr <song>".
+          const songRequest = isSongRequest(msg.text);
+          if (!songRequest) {
+            pushToBuffer({
+              username: msg.username,
+              text: msg.text,
+              isRedeem: msg.isRedeem || false,
+              rewardTitle: msg.rewardTitle || null,
+            });
+          }
           if (msg.isRedeem) {
             setActivityEvents((prev) => [...prev.slice(-99), {
               id: msg.id,
@@ -664,8 +705,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             }]);
           }
 
-          // Burst detection: lots of hype → wait for silence then fire
-          const isHype = HYPE_KEYWORDS.some((kw) => msg.text.toLowerCase().includes(kw));
+          // Burst detection: lots of hype → wait for silence then fire.
+          // Excluded for song requests too — a title that happens to contain
+          // "pog" or "let's go" shouldn't schedule a response the buffer never
+          // received the message for.
+          const isHype = !songRequest && HYPE_KEYWORDS.some((kw) => msg.text.toLowerCase().includes(kw));
           if (isHype) {
             clearTimeout(burstTimerRef.current);
             burstTimerRef.current = setTimeout(() => {
@@ -1116,6 +1160,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           }}
           onSkipAll={finishTour}
           onFinish={finishTour}
+        />
+      )}
+
+      {announcement && (
+        <AnnouncementModal
+          announcement={announcement}
+          lang={settings.language}
+          onClose={dismissAnnouncement}
         />
       )}
 
