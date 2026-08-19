@@ -124,13 +124,14 @@ async function getFollowerCount(token, broadcasterId) {
   return res.data.total;
 }
 
-// Combined live-gate + follower total for the header counter. Skips the
-// followers Helix call entirely when the stream is offline.
-async function getFollowersIfLive(token, broadcasterId) {
+// Live status (+ optional follower total) for the header counter.
+// `includeTotal` is how the frontend seeds the badge while offline and
+// refreshes the count while live — without it we only hit Helix /streams.
+async function getFollowersStatus(token, broadcasterId, { includeTotal = false } = {}) {
   const live = await isStreamLive(token, broadcasterId);
-  if (!live) return { live: false, total: null };
+  if (!includeTotal) return { live, total: null };
   const total = await getFollowerCount(token, broadcasterId);
-  return { live: true, total };
+  return { live, total };
 }
 
 // { title, gameId } — only the keys actually passed in are sent, since Helix
@@ -157,5 +158,5 @@ module.exports = {
   updateChannelInfo,
   isStreamLive,
   getFollowerCount,
-  getFollowersIfLive,
+  getFollowersStatus,
 };

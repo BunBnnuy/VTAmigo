@@ -320,8 +320,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const seenMsgIds = useRef(new Set());
   const bufferRef = useRef([]);
   const [queuedCount, setQueuedCount] = useState(0);
-  // Follower total from Twitch — only populated while the stream is live
-  // (backend skips the Helix followers call when offline). null = hide.
+  // Follower total from Twitch — shown even while offline (last known
+  // value); only refreshed every 10 min while the stream is live. null
+  // until the first successful fetch.
   const [followerTotal, setFollowerTotal] = useState(null);
   // Safety cap for when AI responses are toggled off for a long stretch —
   // messages keep queuing (nothing should be silently lost), but without a
@@ -378,24 +379,29 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       .catch(() => {});
   }, []);
 
-  // Header followers counter — poll Twitch every 10 minutes. The backend
-  // only calls Helix /channels/followers when the stream is currently live;
-  // offline responses clear the badge.
+  // Header followers counter — seed once (even offline), then poll every
+  // 10 minutes. While live we refresh the count; while offline we only
+  // check live status and keep showing the last known total.
   useEffect(() => {
     const FOLLOWERS_POLL_MS = 10 * 60 * 1000;
     let cancelled = false;
     let timer = null;
+    let live = false;
+    let hasTotal = false;
 
     const poll = async () => {
+      // Fetch the count on first load (so the badge is visible offline) and
+      // on every tick while live; otherwise just check Helix /streams.
+      const wantTotal = !hasTotal || live;
       try {
-        const res = await apiFetch("/stream/followers");
+        const res = await apiFetch(`/stream/followers${wantTotal ? "?total=1" : ""}`);
         if (!res.ok || cancelled) return;
         const data = await res.json();
         if (cancelled) return;
-        if (data.live && typeof data.total === "number") {
+        live = !!data.live;
+        if (typeof data.total === "number") {
+          hasTotal = true;
           setFollowerTotal(data.total);
-        } else {
-          setFollowerTotal(null);
         }
       } catch {
         // Transient network/Twitch errors — keep the last known count.
