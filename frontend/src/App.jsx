@@ -333,10 +333,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   // value); only refreshed every 10 min while the stream is live. null
   // until the first successful fetch.
   const [followerTotal, setFollowerTotal] = useState(null);
-  // Live-only header stats from Helix /streams (same poll as followers).
-  const [viewerCount, setViewerCount] = useState(null);
+  // Viewers + session timer — always visible. Values update only while
+  // live; offline we keep the last known viewers and freeze the timer.
+  const [viewerCount, setViewerCount] = useState(0);
   const [streamStartedAt, setStreamStartedAt] = useState(null);
-  const [sessionLabel, setSessionLabel] = useState(null);
+  const [streamLive, setStreamLive] = useState(false);
+  const [sessionLabel, setSessionLabel] = useState("0:00:00");
   // Safety cap for when AI responses are toggled off for a long stretch —
   // messages keep queuing (nothing should be silently lost), but without a
   // ceiling a long-idle stream could grow this unbounded. Oldest entries
@@ -413,17 +415,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         const data = await res.json();
         if (cancelled) return;
         live = !!data.live;
+        setStreamLive(live);
         if (typeof data.total === "number") {
           hasTotal = true;
           lastFollowersFetch = now;
           setFollowerTotal(data.total);
         }
+        // Viewers/timer only refresh while live; offline keeps last known.
         if (live) {
           setViewerCount(typeof data.viewerCount === "number" ? data.viewerCount : 0);
           setStreamStartedAt(data.startedAt || null);
-        } else {
-          setViewerCount(null);
-          setStreamStartedAt(null);
         }
       } catch {
         // Transient network/Twitch errors — keep the last known stats.
@@ -439,17 +440,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     };
   }, []);
 
-  // Session timer — tick locally from Twitch startedAt; no extra API calls.
+  // Session timer — tick locally while live; freeze the last value offline.
   useEffect(() => {
-    if (!streamStartedAt) {
-      setSessionLabel(null);
-      return undefined;
-    }
+    if (!streamLive || !streamStartedAt) return undefined;
     const tick = () => setSessionLabel(formatSessionDuration(streamStartedAt));
     tick();
     const id = setInterval(tick, 1000);
     return () => clearInterval(id);
-  }, [streamStartedAt]);
+  }, [streamLive, streamStartedAt]);
 
   // Auto-connect on mount — login always implies a channel now (the user's
   // own), so there's nothing to gate this on.
@@ -1031,18 +1029,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               {t("app.followers", { count: followerTotal.toLocaleString() })}
             </span>
           )}
-          {viewerCount != null && (
-            <span style={styles.statBadge} title={t("app.viewersTitle")}>
-              <Eye size={14} />
-              {t("app.viewers", { count: viewerCount.toLocaleString() })}
-            </span>
-          )}
-          {sessionLabel != null && (
-            <span style={styles.statBadge} title={t("app.sessionTitle")}>
-              <Timer size={14} />
-              {sessionLabel}
-            </span>
-          )}
+          <span style={styles.statBadge} title={t("app.viewersTitle")}>
+            <Eye size={14} />
+            {t("app.viewers", { count: viewerCount.toLocaleString() })}
+          </span>
+          <span style={styles.statBadge} title={t("app.sessionTitle")}>
+            <Timer size={14} />
+            {sessionLabel}
+          </span>
         </div>
         <div style={styles.topRight}>
           <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} />
