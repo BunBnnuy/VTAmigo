@@ -323,6 +323,8 @@ export default {
     disconnect: "Desconectar",
     logout: "Cerrar sesión",
     loggedInAs: "— sesión iniciada como {login} — {tier}",
+    followers: "{count} seguidores",
+    followersTitle: "Seguidores de Twitch (se actualiza cada 10 min en vivo)",
     liveChat: "Chat en vivo",
     expandLiveChat: "Expandir chat en vivo",
     collapseLiveChat: "Colapsar chat en vivo",

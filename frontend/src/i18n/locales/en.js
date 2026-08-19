@@ -325,6 +325,8 @@ export default {
     disconnect: "Disconnect",
     logout: "Log out",
     loggedInAs: "— logged in as {login} — {tier}",
+    followers: "{count} followers",
+    followersTitle: "Twitch followers (updates every 10 min while live)",
     liveChat: "Live Chat",
     expandLiveChat: "Expand Live Chat",
     collapseLiveChat: "Collapse Live Chat",

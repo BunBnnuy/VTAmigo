@@ -47,6 +47,19 @@ router.get("/stream/info", requireApprovedUser, async (req, res) => {
   }
 });
 
+// GET /stream/followers — { live, total }. Checks Helix /streams first and
+// only hits /channels/followers when the broadcaster is currently live
+// (the header counter polls this every 10 minutes).
+router.get("/stream/followers", requireApprovedUser, async (req, res) => {
+  try {
+    const token = await getValidTwitchToken(req.user.twitchId);
+    const info = await streamSettings.getFollowersIfLive(token, req.user.twitchId);
+    res.json(info);
+  } catch (err) {
+    handleStreamSettingsError(err, res);
+  }
+});
+
 // POST /stream/settings — { title?, gameId? }; updates whichever of
 // title/category was provided, leaving the other unchanged on Twitch.
 router.post("/stream/settings", requireApprovedUser, async (req, res) => {

@@ -323,6 +323,8 @@ export default {
     disconnect: "切断",
     logout: "ログアウト",
     loggedInAs: "— {login} としてログイン中 — {tier}",
+    followers: "フォロワー {count}人",
+    followersTitle: "Twitchのフォロワー数（配信中は10分ごとに更新）",
     liveChat: "ライブチャット",
     expandLiveChat: "ライブチャットを展開",
     collapseLiveChat: "ライブチャットを折りたたむ",

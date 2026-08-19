@@ -323,6 +323,8 @@ export default {
     disconnect: "연결 해제",
     logout: "로그아웃",
     loggedInAs: "— {login}(으)로 로그인 — {tier}",
+    followers: "팔로워 {count}명",
+    followersTitle: "Twitch 팔로워 (라이브 중 10분마다 업데이트)",
     liveChat: "라이브 채팅",
     expandLiveChat: "라이브 채팅 펼치기",
     collapseLiveChat: "라이브 채팅 접기",

@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2 } from "lucide-react";
+import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users } from "lucide-react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
@@ -320,6 +320,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const seenMsgIds = useRef(new Set());
   const bufferRef = useRef([]);
   const [queuedCount, setQueuedCount] = useState(0);
+  // Follower total from Twitch — only populated while the stream is live
+  // (backend skips the Helix followers call when offline). null = hide.
+  const [followerTotal, setFollowerTotal] = useState(null);
   // Safety cap for when AI responses are toggled off for a long stretch —
   // messages keep queuing (nothing should be silently lost), but without a
   // ceiling a long-idle stream could grow this unbounded. Oldest entries
@@ -373,6 +376,39 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       .then((res) => res.json())
       .then((data) => setActivityEvents(data.events || []))
       .catch(() => {});
+  }, []);
+
+  // Header followers counter — poll Twitch every 10 minutes. The backend
+  // only calls Helix /channels/followers when the stream is currently live;
+  // offline responses clear the badge.
+  useEffect(() => {
+    const FOLLOWERS_POLL_MS = 10 * 60 * 1000;
+    let cancelled = false;
+    let timer = null;
+
+    const poll = async () => {
+      try {
+        const res = await apiFetch("/stream/followers");
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (cancelled) return;
+        if (data.live && typeof data.total === "number") {
+          setFollowerTotal(data.total);
+        } else {
+          setFollowerTotal(null);
+        }
+      } catch {
+        // Transient network/Twitch errors — keep the last known count.
+      } finally {
+        if (!cancelled) timer = setTimeout(poll, FOLLOWERS_POLL_MS);
+      }
+    };
+
+    poll();
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
   }, []);
 
   // Auto-connect on mount — login always implies a channel now (the user's
@@ -949,6 +985,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           {twitchLogin && (
             <span style={styles.brandUser}>{t("app.loggedInAs", { login: twitchLogin, tier: TIER_LABELS[tier] || tier })}</span>
           )}
+          {followerTotal != null && (
+            <span style={styles.followersBadge} title={t("app.followersTitle")}>
+              <Users size={14} />
+              {t("app.followers", { count: followerTotal.toLocaleString() })}
+            </span>
+          )}
         </div>
         <div style={styles.topRight}>
           <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} />
@@ -1208,6 +1250,20 @@ const styles = {
     fontSize: 13,
     color: "var(--text-muted)",
     fontWeight: 400,
+  },
+  followersBadge: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 5,
+    marginLeft: 4,
+    padding: "3px 9px",
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text)",
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    fontFamily: "Quicksand, sans-serif",
   },
   brandName: {
     fontWeight: 800,

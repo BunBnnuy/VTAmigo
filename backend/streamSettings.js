@@ -93,6 +93,46 @@ async function getChannelInfo(token, broadcasterId) {
   return { title: c.title, gameId: c.game_id, gameName: c.game_name };
 }
 
+// Helix /streams — empty data means offline. No special scope beyond a
+// valid user/app token.
+async function isStreamLive(token, broadcasterId) {
+  const res = await httpsGet(
+    `https://api.twitch.tv/helix/streams?user_id=${encodeURIComponent(broadcasterId)}`,
+    authHeaders(token)
+  );
+  if (res.status !== 200) {
+    throw new Error(`Twitch streams lookup failed (HTTP ${res.status})`);
+  }
+  return Array.isArray(res.data.data) && res.data.data.length > 0;
+}
+
+// Helix /channels/followers returns `total` even with first=1 — we only
+// need the count, not the follower list. Requires moderator:read:followers.
+async function getFollowerCount(token, broadcasterId) {
+  const res = await httpsGet(
+    `https://api.twitch.tv/helix/channels/followers?broadcaster_id=${encodeURIComponent(broadcasterId)}&first=1`,
+    authHeaders(token)
+  );
+  if (res.status === 401 || res.status === 403) {
+    throw Object.assign(new Error("Missing Twitch scope: moderator:read:followers"), {
+      code: "MISSING_SCOPE",
+    });
+  }
+  if (res.status !== 200 || typeof res.data.total !== "number") {
+    throw new Error(`Twitch followers lookup failed (HTTP ${res.status})`);
+  }
+  return res.data.total;
+}
+
+// Combined live-gate + follower total for the header counter. Skips the
+// followers Helix call entirely when the stream is offline.
+async function getFollowersIfLive(token, broadcasterId) {
+  const live = await isStreamLive(token, broadcasterId);
+  if (!live) return { live: false, total: null };
+  const total = await getFollowerCount(token, broadcasterId);
+  return { live: true, total };
+}
+
 // { title, gameId } — only the keys actually passed in are sent, since Helix
 // treats an absent key as "leave unchanged" (an explicit "" is still sent).
 async function updateChannelInfo(token, broadcasterId, { title, gameId } = {}) {
@@ -111,4 +151,11 @@ async function updateChannelInfo(token, broadcasterId, { title, gameId } = {}) {
   }
 }
 
-module.exports = { searchCategories, getChannelInfo, updateChannelInfo };
+module.exports = {
+  searchCategories,
+  getChannelInfo,
+  updateChannelInfo,
+  isStreamLive,
+  getFollowerCount,
+  getFollowersIfLive,
+};
