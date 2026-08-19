@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users } from "lucide-react";
+import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users, Eye, Timer } from "lucide-react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
@@ -89,6 +89,15 @@ const BURST_SILENCE_MS = 3000; // how long silence after burst triggers response
 
 function uid() {
   return `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+}
+
+function formatSessionDuration(startedAt) {
+  const ms = Math.max(0, Date.now() - new Date(startedAt).getTime());
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function formatEventText(event, t) {
@@ -324,6 +333,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   // value); only refreshed every 10 min while the stream is live. null
   // until the first successful fetch.
   const [followerTotal, setFollowerTotal] = useState(null);
+  // Live-only header stats from Helix /streams (same poll as followers).
+  const [viewerCount, setViewerCount] = useState(null);
+  const [streamStartedAt, setStreamStartedAt] = useState(null);
+  const [sessionLabel, setSessionLabel] = useState(null);
   // Safety cap for when AI responses are toggled off for a long stretch —
   // messages keep queuing (nothing should be silently lost), but without a
   // ceiling a long-idle stream could grow this unbounded. Oldest entries
@@ -379,20 +392,21 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       .catch(() => {});
   }, []);
 
-  // Header followers counter — seed once (even offline), then poll every
-  // 10 minutes. While live we refresh the count; while offline we only
-  // check live status and keep showing the last known total.
+  // Header stream stats — poll Helix /streams every 60s for live/viewers/
+  // startedAt. Followers are seeded once (even offline) and only refreshed
+  // every 10 min while live via ?total=1 on the same endpoint.
   useEffect(() => {
-    const FOLLOWERS_POLL_MS = 10 * 60 * 1000;
+    const LIVE_POLL_MS = 60 * 1000;
+    const FOLLOWERS_REFRESH_MS = 10 * 60 * 1000;
     let cancelled = false;
     let timer = null;
     let live = false;
     let hasTotal = false;
+    let lastFollowersFetch = 0;
 
     const poll = async () => {
-      // Fetch the count on first load (so the badge is visible offline) and
-      // on every tick while live; otherwise just check Helix /streams.
-      const wantTotal = !hasTotal || live;
+      const now = Date.now();
+      const wantTotal = !hasTotal || (live && now - lastFollowersFetch >= FOLLOWERS_REFRESH_MS);
       try {
         const res = await apiFetch(`/stream/followers${wantTotal ? "?total=1" : ""}`);
         if (!res.ok || cancelled) return;
@@ -401,12 +415,20 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         live = !!data.live;
         if (typeof data.total === "number") {
           hasTotal = true;
+          lastFollowersFetch = now;
           setFollowerTotal(data.total);
         }
+        if (live) {
+          setViewerCount(typeof data.viewerCount === "number" ? data.viewerCount : 0);
+          setStreamStartedAt(data.startedAt || null);
+        } else {
+          setViewerCount(null);
+          setStreamStartedAt(null);
+        }
       } catch {
-        // Transient network/Twitch errors — keep the last known count.
+        // Transient network/Twitch errors — keep the last known stats.
       } finally {
-        if (!cancelled) timer = setTimeout(poll, FOLLOWERS_POLL_MS);
+        if (!cancelled) timer = setTimeout(poll, LIVE_POLL_MS);
       }
     };
 
@@ -416,6 +438,18 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       clearTimeout(timer);
     };
   }, []);
+
+  // Session timer — tick locally from Twitch startedAt; no extra API calls.
+  useEffect(() => {
+    if (!streamStartedAt) {
+      setSessionLabel(null);
+      return undefined;
+    }
+    const tick = () => setSessionLabel(formatSessionDuration(streamStartedAt));
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [streamStartedAt]);
 
   // Auto-connect on mount — login always implies a channel now (the user's
   // own), so there's nothing to gate this on.
@@ -992,9 +1026,21 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             <span style={styles.brandUser}>{t("app.loggedInAs", { login: twitchLogin, tier: TIER_LABELS[tier] || tier })}</span>
           )}
           {followerTotal != null && (
-            <span style={styles.followersBadge} title={t("app.followersTitle")}>
+            <span style={styles.statBadge} title={t("app.followersTitle")}>
               <Users size={14} />
               {t("app.followers", { count: followerTotal.toLocaleString() })}
+            </span>
+          )}
+          {viewerCount != null && (
+            <span style={styles.statBadge} title={t("app.viewersTitle")}>
+              <Eye size={14} />
+              {t("app.viewers", { count: viewerCount.toLocaleString() })}
+            </span>
+          )}
+          {sessionLabel != null && (
+            <span style={styles.statBadge} title={t("app.sessionTitle")}>
+              <Timer size={14} />
+              {sessionLabel}
             </span>
           )}
         </div>
@@ -1257,7 +1303,7 @@ const styles = {
     color: "var(--text-muted)",
     fontWeight: 400,
   },
-  followersBadge: {
+  statBadge: {
     display: "inline-flex",
     alignItems: "center",
     gap: 5,
@@ -1270,6 +1316,7 @@ const styles = {
     border: "1px solid var(--border)",
     borderRadius: 9,
     fontFamily: "Quicksand, sans-serif",
+    fontVariantNumeric: "tabular-nums",
   },
   brandName: {
     fontWeight: 800,

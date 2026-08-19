@@ -47,9 +47,10 @@ router.get("/stream/info", requireApprovedUser, async (req, res) => {
   }
 });
 
-// GET /stream/followers — { live, total }. Always reports live status via
-// Helix /streams. Pass ?total=1 to also fetch the follower count (used to
-// seed the header badge and to refresh it every 10 min while live).
+// GET /stream/followers — { live, viewerCount, startedAt, total }.
+// Always reports live/viewers/startedAt via Helix /streams. Pass ?total=1
+// to also fetch the follower count (seed the badge + refresh every 10 min
+// while live). Viewers/timer poll this more often without ?total=1.
 router.get("/stream/followers", requireApprovedUser, async (req, res) => {
   try {
     const token = await getValidTwitchToken(req.user.twitchId);

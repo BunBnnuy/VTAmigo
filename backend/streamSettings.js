@@ -93,9 +93,10 @@ async function getChannelInfo(token, broadcasterId) {
   return { title: c.title, gameId: c.game_id, gameName: c.game_name };
 }
 
-// Helix /streams — empty data means offline. No special scope beyond a
-// valid user/app token.
-async function isStreamLive(token, broadcasterId) {
+// Helix /streams — empty data means offline. Returns viewer_count and
+// started_at when live (used by the header viewers + session timer).
+// No special scope beyond a valid user/app token.
+async function getStreamStatus(token, broadcasterId) {
   const res = await httpsGet(
     `https://api.twitch.tv/helix/streams?user_id=${encodeURIComponent(broadcasterId)}`,
     authHeaders(token)
@@ -103,7 +104,18 @@ async function isStreamLive(token, broadcasterId) {
   if (res.status !== 200) {
     throw new Error(`Twitch streams lookup failed (HTTP ${res.status})`);
   }
-  return Array.isArray(res.data.data) && res.data.data.length > 0;
+  const stream = Array.isArray(res.data.data) && res.data.data[0];
+  if (!stream) return { live: false, viewerCount: null, startedAt: null };
+  return {
+    live: true,
+    viewerCount: typeof stream.viewer_count === "number" ? stream.viewer_count : 0,
+    startedAt: stream.started_at || null,
+  };
+}
+
+async function isStreamLive(token, broadcasterId) {
+  const status = await getStreamStatus(token, broadcasterId);
+  return status.live;
 }
 
 // Helix /channels/followers returns `total` even with first=1 — we only
@@ -124,14 +136,14 @@ async function getFollowerCount(token, broadcasterId) {
   return res.data.total;
 }
 
-// Live status (+ optional follower total) for the header counter.
-// `includeTotal` is how the frontend seeds the badge while offline and
-// refreshes the count while live — without it we only hit Helix /streams.
+// Live/viewers/startedAt (+ optional follower total) for the header stats.
+// `includeTotal` seeds/refreshes the followers badge; without it we only
+// hit Helix /streams (cheap live + viewer check).
 async function getFollowersStatus(token, broadcasterId, { includeTotal = false } = {}) {
-  const live = await isStreamLive(token, broadcasterId);
-  if (!includeTotal) return { live, total: null };
+  const status = await getStreamStatus(token, broadcasterId);
+  if (!includeTotal) return { ...status, total: null };
   const total = await getFollowerCount(token, broadcasterId);
-  return { live, total };
+  return { ...status, total };
 }
 
 // { title, gameId } — only the keys actually passed in are sent, since Helix
@@ -156,6 +168,7 @@ module.exports = {
   searchCategories,
   getChannelInfo,
   updateChannelInfo,
+  getStreamStatus,
   isStreamLive,
   getFollowerCount,
   getFollowersStatus,
