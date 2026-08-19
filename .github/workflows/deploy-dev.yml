@@ -1,0 +1,30 @@
+name: Deploy dev
+
+# Runs once the "Tests" workflow (ci.yml) finishes on dev, rather than on
+# every push directly, so a broken push never reaches the dev box.
+on:
+  workflow_run:
+    workflows: ["Tests"]
+    branches: [dev]
+    types: [completed]
+
+jobs:
+  deploy:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    steps:
+      # /opt/vtamigo-dev is edited in place on the box (see server/README.md),
+      # so this only fast-forwards with `git pull` — never `reset --hard` —
+      # and fails loudly instead of silently discarding uncommitted edits.
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            set -euo pipefail
+            cd /opt/vtamigo-dev
+            git pull
+            cd backend && npm ci && chown -R vtamigo:vtamigo .
+            cd ../frontend && npm ci
