@@ -3,7 +3,15 @@
 // live stream. These cases pin down both what counts as a command and what
 // deliberately does not.
 import { describe, expect, it } from "vitest";
-import { parseVoiceCommand } from "../src/voiceCommands.js";
+import { mergeTitleWithDelimiter, parseVoiceCommand } from "../src/voiceCommands.js";
+
+describe("title delimiter handling", () => {
+  it("adds a space before the preserved separator suffix", () => {
+    expect(mergeTitleWithDelimiter("Day 4", "Day 3| !discord !socials", "|")).toBe(
+      "Day 4 | !discord !socials",
+    );
+  });
+});
 
 describe("title commands", () => {
   it("recognises the English phrasings", () => {

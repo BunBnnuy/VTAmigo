@@ -11,7 +11,7 @@ import Login from "./Login.jsx";
 import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
-import { parseVoiceCommand } from "./voiceCommands.js";
+import { mergeTitleWithDelimiter, parseVoiceCommand } from "./voiceCommands.js";
 import { isSongRequest } from "./chatCommands.js";
 import {
   CURRENT_ANNOUNCEMENT,
@@ -483,8 +483,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           const infoRes = await apiFetch("/stream/info");
           const info = await infoRes.json().catch(() => ({}));
           if (!infoRes.ok) throw new Error(info.error || `HTTP ${infoRes.status}`);
-          const idx = (info.title || "").indexOf(delimiter);
-          if (idx !== -1) newTitle = cmd.value + info.title.slice(idx);
+          newTitle = mergeTitleWithDelimiter(cmd.value, info.title, delimiter);
         }
         const res = await apiFetch("/stream/settings", {
           method: "POST",

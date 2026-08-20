@@ -32,6 +32,14 @@ function firstMatch(patterns, lowerText) {
   return null;
 }
 
+// Keep the configured separator and its suffix, but leave a space between the
+// newly spoken title and the first separator character.
+export function mergeTitleWithDelimiter(title, currentTitle, delimiter) {
+  if (!delimiter) return title;
+  const idx = (currentTitle || "").indexOf(delimiter);
+  return idx === -1 ? title : `${title} ${currentTitle.slice(idx)}`;
+}
+
 // Returns { type: "title" | "category", value } or null.
 export function parseVoiceCommand(rawText) {
   const text = (rawText || "").trim();
