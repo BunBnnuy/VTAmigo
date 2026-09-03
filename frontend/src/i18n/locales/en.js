@@ -3,16 +3,16 @@ export default {
     logIn: "Log in with Twitch",
     title: "An AI co-host that never misses {chat}.",
     titleChat: "chat",
-    subtitle: "VTAmigo watches your Twitch chat, replies out loud, and animates your avatar — so your stream always has someone to talk to, even when it's quiet.",
+    subtitle: "VTAmigo watches your Twitch chat, replies out loud, and animates your avatar, so your stream always has someone to talk to, even when it's quiet.",
     cta: "Log in with Twitch to get started",
-    ctaNote: "Free to try — no credit card required.",
+    ctaNote: "Free to try. No credit card required.",
     footer: "VTAmigo works alongside your existing Twitch setup.",
     privacy: "Privacy Policy",
     faq: "FAQ",
     features: {
       chat: {
         title: "Reads your chat live",
-        desc: "Batches messages from Twitch chat and reacts with witty, in-context replies — not just repeating what chat said.",
+        desc: "Batches messages from Twitch chat and reacts with witty, in-context replies instead of just repeating what chat said.",
       },
       tts: {
         title: "Talks back with TTS",
@@ -24,11 +24,11 @@ export default {
       },
       events: {
         title: "Reacts to events",
-        desc: "Follows, subs, raids, and cheers all get an instant, on-brand reaction — no manual triggering needed.",
+        desc: "Follows, subs, raids, and cheers all get an instant, on-brand reaction. No manual triggering needed.",
       },
       voice: {
         title: "Voice control & commands",
-        desc: "Talk instead of type — transcribe your mic into the AI's context, or say things like \"change the title to ...\" to update your stream hands-free. Pick voice-to-text, commands-only, or both.",
+        desc: "Talk instead of typing. Transcribe your mic into the AI's context, or say things like \"change the title to ...\" to update your stream hands-free. Pick voice-to-text, commands-only, or both.",
       },
       leveling: {
         title: "Built-in leveling system",
@@ -36,7 +36,7 @@ export default {
       },
       customize: {
         title: "Customize your experience",
-        desc: "Rewrite the base prompt to match your vibe — sarcastic, wholesome, hype-man, whatever fits your stream — and the bot's replies follow suit.",
+        desc: "Rewrite the base prompt to match your vibe: sarcastic, wholesome, hype-man, or whatever fits your stream. The bot's replies follow suit.",
       },
     },
   },
