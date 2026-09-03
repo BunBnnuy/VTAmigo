@@ -3,16 +3,16 @@ export default {
     logIn: "Iniciar sesión con Twitch",
     title: "Un co-presentador de IA que nunca se pierde el {chat}.",
     titleChat: "chat",
-    subtitle: "VTAmigo lee tu chat de Twitch, responde en voz alta y anima tu avatar — para que tu stream siempre tenga con quién hablar, incluso cuando está tranquilo.",
+    subtitle: "VTAmigo lee tu chat de Twitch, responde en voz alta y anima tu avatar, para que tu stream siempre tenga con quién hablar, incluso cuando está tranquilo.",
     cta: "Inicia sesión con Twitch para empezar",
-    ctaNote: "Gratis para probar — no se necesita tarjeta de crédito.",
+    ctaNote: "Gratis para probar. No se necesita tarjeta de crédito.",
     footer: "VTAmigo funciona junto a tu configuración actual de Twitch.",
     privacy: "Política de Privacidad",
     faq: "Preguntas frecuentes",
     features: {
       chat: {
         title: "Lee tu chat en vivo",
-        desc: "Agrupa mensajes del chat de Twitch y reacciona con respuestas ingeniosas y en contexto — no solo repite lo que dice el chat.",
+        desc: "Agrupa mensajes del chat de Twitch y reacciona con respuestas ingeniosas y en contexto, en vez de repetir lo que dice el chat.",
       },
       tts: {
         title: "Responde con voz (TTS)",
@@ -24,11 +24,11 @@ export default {
       },
       events: {
         title: "Reacciona a eventos",
-        desc: "Follows, subs, raids y cheers reciben una reacción instantánea y acorde a tu estilo — sin activarla manualmente.",
+        desc: "Follows, subs, raids y cheers reciben una reacción instantánea y acorde a tu estilo. No tienes que activarla manualmente.",
       },
       voice: {
         title: "Control por voz y comandos",
-        desc: "Habla en lugar de escribir — transcribe tu micrófono al contexto de la IA, o di cosas como \"cambia el título a ...\" para actualizar tu stream con las manos libres. Elige voz a texto, solo comandos, o ambos.",
+        desc: "Habla en lugar de escribir. Transcribe tu micrófono al contexto de la IA, o di cosas como \"cambia el título a ...\" para actualizar tu stream con las manos libres. Elige voz a texto, solo comandos, o ambos.",
       },
       leveling: {
         title: "Sistema de niveles incorporado",
@@ -36,7 +36,7 @@ export default {
       },
       customize: {
         title: "Personaliza tu experiencia",
-        desc: "Reescribe el prompt base para que encaje con tu estilo — sarcástico, tierno, hype-man, lo que sea que le quede a tu stream — y las respuestas del bot lo reflejan.",
+        desc: "Reescribe el prompt base para que encaje con tu estilo: sarcástico, tierno, hype-man o lo que sea que le quede a tu stream. Las respuestas del bot lo reflejan.",
       },
     },
   },
