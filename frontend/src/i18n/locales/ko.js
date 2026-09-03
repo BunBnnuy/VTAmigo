@@ -292,6 +292,12 @@ export default {
       fixed: "수정된 사항",
       removed: "사라지는 기능",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "방송 연결, AI 사용, 채팅 성장, Twitch 이벤트 수신, 방송 도구 설정으로 업적을 달성할 수 있습니다. 업적 패널에서 진행 상황과 포인트를 확인하세요.",
+        achievementTierUpgrades: "업적 포인트에 따라 계정 요금제가 자동으로 올라갑니다. 요금제는 내려가지 않으며 기존의 더 높은 요금제도 유지됩니다.",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "새 계정은 이제 Free 요금제로 즉시 시작됩니다. Twitch로 로그인하면 수동 승인을 기다리지 않고 대시보드로 바로 이동할 수 있습니다.",
@@ -385,6 +391,9 @@ export default {
     nowSessionExhausted: "이번 세션에서 Now 버튼을 이미 사용했습니다 (플랜 제한)",
     nowAvailableIn: "{time} 후 사용 가능",
     nowForceResponse: "지금 바로 응답 강제 실행",
+    achievementUnlocked: "업적 해제: {name} (+{points}pt)",
+    achievementMore: "외 {count}개",
+    tierUpgraded: "계정이 {tier}(으)로 업그레이드되었습니다",
   },
 
   chatFeed: {
@@ -447,6 +456,47 @@ export default {
     cheer: "{bits} 비트를 후원했습니다",
     redeem: "\"{reward}\"을(를) 교환했습니다",
     default: "Twitch 활동",
+  },
+
+  achievementsPanel: {
+    title: "업적",
+    points: "{points}pt",
+    tier: "티어: {tier}",
+    nextTier: "{tier} 티어: {points}/{needed}pt",
+    nextTitle: "{tier} 티어는 {needed}포인트에 해제됩니다",
+    maxTier: "최고 티어에 도달했습니다",
+    loading: "업적 불러오는 중…",
+    progress: "{done}/{target}",
+    categories: {
+      connection: "시작하기",
+      ai: "AI 공동 진행자",
+      chat: "채팅",
+      events: "Twitch 이벤트",
+      setup: "설정",
+    },
+    items: {
+      first_connect: { name: "첫 연결", desc: "Twitch 채널에 연결하기" },
+      ai_1: { name: "첫마디", desc: "첫 AI 응답 생성하기" },
+      ai_20: { name: "워밍업", desc: "AI 응답 20개 생성하기" },
+      ai_100: { name: "순항 중", desc: "AI 응답 100개 생성하기" },
+      ai_500: { name: "헤드라이너", desc: "AI 응답 500개 생성하기" },
+      chat_100: { name: "첫걸음", desc: "채팅 메시지 100개 보기" },
+      chat_1000: { name: "활기찬 채팅", desc: "채팅 메시지 1,000개 보기" },
+      chat_10000: { name: "채팅 홍수", desc: "채팅 메시지 10,000개 보기" },
+      community_10: { name: "모임", desc: "10명의 시청자와 채팅하기" },
+      community_50: { name: "커뮤니티", desc: "50명의 시청자와 채팅하기" },
+      first_follow: { name: "첫 팔로워", desc: "첫 팔로우 기록하기" },
+      first_sub: { name: "첫 구독", desc: "첫 구독 받기" },
+      first_resub: { name: "환영합니다", desc: "첫 재구독 받기" },
+      first_giftsub: { name: "너그러움", desc: "첫 구독 선물 받기" },
+      first_raid: { name: "레이드 파티", desc: "첫 레이드 받기" },
+      first_cheer: { name: "환호", desc: "첫 치어 받기" },
+      first_redeem: { name: "보상 획득", desc: "첫 채널 포인트 교환 받기" },
+      link_bot: { name: "봇 조련사", desc: "자신의 봇 계정 연결하기" },
+      avatar_ready: { name: "공개", desc: "아바타 이미지 2개 모두 업로드하기" },
+      overlay_builder: { name: "세트 디자이너", desc: "커스텀 오버레이 레이아웃 만들기" },
+      dj_setup: { name: "DJ 부스", desc: "기본 노래 요청 재생목록 설정하기" },
+    },
   },
 
   avatarPanel: {

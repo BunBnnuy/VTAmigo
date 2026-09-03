@@ -35,6 +35,7 @@ const PROTECTED_SAMPLES = [
   { router: "routes/ai.js", method: "post", path: "/respond" },
   { router: "routes/chat.js", method: "post", path: "/connect-bot" },
   { router: "routes/xp.js", method: "get", path: "/xp/overlay-url" },
+  { router: "routes/achievements.js", method: "get", path: "/achievements/state" },
   { router: "routes/activity.js", method: "get", path: "/activity/recent" },
   { router: "routes/overlays.js", method: "get", path: "/overlay/avatar/overlay-url" },
   { router: "routes/stream.js", method: "get", path: "/stream/info" },

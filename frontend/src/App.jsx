@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users, Eye, Timer } from "lucide-react";
+import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users, Eye, Timer, Trophy, Crown, X } from "lucide-react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
@@ -324,6 +324,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [nowCooldownUntil, setNowCooldownUntil] = useState(0);
   const [nowSessionUsed, setNowSessionUsed] = useState(0);
   const [, forceNowTick] = useState(0);
+  const [achievementsState, setAchievementsState] = useState({
+    achievements: [],
+    totalPoints: 0,
+    earnedTier: "free",
+    tierThresholds: null,
+  });
+  const [toasts, setToasts] = useState([]);
 
   const wsRef = useRef(null);
   const seenMsgIds = useRef(new Set());
@@ -392,6 +399,40 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       .then((res) => res.json())
       .then((data) => setActivityEvents(data.events || []))
       .catch(() => {});
+  }, []);
+
+  // Achievements — same fetch-on-mount reasoning as video/activity above:
+  // the WS only pushes newly-earned unlocks, so without this a page refresh
+  // would show an empty panel even though the backend kept the unlocks.
+  const fetchAchievements = useCallback(() => {
+    apiFetch("/achievements/state")
+      .then((res) => res.json())
+      .then((data) => setAchievementsState({
+        achievements: data.achievements || [],
+        totalPoints: data.totalPoints || 0,
+        earnedTier: data.earnedTier || "free",
+        tierThresholds: data.tierThresholds || null,
+      }))
+      .catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    fetchAchievements();
+  }, [fetchAchievements]);
+
+  const dismissToast = useCallback((key) => {
+    setToasts((prev) => prev.filter((toast) => toast.key !== key));
+  }, []);
+
+  // Unlock toasts cap at 3 per burst — first-connect backfills can earn
+  // several at once, and a wall of toasts would cover the canvas.
+  const pushToast = useCallback((toast) => {
+    const key = uid();
+    const entry = { ...toast, key };
+    setToasts((prev) => [...prev.slice(-4), entry]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.key !== key));
+    }, 6000);
   }, []);
 
   // Header stream stats — poll Helix /streams every 60s for live/viewers/
@@ -817,12 +858,30 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           setActivityEvents((prev) => [...prev.slice(-99), event]);
           // Immediately trigger a Claude response for this event
           triggerEventResponse(event);
+        } else if (data.type === "achievement_unlocked") {
+          // Toast from the WS payload (authoritative names come from the
+          // panel's own i18n keys at render time), panel state via refetch.
+          const unlocked = data.achievements || [];
+          for (const a of unlocked.slice(0, 3)) {
+            pushToast({ kind: "achievement", id: a.id, points: a.points });
+          }
+          if (unlocked.length > 3) {
+            pushToast({ kind: "more", count: unlocked.length - 3 });
+          }
+          fetchAchievements();
+        } else if (data.type === "tier_upgraded") {
+          // Live tier upgrade with no page reload: re-fetching /auth/me
+          // pushes the new tier down through props (brand line, batching
+          // clamps via tierRef), and the achievements panel refetches too.
+          pushToast({ kind: "tier", tier: data.newTier });
+          onRefreshAuthRef.current?.();
+          fetchAchievements();
         }
       } catch {
         // ignore parse errors
       }
     };
-  }, [triggerResponse, pushToBuffer]);
+  }, [triggerResponse, pushToBuffer, triggerEventResponse, pushToast, fetchAchievements]);
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
@@ -1145,6 +1204,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         avatarPanelProps={{ ttsSpeaking }}
         videoQueueProps={{ videoState }}
         activityPanelProps={{ events: activityEvents, lang: settings.language }}
+        achievementsPanelProps={{
+          achievements: achievementsState.achievements,
+          totalPoints: achievementsState.totalPoints,
+          earnedTier: achievementsState.earnedTier,
+          tierThresholds: achievementsState.tierThresholds,
+        }}
       />
 
       {/* ── Bottom bar ── */}
@@ -1219,6 +1284,31 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         </div>
 
       </div>
+
+      {/* ── Achievement / tier-upgrade toasts ── */}
+      {toasts.length > 0 && (
+        <div style={styles.toasts}>
+          {toasts.map((toast) => (
+            <div key={toast.key} style={styles.toast}>
+              {toast.kind === "achievement" && <Trophy size={16} color="var(--yellow)" />}
+              {toast.kind === "tier" && <Crown size={16} color="var(--accent)" />}
+              <span style={styles.toastText}>
+                {toast.kind === "achievement"
+                  ? t("app.achievementUnlocked", {
+                      name: t(`achievementsPanel.items.${toast.id}.name`),
+                      points: toast.points,
+                    })
+                  : toast.kind === "tier"
+                    ? t("app.tierUpgraded", { tier: TIER_LABELS[toast.tier] || toast.tier })
+                    : t("app.achievementMore", { count: toast.count })}
+              </span>
+              <button style={styles.toastClose} onClick={() => dismissToast(toast.key)}>
+                <X size={13} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Settings modal */}
       {showSettings && (
@@ -1399,5 +1489,38 @@ const styles = {
     border: "1px solid var(--border)",
     fontSize: 12,
     padding: "5px 10px",
+  },
+  toasts: {
+    position: "fixed",
+    right: 16,
+    bottom: 56,
+    zIndex: 1500,
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    maxWidth: 360,
+  },
+  toast: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderLeft: "3px solid var(--accent)",
+    borderRadius: 9,
+    boxShadow: "var(--shadow)",
+    padding: "10px 12px",
+  },
+  toastText: {
+    flex: 1,
+    fontSize: 13,
+    color: "var(--text)",
+  },
+  toastClose: {
+    background: "transparent",
+    border: "none",
+    color: "var(--text-muted)",
+    padding: "2px 4px",
+    flexShrink: 0,
   },
 };

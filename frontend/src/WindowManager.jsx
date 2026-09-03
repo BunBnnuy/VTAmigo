@@ -9,6 +9,7 @@ import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
 import ChatOverlayPreview from "./ChatOverlayPreview.jsx";
 import AvatarPanel from "./AvatarPanel.jsx";
 import ActivityPanel from "./ActivityPanel.jsx";
+import AchievementsPanel from "./AchievementsPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
@@ -21,6 +22,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     avatar:            { x: 1020, y: 620, w: 260, h: 300, z: 7, collapsed: false, closed: false },
     chatOverlayPreview:{ x: 520,  y: 600, w: 480, h: 320, z: 8, collapsed: false, closed: false },
     activity:          { x: 1580, y: 20,  w: 320, h: 480, z: 9, collapsed: false, closed: false },
+    achievements:      { x: 1580, y: 520, w: 320, h: 420, z: 10, collapsed: false, closed: false },
   },
 };
 
@@ -37,6 +39,7 @@ export const PANEL_META = [
   { id: "chatOverlayPreview", titleKey: "chatOverlayPreview.title", dataTour: null },
   { id: "avatar", titleKey: "avatarPanel.title", dataTour: null },
   { id: "activity", titleKey: "activityPanel.title", dataTour: null },
+  { id: "achievements", titleKey: "achievementsPanel.title", dataTour: null },
 ];
 
 // Fills in any window key missing from a saved layout (new panel added in a
@@ -54,7 +57,7 @@ export function mergePanelLayout(saved) {
 export default function WindowManager({
   panelLayout, onUpdateWindow, onFocusWindow, t,
   chatFeedProps, responsePanelProps, quickControlsProps, videoQueueProps,
-  avatarPanelProps, activityPanelProps, lang,
+  avatarPanelProps, activityPanelProps, achievementsPanelProps, lang,
 }) {
   // `layout` is handed to panels that need to know whether they're actually on
   // screen — <Window> keeps collapsed children mounted (hidden with CSS) so
@@ -83,6 +86,7 @@ export default function WindowManager({
       case "chatOverlayPreview": return <ChatOverlayPreview lang={lang} visible={!layout.collapsed} />;
       case "avatar": return <AvatarPanel {...avatarPanelProps} lang={lang} />;
       case "activity": return <ActivityPanel {...activityPanelProps} lang={lang} />;
+      case "achievements": return <AchievementsPanel {...achievementsPanelProps} lang={lang} />;
       default: return null;
     }
   };

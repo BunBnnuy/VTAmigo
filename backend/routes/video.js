@@ -21,7 +21,8 @@ const path = require("path");
 const { requireApprovedUser, getApprovedUserFromCookieHeader, getOverlayToken, findUserByOverlayToken } = require("../auth");
 const videoQueue = require("../videoQueue");
 const youtube = require("../youtube");
-const { broadcastVideoState } = require("../sessions");
+const achievements = require("../achievements");
+const { broadcastVideoState, notifyAchievements } = require("../sessions");
 
 const router = express.Router();
 
@@ -106,6 +107,7 @@ router.post("/video/default-playlist", requireApprovedUser, async (req, res) => 
     ]);
     videoQueue.setDefaultPlaylist(req.user.twitchId, playlistId, items, title);
     broadcastVideoState(req.user.twitchId);
+    notifyAchievements(req.user.twitchId, achievements.checkAndUnlock(req.user.twitchId));
     res.json({ ok: true, count: items.length });
   } catch (err) {
     if (err.message === "YOUTUBE_API_KEY_MISSING") {

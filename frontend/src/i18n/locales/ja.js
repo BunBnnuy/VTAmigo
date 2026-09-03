@@ -292,6 +292,12 @@ export default {
       fixed: "修正",
       removed: "廃止",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "配信への接続、AIの利用、チャットの成長、Twitchイベントの受信、配信ツールの設定で実績を獲得できるようになりました。実績パネルで進行状況とポイントを確認できます。",
+        achievementTierUpgrades: "実績ポイントに応じてアカウントのプランが自動的に上がるようになりました。プランが下がることはなく、既存の上位プランも維持されます。",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "新しいアカウントはすぐにFreeプランで利用開始できます。Twitchでログインすると、手動承認を待たずにダッシュボードへ進めます。",
@@ -385,6 +391,9 @@ export default {
     nowSessionExhausted: "このセッションではNowボタンを使い切りました（プランの上限）",
     nowAvailableIn: "{time} 後に利用可能",
     nowForceResponse: "今すぐ返信を強制",
+    achievementUnlocked: "実績を解除: {name}（+{points}pt）",
+    achievementMore: "他 {count} 件",
+    tierUpgraded: "アカウントが {tier} にアップグレードされました",
   },
 
   chatFeed: {
@@ -447,6 +456,47 @@ export default {
     cheer: "{bits}ビットをチアーしました",
     redeem: "「{reward}」と交換しました",
     default: "Twitchアクティビティ",
+  },
+
+  achievementsPanel: {
+    title: "実績",
+    points: "{points}pt",
+    tier: "ティア: {tier}",
+    nextTier: "{tier}ティア: {points}/{needed}pt",
+    nextTitle: "{tier}ティアは{needed}ポイントで解放されます",
+    maxTier: "最高ティアに到達しました",
+    loading: "実績を読み込み中…",
+    progress: "{done}/{target}",
+    categories: {
+      connection: "はじめに",
+      ai: "AI共同ホスト",
+      chat: "チャット",
+      events: "Twitchイベント",
+      setup: "セットアップ",
+    },
+    items: {
+      first_connect: { name: "初回接続", desc: "Twitchチャンネルに接続する" },
+      ai_1: { name: "最初の一言", desc: "最初のAI返信を生成する" },
+      ai_20: { name: "ウォームアップ", desc: "AI返信を20件生成する" },
+      ai_100: { name: "好調", desc: "AI返信を100件生成する" },
+      ai_500: { name: "ヘッドライナー", desc: "AI返信を500件生成する" },
+      chat_100: { name: "アイスブレイク", desc: "チャットメッセージを100件見る" },
+      chat_1000: { name: "にぎやかなチャット", desc: "チャットメッセージを1,000件見る" },
+      chat_10000: { name: "チャットの洪水", desc: "チャットメッセージを10,000件見る" },
+      community_10: { name: "集い", desc: "10人の視聴者とチャットする" },
+      community_50: { name: "コミュニティ", desc: "50人の視聴者とチャットする" },
+      first_follow: { name: "初のフォロワー", desc: "最初のフォローを記録する" },
+      first_sub: { name: "初のサブスク", desc: "最初のサブスクを受け取る" },
+      first_resub: { name: "おかえり", desc: "最初のリサブを受け取る" },
+      first_giftsub: { name: "気前のよさ", desc: "最初のギフトサブを受け取る" },
+      first_raid: { name: "レイドパーティ", desc: "最初のレイドを受ける" },
+      first_cheer: { name: "乾杯", desc: "最初のチアーを受ける" },
+      first_redeem: { name: "報酬獲得", desc: "最初のチャンネルポイント引き換えを受ける" },
+      link_bot: { name: "ボット使い", desc: "自分のボットアカウントを連携する" },
+      avatar_ready: { name: "お披露目", desc: "アバター画像を2枚ともアップロードする" },
+      overlay_builder: { name: "セットデザイナー", desc: "カスタムオーバーレイのレイアウトを作る" },
+      dj_setup: { name: "DJブース", desc: "デフォルトの曲リクエストリストを設定する" },
+    },
   },
 
   avatarPanel: {

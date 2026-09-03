@@ -292,6 +292,12 @@ export default {
       fixed: "Arreglado",
       removed: "Lo que se va",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "Consigue logros al conectar tu stream, usar la IA, hacer crecer tu chat, recibir eventos de Twitch y configurar herramientas para el stream. Abre el panel Logros para ver tu progreso y tus puntos.",
+        achievementTierUpgrades: "Los puntos de logros ahora pueden subir automáticamente el nivel de tu cuenta. Tu nivel solo aumenta; un nivel superior existente no se reducirá.",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "Las cuentas nuevas ahora comienzan inmediatamente en el nivel Free. Inicia sesión con Twitch y entra directamente al panel, sin esperar una aprobación manual.",
@@ -385,6 +391,9 @@ export default {
     nowSessionExhausted: "Ya usaste el botón Now esta sesión (límite de tu plan)",
     nowAvailableIn: "Disponible en {time}",
     nowForceResponse: "Forzar respuesta ahora",
+    achievementUnlocked: "Logro desbloqueado: {name} (+{points} ptos)",
+    achievementMore: "+{count} más",
+    tierUpgraded: "Cuenta mejorada a {tier}",
   },
 
   chatFeed: {
@@ -447,6 +456,47 @@ export default {
     cheer: "envió {bits} bits",
     redeem: "canjeó \"{reward}\"",
     default: "Actividad de Twitch",
+  },
+
+  achievementsPanel: {
+    title: "Logros",
+    points: "{points} ptos",
+    tier: "Nivel: {tier}",
+    nextTier: "Nivel {tier}: {points}/{needed} ptos",
+    nextTitle: "El nivel {tier} se desbloquea con {needed} puntos",
+    maxTier: "Nivel máximo alcanzado",
+    loading: "Cargando logros…",
+    progress: "{done}/{target}",
+    categories: {
+      connection: "Primeros pasos",
+      ai: "Copresentador IA",
+      chat: "Chat",
+      events: "Eventos de Twitch",
+      setup: "Configuración",
+    },
+    items: {
+      first_connect: { name: "Primera conexión", desc: "Conéctate a tu canal de Twitch" },
+      ai_1: { name: "Primeras palabras", desc: "Genera tu primera respuesta de la IA" },
+      ai_20: { name: "Calentando", desc: "Genera 20 respuestas de la IA" },
+      ai_100: { name: "En racha", desc: "Genera 100 respuestas de la IA" },
+      ai_500: { name: "Cabeza de cartel", desc: "Genera 500 respuestas de la IA" },
+      chat_100: { name: "Romper el hielo", desc: "Ve 100 mensajes del chat" },
+      chat_1000: { name: "Chat animado", desc: "Ve 1.000 mensajes del chat" },
+      chat_10000: { name: "Avalancha", desc: "Ve 10.000 mensajes del chat" },
+      community_10: { name: "Reunión", desc: "Chatea con 10 personas distintas" },
+      community_50: { name: "Comunidad", desc: "Chatea con 50 personas distintas" },
+      first_follow: { name: "Primer seguidor", desc: "Recibe tu primer follow registrado" },
+      first_sub: { name: "Primera suscripción", desc: "Recibe tu primera suscripción" },
+      first_resub: { name: "Bienvenido de nuevo", desc: "Recibe tu primera resuscripción" },
+      first_giftsub: { name: "Gente generosa", desc: "Recibe tu primera sub de regalo" },
+      first_raid: { name: "Fiesta de raid", desc: "Recibe tu primer raid" },
+      first_cheer: { name: "Hurras", desc: "Recibe tu primer cheer" },
+      first_redeem: { name: "Recompensa canjeada", desc: "Recibe tu primer canje de puntos" },
+      link_bot: { name: "Domador de bots", desc: "Vincula tu propia cuenta de bot" },
+      avatar_ready: { name: "Presentación", desc: "Sube ambas imágenes del avatar" },
+      overlay_builder: { name: "Diseñador", desc: "Crea un diseño de overlay personalizado" },
+      dj_setup: { name: "Cabina de DJ", desc: "Configura una lista de canciones por defecto" },
+    },
   },
 
   avatarPanel: {

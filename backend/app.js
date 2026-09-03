@@ -32,6 +32,7 @@ const sessions = require("./sessions");
 const aiRouter = require("./routes/ai");
 const chatRouter = require("./routes/chat");
 const xpRouter = require("./routes/xp");
+const achievementsRouter = require("./routes/achievements");
 const activityRouter = require("./routes/activity");
 const overlaysRouter = require("./routes/overlays");
 const streamRouter = require("./routes/stream");
@@ -139,7 +140,7 @@ if (isProd) {
 // and shows the login/pending screen client-side, so this reveals no data.
 const PROTECTED_PREFIXES = [
   "/respond", "/memory", "/connect", "/disconnect", "/say",
-  "/event-response", "/xp", "/avatar", "/tts", "/video",
+  "/event-response", "/xp", "/achievements", "/avatar", "/tts", "/video",
   "/activity", "/overlay-builder",
 ];
 app.use((req, res, next) => {
@@ -182,6 +183,7 @@ sessions.attach({ server, wss });
 app.use(aiRouter);            // /respond, /memory/*
 app.use(chatRouter);          // /connect*, /disconnect*, /say*, /event-response
 app.use(xpRouter);            // /xp/*, /overlay/xp
+app.use(achievementsRouter);  // /achievements/*
 app.use(activityRouter);      // /activity/recent
 app.use(overlaysRouter);      // /overlay/avatar*, /overlay/chat, /chat-overlay/*
 app.use(streamRouter);        // /stream/*
