@@ -31,8 +31,6 @@ export default function Login() {
 
   return (
     <div style={styles.page}>
-      <div style={styles.glow} />
-
       <header style={styles.header}>
         <div style={styles.brand}>
           {/* decorative: the brand name is already in the adjacent span */}
@@ -69,9 +67,13 @@ export default function Login() {
           const IconComp = FEATURE_ICONS[key];
           return (
             <div key={key} style={styles.card}>
-              <div style={styles.cardIcon}><IconComp size={26} /></div>
-              <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
-              <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
+              <div style={styles.cardTitlebar}>
+                <IconComp size={16} />
+                <h3 style={styles.cardTitle}>{t(`login.features.${key}.title`)}</h3>
+              </div>
+              <div style={styles.cardBody}>
+                <p style={styles.cardDesc}>{t(`login.features.${key}.desc`)}</p>
+              </div>
             </div>
           );
         })}
@@ -99,16 +101,6 @@ const styles = {
     color: "var(--text, #efeff1)",
     overflowX: "hidden",
     overflowY: "auto",
-  },
-  glow: {
-    position: "absolute",
-    top: -200,
-    left: "50%",
-    transform: "translateX(-50%)",
-    width: 900,
-    height: 500,
-    background: "radial-gradient(closest-side, rgba(225,29,118,0.25), transparent)",
-    pointerEvents: "none",
   },
   header: {
     position: "relative",
@@ -198,13 +190,29 @@ const styles = {
     width: "100%",
   },
   card: {
-    padding: "24px 20px",
-    borderRadius: 14,
+    display: "flex",
+    flexDirection: "column",
+    borderRadius: 9,
     background: "var(--surface, #18181b)",
     border: "1px solid var(--border, #2a2a2e)",
+    overflow: "hidden",
+    boxShadow: "var(--shadow, 0 4px 16px rgba(0,0,0,.28))",
   },
-  cardIcon: { fontSize: 26, marginBottom: 10 },
-  cardTitle: { margin: "0 0 8px", fontSize: 15, fontWeight: 700 },
+  cardTitlebar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    height: 36,
+    padding: "8px 10px",
+    background: "var(--accent, #e11d76)",
+    color: "var(--on-accent, #ffffff)",
+    borderBottom: "1px solid var(--border, #2a2a2e)",
+  },
+  cardBody: {
+    flex: 1,
+    padding: "20px",
+  },
+  cardTitle: { margin: 0, fontSize: 13, fontWeight: 700 },
   cardDesc: {
     margin: 0,
     fontSize: 13,
