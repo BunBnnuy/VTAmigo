@@ -19,6 +19,12 @@ export const SEEN_STORAGE_KEY = "announcement_seen";
 // accent; `items` are i18n key suffixes, rendered in order.
 export const ANNOUNCEMENTS = [
   {
+    version: "v20260903",
+    sections: [
+      { kind: "new", items: ["instantFreeAccess"] },
+    ],
+  },
+  {
     version: "v20260816",
     sections: [
       { kind: "action", items: ["overlays"] },

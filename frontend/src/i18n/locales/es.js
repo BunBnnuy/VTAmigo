@@ -287,9 +287,15 @@ export default {
     title: "Novedades de esta versión",
     ok: "OK",
     headings: {
+      new: "Nuevo",
       action: "Una cosa que tienes que hacer",
       fixed: "Arreglado",
       removed: "Lo que se va",
+    },
+    v20260903: {
+      new: {
+        instantFreeAccess: "Las cuentas nuevas ahora comienzan inmediatamente en el nivel Free. Inicia sesión con Twitch y entra directamente al panel, sin esperar una aprobación manual.",
+      },
     },
     v20260816: {
       action: {

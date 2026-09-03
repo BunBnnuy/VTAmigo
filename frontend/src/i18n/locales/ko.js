@@ -287,9 +287,15 @@ export default {
     title: "이번 버전의 새로운 소식",
     ok: "확인",
     headings: {
+      new: "새 기능",
       action: "한 가지 해주셔야 할 일",
       fixed: "수정된 사항",
       removed: "사라지는 기능",
+    },
+    v20260903: {
+      new: {
+        instantFreeAccess: "새 계정은 이제 Free 요금제로 즉시 시작됩니다. Twitch로 로그인하면 수동 승인을 기다리지 않고 대시보드로 바로 이동할 수 있습니다.",
+      },
     },
     v20260816: {
       action: {

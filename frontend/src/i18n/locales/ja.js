@@ -287,9 +287,15 @@ export default {
     title: "今回のアップデート",
     ok: "OK",
     headings: {
+      new: "新機能",
       action: "ひとつ対応をお願いします",
       fixed: "修正",
       removed: "廃止",
+    },
+    v20260903: {
+      new: {
+        instantFreeAccess: "新しいアカウントはすぐにFreeプランで利用開始できます。Twitchでログインすると、手動承認を待たずにダッシュボードへ進めます。",
+      },
     },
     v20260816: {
       action: {

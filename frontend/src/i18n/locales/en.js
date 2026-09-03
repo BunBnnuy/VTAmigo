@@ -287,9 +287,15 @@ export default {
     title: "What's new in this version",
     ok: "OK",
     headings: {
+      new: "New",
       action: "One thing you need to do",
       fixed: "Fixed",
       removed: "Going away",
+    },
+    v20260903: {
+      new: {
+        instantFreeAccess: "New accounts now start immediately on the Free tier. Sign in with Twitch and go straight to your dashboard — no manual approval wait.",
+      },
     },
     v20260816: {
       action: {

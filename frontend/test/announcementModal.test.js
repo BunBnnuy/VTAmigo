@@ -29,9 +29,11 @@ describe("AnnouncementModal", () => {
     renderModal();
     const copy = es.announcement[CURRENT_ANNOUNCEMENT.version];
 
-    expect(screen.getByText(copy.action.overlays)).toBeInTheDocument();
-    expect(screen.getByText(copy.fixed.botIgnoresSongRequests)).toBeInTheDocument();
-    expect(screen.getByText(copy.removed.vtubeStudio)).toBeInTheDocument();
+    for (const section of CURRENT_ANNOUNCEMENT.sections) {
+      for (const item of section.items) {
+        expect(screen.getByText(copy[section.kind][item])).toBeInTheDocument();
+      }
+    }
     // A missed key renders as "announcement.v…" — assert none leaked through.
     expect(screen.queryByText(/^announcement\./)).toBeNull();
   });
