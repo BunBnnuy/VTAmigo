@@ -292,6 +292,12 @@ export default {
       fixed: "Arreglado",
       removed: "Lo que se va",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "Consigue logros al conectar tu stream, usar la IA, hacer crecer tu chat, recibir eventos de Twitch y configurar herramientas para el stream. Abre el panel Logros para ver tu progreso y tus puntos.",
+        achievementTierUpgrades: "Los puntos de logros ahora pueden subir automáticamente el nivel de tu cuenta. Tu nivel solo aumenta; un nivel superior existente no se reducirá.",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "Las cuentas nuevas ahora comienzan inmediatamente en el nivel Free. Inicia sesión con Twitch y entra directamente al panel, sin esperar una aprobación manual.",

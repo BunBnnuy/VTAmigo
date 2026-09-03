@@ -292,6 +292,12 @@ export default {
       fixed: "수정된 사항",
       removed: "사라지는 기능",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "방송 연결, AI 사용, 채팅 성장, Twitch 이벤트 수신, 방송 도구 설정으로 업적을 달성할 수 있습니다. 업적 패널에서 진행 상황과 포인트를 확인하세요.",
+        achievementTierUpgrades: "업적 포인트에 따라 계정 요금제가 자동으로 올라갑니다. 요금제는 내려가지 않으며 기존의 더 높은 요금제도 유지됩니다.",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "새 계정은 이제 Free 요금제로 즉시 시작됩니다. Twitch로 로그인하면 수동 승인을 기다리지 않고 대시보드로 바로 이동할 수 있습니다.",

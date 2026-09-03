@@ -292,6 +292,12 @@ export default {
       fixed: "Fixed",
       removed: "Going away",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "Earn achievements when you connect your stream, use AI, grow your chat, receive Twitch events, and set up streaming tools. Open the Achievements panel to see your progress and points.",
+        achievementTierUpgrades: "Achievement points can now upgrade your account tier automatically. Your tier only moves up; an existing higher tier will not be reduced.",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "New accounts now start immediately on the Free tier. Sign in with Twitch and go straight to your dashboard — no manual approval wait.",

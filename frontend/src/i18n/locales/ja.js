@@ -292,6 +292,12 @@ export default {
       fixed: "修正",
       removed: "廃止",
     },
+    "v20260903-achievements": {
+      new: {
+        streamerAchievements: "配信への接続、AIの利用、チャットの成長、Twitchイベントの受信、配信ツールの設定で実績を獲得できるようになりました。実績パネルで進行状況とポイントを確認できます。",
+        achievementTierUpgrades: "実績ポイントに応じてアカウントのプランが自動的に上がるようになりました。プランが下がることはなく、既存の上位プランも維持されます。",
+      },
+    },
     v20260903: {
       new: {
         instantFreeAccess: "新しいアカウントはすぐにFreeプランで利用開始できます。Twitchでログインすると、手動承認を待たずにダッシュボードへ進めます。",
