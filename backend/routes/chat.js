@@ -18,6 +18,7 @@ const siteConfig = require("../siteConfig");
 const { TwitchIRCClient } = require("../twitch");
 const { TikTokChatClient } = require("../tiktok");
 const sessions = require("../sessions");
+const achievements = require("../achievements");
 
 const { twitchSessions, broadcast, broadcastToAccount, handleChat, connectTwitchForUser } = sessions;
 
@@ -128,7 +129,14 @@ router.post("/connect", async (req, res) => {
   if (manual) sendEvent("manual_connect", { req, twitchLogin: req.user?.login });
   try {
     const { channel } = await connectTwitchForUser(req.user, { botUsername, botToken });
-    res.json({ ok: true, channel, eventSub: true });
+    // first_connect (plus any retroactive milestones for pre-feature
+    // accounts) settles here, with connectedNow so a brand-new account earns
+    // it on this call rather than waiting for its first chat message.
+    const achUpgradedTier = sessions.notifyAchievements(
+      req.user.twitchId,
+      achievements.checkAndUnlock(req.user.twitchId, { connectedNow: true })
+    );
+    res.json({ ok: true, channel, eventSub: true, tier: achUpgradedTier || undefined });
   } catch (err) {
     if (err.message === "NO_TWITCH_TOKEN" || err.message === "TWITCH_TOKEN_REFRESH_FAILED") {
       return res.status(503).json({ error: "Tu sesión de Twitch expiró — cierra sesión y vuelve a iniciar sesión." });

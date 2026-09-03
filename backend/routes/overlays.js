@@ -19,7 +19,8 @@ const emotes = require("../emotes");
 const avatarOverlay = require("../avatarOverlay");
 const chatOverlayConfig = require("../chatOverlayConfig");
 const chatOverlayBg = require("../chatOverlayBg");
-const { broadcastToAccount } = require("../sessions");
+const { broadcastToAccount, notifyAchievements } = require("../sessions");
+const achievements = require("../achievements");
 
 const router = express.Router();
 
@@ -66,6 +67,7 @@ router.post("/overlay/avatar/upload", requireApprovedUser, (req, res) => {
   const { slot, dataUrl } = req.body || {};
   try {
     avatarOverlay.saveImage(req.user.twitchId, slot, dataUrl);
+    notifyAchievements(req.user.twitchId, achievements.checkAndUnlock(req.user.twitchId));
     res.json({ ok: true, ...avatarOverlay.getStatus(req.user.twitchId) });
   } catch (err) {
     if (err.message === "BAD_SLOT") return res.status(400).json({ error: "slot must be 'speaking' or 'silent'" });

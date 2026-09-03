@@ -151,6 +151,17 @@ db.exec(`
     started INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (provider, twitchId)
   );
+
+  -- Streamer achievements (backend/achievements.js): one row per unlocked
+  -- achievement per account. Progress itself is derived live from the existing
+  -- usage_log / xp_users / activity_events tables, so only the unlock moment
+  -- needs storing here.
+  CREATE TABLE IF NOT EXISTS streamer_achievements (
+    twitchId TEXT NOT NULL,
+    achievementId TEXT NOT NULL,
+    unlockedAt TEXT NOT NULL,
+    PRIMARY KEY (twitchId, achievementId)
+  );
 `);
 
 // Device-code enrollment for the downloadable tunnel client was a desktop-era

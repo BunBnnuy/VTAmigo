@@ -21,9 +21,10 @@ const fs = require("fs");
 const multer = require("multer");
 const { getApprovedUserFromCookieHeader, getOverlayToken, findUserByOverlayToken } = require("../auth");
 const activity = require("../activity");
+const achievements = require("../achievements");
 const overlayAssets = require("../overlayAssets");
 const overlayLayouts = require("../overlayLayouts");
-const { broadcastToAccount } = require("../sessions");
+const { broadcastToAccount, notifyAchievements } = require("../sessions");
 
 const router = express.Router();
 
@@ -46,6 +47,7 @@ router.get("/overlay-builder/layouts", (req, res) => {
 
 router.post("/overlay-builder/layouts", (req, res) => {
   const layout = overlayLayouts.createLayout(req.user.twitchId, req.body?.name);
+  notifyAchievements(req.user.twitchId, achievements.checkAndUnlock(req.user.twitchId));
   res.json({ layout });
 });
 

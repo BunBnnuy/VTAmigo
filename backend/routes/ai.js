@@ -8,6 +8,8 @@ const express = require("express");
 const { sendEvent } = require("../analytics");
 const { queryClaudeCLI, importMemory } = require("../claude");
 const usage = require("../usage");
+const achievements = require("../achievements");
+const { notifyAchievements } = require("../sessions");
 const siteConfig = require("../siteConfig");
 const memoryExport = require("../memoryExport");
 const memoryDownload = require("../memoryDownload");
@@ -40,7 +42,11 @@ router.post("/respond", async (req, res) => {
     });
     const upgradedTier = usage.maybeAutoUpgradeTier(req.user?.twitchId);
     if (upgradedTier) sendEvent("tier_auto_upgraded", { req, twitchLogin: req.user?.login, data: { newTier: upgradedTier } });
-    res.json({ response, tier: upgradedTier || undefined });
+    // Achievements subsume the rule above long-term (ai_1 + ai_20 are 25 of
+    // the 50 points basic needs); both run so neither upgrade path regresses.
+    const achUpgradedTier = notifyAchievements(twitchId, achievements.checkAndUnlock(twitchId));
+    if (achUpgradedTier) sendEvent("tier_auto_upgraded", { req, twitchLogin: req.user?.login, data: { newTier: achUpgradedTier } });
+    res.json({ response, tier: achUpgradedTier || upgradedTier || undefined });
   } catch (err) {
     if (err.message === "OPENAI_API_KEY_MISSING") {
       return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });

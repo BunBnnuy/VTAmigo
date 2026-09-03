@@ -43,6 +43,7 @@ const { TwitchIRCClient } = require("./twitch");
 const { EventSubClient } = require("./eventsub");
 const emotes = require("./emotes");
 const xp = require("./xp");
+const achievements = require("./achievements");
 const activity = require("./activity");
 const videoQueue = require("./videoQueue");
 const youtube = require("./youtube");
@@ -90,6 +91,29 @@ function broadcastToAccount(twitchId, data) {
   });
 }
 
+// Broadcast newly-earned streamer achievements (and any points-driven tier
+// upgrade they triggered) to that account's own sessions. Route handlers
+// that earn achievements outside this module reuse this via require — it
+// keeps the two WS message shapes in one place.
+function notifyAchievements(twitchId, result) {
+  if (!result || result.throttled || !result.newlyUnlocked || result.newlyUnlocked.length === 0) return null;
+  broadcastToAccount(twitchId, {
+    type: "achievement_unlocked",
+    achievements: result.newlyUnlocked,
+    totalPoints: result.totalPoints,
+    earnedTier: result.earnedTier,
+  });
+  const upgradedTier = achievements.maybeUpgradeTier(twitchId, result.earnedTier);
+  if (upgradedTier) {
+    broadcastToAccount(twitchId, {
+      type: "tier_upgraded",
+      newTier: upgradedTier,
+      totalPoints: result.totalPoints,
+    });
+  }
+  return upgradedTier;
+}
+
 // Broadcast a chat message (to that account's own sessions) and award XP for it
 function handleChat(twitchId, msg) {
   const session = twitchSessions.get(twitchId);
@@ -101,6 +125,10 @@ function handleChat(twitchId, msg) {
     const ev = xp.addMessage(twitchId, msg.username, msg.text, msg.color);
     if (ev && ev.gained > 0) broadcastToAccount(twitchId, { type: "xp", ...ev });
   }
+  // Throttled (5s per account, see achievements.js): chat is the hot path, so
+  // this only resolves setup/bot/event milestones earned elsewhere within
+  // seconds while streaming — countable chat milestones land on the same tick.
+  notifyAchievements(twitchId, achievements.checkAndUnlockThrottled(twitchId));
   const srMatch = msg.text && msg.text.match(/^!sr\s+(.+)/i);
   if (srMatch) handleSongRequest(twitchId, msg.username, srMatch[1].trim());
 }
@@ -286,10 +314,12 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
         text: redeem.text,
       });
       broadcastToAccount(twitchId, { type: "chat", msg: redeem });
+      notifyAchievements(twitchId, achievements.checkAndUnlock(twitchId));
     },
     onEvent: (event) => {
       activity.record(twitchId, event);
       broadcastToAccount(twitchId, { type: "twitch_event", event });
+      notifyAchievements(twitchId, achievements.checkAndUnlock(twitchId));
     },
     onStatus: (status) => {
       console.log("[eventsub]", status);
@@ -311,6 +341,7 @@ module.exports = {
   setTikTokClient,
   broadcast,
   broadcastToAccount,
+  notifyAchievements,
   handleChat,
   broadcastVideoState,
   handleSongRequest,
