@@ -2,7 +2,7 @@
 
 An AI co-host companion for Twitch and TikTok Live streams. It reads chat in real time, batches messages, and generates spoken responses using your choice of AI provider, driving an image-swap avatar overlay for OBS.
 
-VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/README.md)) with per-user accounts, tiers, and an admin panel. It sits behind Twitch OAuth login plus a one-time admin approval — see [Setup](#setup).
+VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/README.md)) with per-user accounts, tiers, and an admin panel. Twitch OAuth creates an active Free-tier account immediately — see [Setup](#setup).
 
 ## Features
 
@@ -27,12 +27,12 @@ VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/READ
 - **i18n** — English, Español, 日本語, and 한국어, auto-detected from the browser and switchable from the landing page and Settings. English is the reference locale and the fallback; es/ja/ko have some known gaps, documented in `frontend/test/i18nParity.test.js`.
 - **Light/dark theme**
 - **Bot account linking** — link your own Twitch bot account via OAuth from Settings instead of using the shared site-wide bot; the app resolves the effective bot as your linked account, falling back to the site-wide bot if none is linked
-- **Accounts, tiers & admin panel** — per-user Twitch login gated by admin approval, `free`/`basic`/`advanced`/`pro` tiers controlling batching options and Now-button cooldowns (free auto-upgrades to basic after 20 all-time AI responses), an admin dashboard for managing users/tiers, and per-user AI usage tracking (response counts and estimated tokens by day/week/month/total); a frontend error logger reports uncaught client errors into the admin panel. All of this — users, tiers, usage, overlay layouts/assets, chat overlay config, Activity Panel history, XP — is persisted in a per-environment SQLite database (`backend/db.js`), not flat JSON files.
+- **Accounts, tiers & admin panel** — Twitch OAuth activates each new account on the `free` tier; `free`/`basic`/`advanced`/`pro` tiers control batching options and Now-button cooldowns (free auto-upgrades to basic after 20 all-time AI responses). The admin dashboard can manage access and tiers and shows per-user AI usage (response counts and estimated tokens by day/week/month/total); a frontend error logger reports uncaught client errors into the admin panel. All of this — users, tiers, usage, overlay layouts/assets, chat overlay config, Activity Panel history, XP — is persisted in a per-environment SQLite database (`backend/db.js`), not flat JSON files.
 
 ## Requirements
 
 - [Node.js](https://nodejs.org/) 18+
-- A Twitch application (Client ID + Secret) registered at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps) — every deployment logs in via Twitch OAuth and requires a one-time admin approval; see [Setup](#setup)
+- A Twitch application (Client ID + Secret) registered at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps); see [Setup](#setup)
 - [Claude CLI](https://github.com/anthropics/claude-code) (`npm install -g @anthropic-ai/claude-code`), [Grok CLI](https://x.ai/), or [AGY CLI](https://antigravity.google/docs/cli) (`agy`)
 - For ChatGPT: an OpenAI API key in the `OPENAI_API_KEY` environment variable (a ChatGPT subscription does not include API usage)
 - A Chromium-based browser for mic transcription (Web Speech API)
@@ -40,7 +40,7 @@ VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/READ
 
 ## Setup
 
-Every deployment sits behind Twitch OAuth login and a one-time admin approval, so a couple of one-time steps come before `npm run dev`:
+Every deployment uses Twitch OAuth login, so complete these steps before `npm run dev`:
 
 1. Register an app at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps) and add `http://localhost:3001/auth/twitch/callback` as an OAuth redirect URI (also add `http://localhost:3001/auth/twitch/bot-callback` if you plan to use Settings > "Connect my own bot account").
 2. Set `TWITCH_CLIENT_ID`, `TWITCH_CLIENT_SECRET`, `TWITCH_REDIRECT_URI` (the callback URL above), `SESSION_SECRET` (any long random string), and `ADMIN_PASSWORD` as environment variables — see the table below.
@@ -55,7 +55,7 @@ npm run dev
 
 `npm run dev` starts the backend on port `3001` (override with `PORT`) and Vite on `http://localhost:5173`, and asks Vite to open your default browser there. Vite proxies the backend's API routes through to it — see the `proxy` block in `frontend/vite.config.js`.
 
-5. Log in with Twitch, then open `http://localhost:3001/admin` in a separate tab, sign in with `ADMIN_PASSWORD`, and approve your own account — the app shows a "waiting for approval" screen until an admin does this, even for a single local user.
+5. Log in with Twitch. The app creates your active account on the Free tier and opens the dashboard immediately. Use `http://localhost:3001/admin` only when you need to change access or tiers.
 
 That is the development loop. For the real deployment — a headless Linux VPS serving both the frontend and the API from one domain, with systemd, nginx, and the admin panel — see [`server/README.md`](server/README.md). Deploys to it run over SSH from `.github/workflows/deploy.yml` on every push to `master`.
 
@@ -114,7 +114,7 @@ All settings are available in the in-app Settings panel:
 | `TWITCH_REDIRECT_URI` | — | OAuth callback URL registered on that Twitch app, e.g. `http://localhost:3001/auth/twitch/callback` |
 | `TWITCH_BOT_REDIRECT_URI` | — | Second registered redirect URL, used by Settings > "Connect my own bot account" |
 | `SESSION_SECRET` | insecure dev default | Long random string used to sign user + admin session cookies |
-| `ADMIN_PASSWORD` | — | Password for the `/admin` approval panel; `/admin/login` returns 503 until this is set |
+| `ADMIN_PASSWORD` | — | Password for the `/admin` access and tier panel; `/admin/login` returns 503 until this is set |
 | `APP_ENV` | falls back to `NODE_ENV`, then `development` | Selects which per-environment SQLite file the backend reads/writes (`backend/data/db/vtamigo.<env>.sqlite3`) |
 | `CLAUDE_PATH` | WinGet install path | Path to the `claude` binary |
 | `GROK_PATH` | `C:\Users\<you>\.grok\bin\grok.exe` | Path to the `grok` binary |

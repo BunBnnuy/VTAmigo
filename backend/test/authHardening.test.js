@@ -130,6 +130,46 @@ describe("token encryption at rest", () => {
   });
 });
 
+describe("new account access", () => {
+  it("activates a new Twitch account on Free and preserves later admin blocks", () => {
+    const twitchId = "new-account-defaults-test";
+    db.prepare(`DELETE FROM users WHERE twitchId = ?`).run(twitchId);
+
+    try {
+      const created = auth.upsertUser({
+        twitchId,
+        login: "newviewer",
+        displayName: "New Viewer",
+        profileImageUrl: "https://example.test/avatar.png",
+      });
+
+      expect(created.approved).toBe(true);
+      expect(created.tier).toBe("free");
+      expect(created.approvedAt).toBe(created.createdAt);
+
+      const users = auth.readUsers();
+      const stored = users.find((user) => user.twitchId === twitchId);
+      expect(stored.approved).toBe(true);
+      expect(stored.tier).toBe("free");
+
+      stored.approved = false;
+      stored.approvedAt = null;
+      auth.writeUsers(users);
+
+      const returning = auth.upsertUser({
+        twitchId,
+        login: "renamedviewer",
+        displayName: "Renamed Viewer",
+        profileImageUrl: "https://example.test/new-avatar.png",
+      });
+      expect(returning.approved).toBe(false);
+      expect(returning.tier).toBe("free");
+    } finally {
+      db.prepare(`DELETE FROM users WHERE twitchId = ?`).run(twitchId);
+    }
+  });
+});
+
 describe("overlay token rotation", () => {
   const twitchId = "overlay-rotation-test";
 

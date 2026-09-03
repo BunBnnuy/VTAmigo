@@ -166,8 +166,8 @@ export default function Admin() {
     );
   }
 
-  const approvedUsers = users?.filter((u) => u.approved).length ?? 0;
-  const pendingUsers = users ? users.length - approvedUsers : 0;
+  const activeUsers = users?.filter((u) => u.approved).length ?? 0;
+  const blockedUsers = users ? users.length - activeUsers : 0;
 
   const scrollTo = (id) => document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
 
@@ -212,7 +212,7 @@ export default function Admin() {
             <div style={styles.statCard}>
               <span style={styles.statLabel}>Users</span>
               <span style={styles.statValue}>{users ? users.length : "—"}</span>
-              {users && <span style={styles.statSub}>{approvedUsers} approved · {pendingUsers} pending</span>}
+              {users && <span style={styles.statSub}>{activeUsers} active · {blockedUsers} blocked</span>}
             </div>
             <div style={styles.statCard}>
               <span style={styles.statLabel}>Uptime</span>
@@ -296,9 +296,9 @@ export default function Admin() {
             )}
           </section>
 
-          {/* User approvals */}
+          {/* User access */}
           <section id="sec-users" style={styles.card}>
-            <h2 style={styles.cardTitle}>User approvals</h2>
+            <h2 style={styles.cardTitle}>User access</h2>
             <p style={styles.muted}>
               AI generation counts reset with the calendar (day/week/month). Token counts are estimated (~4 chars/token) —
               the CLI providers don't report exact usage.
@@ -336,8 +336,8 @@ export default function Admin() {
                           </td>
                           <td style={styles.td}>
                             {u.approved
-                              ? <span style={styles.badgeGreen}>Approved</span>
-                              : <span style={styles.badgeYellow}>Pending</span>}
+                              ? <span style={styles.badgeGreen}>Active</span>
+                              : <span style={styles.badgeYellow}>Blocked</span>}
                           </td>
                           <td style={styles.td}>
                             <select
@@ -359,11 +359,11 @@ export default function Admin() {
                           <td style={styles.td}>
                             {u.approved ? (
                               <button style={{ ...styles.smallBtn, background: "var(--red, #ef4444)" }} onClick={() => setApproved(u.twitchId, false)}>
-                                Revoke
+                                Block
                               </button>
                             ) : (
                               <button style={{ ...styles.smallBtn, background: "var(--accent, #e11d76)", color: "var(--on-accent, #ffffff)" }} onClick={() => setApproved(u.twitchId, true)}>
-                                Approve
+                                Restore
                               </button>
                             )}
                           </td>

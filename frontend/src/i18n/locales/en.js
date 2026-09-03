@@ -60,8 +60,8 @@ export default {
         a: "A Twitch account is the only requirement. Log in with Twitch and VTAmigo connects to your chat. If you want the on-screen extras — the avatar, the XP bar, or the chat overlay — you'll also want OBS, or anything else that supports Browser Sources, since you add each one as a Browser Source URL.",
       },
       approval: {
-        q: "I logged in, but it says my account is awaiting approval. Why?",
-        a: "Access is granted manually at the moment. The first time you log in, your account joins a queue and an admin approves it before you can use the app. It's a one-time step — once you're approved, logging in takes you straight to the dashboard.",
+        q: "What account tier do I start with?",
+        a: "Your account is active as soon as you log in with Twitch. New accounts start on the Free tier, so you can go directly to the dashboard without waiting for manual approval.",
       },
       data: {
         q: "What happens to my chat data?",

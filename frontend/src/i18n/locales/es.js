@@ -60,8 +60,8 @@ export default {
         a: "Solo necesitas una cuenta de Twitch. Inicia sesión con Twitch y VTAmigo se conectará a tu chat. Si quieres los extras en pantalla — el avatar, la barra de XP o el overlay del chat — también te hará falta OBS, o cualquier programa compatible con Browser Sources, ya que cada uno se añade como una URL de Browser Source.",
       },
       approval: {
-        q: "Inicié sesión, pero dice que mi cuenta está pendiente de aprobación. ¿Por qué?",
-        a: "Por ahora el acceso se concede manualmente. La primera vez que inicias sesión, tu cuenta entra en una cola y un administrador la aprueba antes de que puedas usar la aplicación. Es un paso único: una vez aprobada, al iniciar sesión irás directo al panel.",
+        q: "¿Con qué nivel comienza mi cuenta?",
+        a: "Tu cuenta queda activa cuando inicias sesión con Twitch. Las cuentas nuevas comienzan en el nivel Free, así que puedes entrar directamente al panel sin esperar una aprobación manual.",
       },
       data: {
         q: "¿Qué pasa con los datos de mi chat?",
