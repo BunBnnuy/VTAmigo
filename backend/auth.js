@@ -1,4 +1,4 @@
-// Twitch OAuth login + session cookies. Approval state lives in the `users`
+// Twitch OAuth login + session cookies. Account access state lives in the `users`
 // table of the per-environment SQLite DB (see db.js) — previously a flat
 // JSON file (users.json) in the same style as .agent-sessions.json / xp-data.json.
 const express = require("express");
@@ -243,15 +243,18 @@ function upsertUser(profile) {
     writeUsers(users);
     return existing;
   }
+  const createdAt = new Date().toISOString();
   const created = {
     twitchId: profile.twitchId,
     login: profile.login,
     displayName: profile.displayName,
     profileImageUrl: profile.profileImageUrl,
-    approved: false,
+    // Twitch OAuth is the registration gate. New accounts can use the app
+    // immediately, while the admin can still revoke access later.
+    approved: true,
     tier: "free",
-    createdAt: new Date().toISOString(),
-    approvedAt: null,
+    createdAt,
+    approvedAt: createdAt,
   };
   users.push(created);
   writeUsers(users);
@@ -789,6 +792,7 @@ module.exports = {
   getApprovedUserFromCookieHeader,
   readUsers,
   writeUsers,
+  upsertUser,
   getValidTwitchToken,
   clearTwitchTokens,
   getOverlayToken,

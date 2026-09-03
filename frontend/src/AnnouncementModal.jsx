@@ -2,10 +2,10 @@ import React, { useEffect, useRef } from "react";
 import { Sparkles, AlertTriangle, Wrench, Trash2 } from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
 
-const KIND_ICON = { action: AlertTriangle, fixed: Wrench, removed: Trash2 };
+const KIND_ICON = { new: Sparkles, action: AlertTriangle, fixed: Wrench, removed: Trash2 };
 // The "you have to do something" section is the only one that earns an alarm
 // colour; the rest are informational and stay neutral so it keeps its weight.
-const KIND_COLOR = { action: "var(--yellow)", fixed: "var(--green)", removed: "var(--text-muted)" };
+const KIND_COLOR = { new: "var(--accent)", action: "var(--yellow)", fixed: "var(--green)", removed: "var(--text-muted)" };
 
 export default function AnnouncementModal({ announcement, lang, onClose }) {
   const { t } = useTranslation(lang);
