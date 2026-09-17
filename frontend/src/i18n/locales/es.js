@@ -440,6 +440,20 @@ export default {
     hint: "Este panel se puede ocultar en modo compacto",
   },
 
+  chatTtsPanel: {
+    title: "Mensajes TTS",
+    enabled: "Activar TTS del chat",
+    command: "Comando",
+    commandPlaceholder: "tts",
+    commandHint: "Los mensajes que comiencen con !{command} se leerán en voz alta. Cambia tts para usar otro comando.",
+    voice: "Voz",
+    systemDefault: "Predeterminada del sistema",
+    template: "Formato del mensaje",
+    templatePlaceholder: "{user} dijo: {mensaje}",
+    templateHint: "Usa {user} para el usuario y {message} o {mensaje} para el texto del chat.",
+    hint: "Es independiente del TTS del bot IA.",
+  },
+
   activityPanel: {
     title: "Actividad",
     empty: "Todavía no hay actividad — follows, subs, raids y más aparecerán aquí.",

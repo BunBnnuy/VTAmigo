@@ -1,8 +1,13 @@
 const WebSocket = require("ws");
 const https = require("https");
 
-const EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws";
+// Twitch currently defaults this session value to 10 seconds. That is too
+// tight for a VPS connection: a keepalive arriving at the boundary can make
+// the client close a healthy socket. Request 30 seconds and keep a small local
+// grace period for network and event-loop jitter.
+const EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30";
 const KEEPALIVE_TIMEOUT_MS = 35000;
+const KEEPALIVE_GRACE_MS = 5000;
 
 function httpsGet(url, headers) {
   return new Promise((resolve, reject) => {
@@ -164,21 +169,29 @@ function parseEvent(subscriptionType, event) {
 }
 
 class EventSubClient {
-  constructor({ channel, clientId, token, onRedeem, onEvent, onStatus }) {
+  constructor({ channel, clientId, token, onRedeem, onEvent, onStatus, WebSocketImpl = WebSocket }) {
     this.channel = channel.toLowerCase().replace(/^#/, "");
     this.clientId = clientId;
     this.token = token.replace(/^oauth:/, "");
+    this.WebSocket = WebSocketImpl;
     this.onRedeem = onRedeem;
     this.onEvent = onEvent;
     this.onStatus = onStatus;
     this.ws = null;
+    this.sockets = new Set();
     this.dead = false;
     this.reconnectDelay = 2000;
-    this.keepaliveTimer = null;
+    this.reconnectTimer = null;
+    this.reconnecting = false;
+    this.keepaliveTimers = new Map();
+    this.defaultKeepaliveTimeoutMs = KEEPALIVE_TIMEOUT_MS;
   }
 
   connect() {
     this.dead = false;
+    this.reconnecting = false;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
     this._open();
   }
 
@@ -186,26 +199,51 @@ class EventSubClient {
     if (this.dead) return;
     this.onStatus({ type: "eventsub_connecting" });
 
-    const ws = new WebSocket(EVENTSUB_URL);
-    this.ws = ws;
-    this._attachHandlers(ws);
+    this._connect(EVENTSUB_URL, { inheritedSubscriptions: false });
   }
 
-  _attachHandlers(ws) {
+  _connect(url, { inheritedSubscriptions, previousWs = null }) {
+    const ws = new this.WebSocket(url);
+    this.ws = ws;
+    this.sockets.add(ws);
+    this._attachHandlers(ws, { inheritedSubscriptions, previousWs });
+  }
+
+  _attachHandlers(ws, { inheritedSubscriptions = false, previousWs = null } = {}) {
     ws.on("open", () => {
       this.reconnectDelay = 2000;
-      this._resetKeepalive();
+      ws._eventSubKeepaliveTimeoutMs = this.defaultKeepaliveTimeoutMs;
+      this._resetKeepalive(ws);
     });
 
     ws.on("message", async (data) => {
-      this._resetKeepalive();
+      this._resetKeepalive(ws);
       let msg;
       try { msg = JSON.parse(data.toString()); } catch { return; }
 
       const msgType = msg.metadata?.message_type;
 
       if (msgType === "session_welcome") {
-        const sessionId = msg.payload.session.id;
+        const session = msg.payload?.session;
+        const sessionId = session?.id;
+        const keepaliveSeconds = Number(session?.keepalive_timeout_seconds);
+        if (Number.isFinite(keepaliveSeconds) && keepaliveSeconds > 0) {
+          ws._eventSubKeepaliveTimeoutMs = keepaliveSeconds * 1000 + KEEPALIVE_GRACE_MS;
+          this._resetKeepalive(ws);
+        }
+
+        // Twitch carries the old session's subscriptions over to the socket
+        // opened with reconnect_url. Creating them again returns duplicate /
+        // maximum-subscription errors and leaves the reconnect flow unstable.
+        if (inheritedSubscriptions) {
+          this.reconnecting = false;
+          this.onStatus({ type: "eventsub_connected", channel: this.channel });
+          if (previousWs && previousWs !== ws && previousWs.readyState !== this.WebSocket.CLOSED) {
+            previousWs.close();
+          }
+          return;
+        }
+
         try {
           const broadcasterId = await getBroadcasterId(this.channel, this.clientId, this.token);
           await subscribeAll(sessionId, broadcasterId, this.clientId, this.token);
@@ -255,13 +293,26 @@ class EventSubClient {
     });
 
     ws.on("close", () => {
-      clearTimeout(this.keepaliveTimer);
+      this.sockets.delete(ws);
+      this._clearKeepalive(ws);
+
+      // A successful Twitch reconnect deliberately closes the old socket.
+      // That close must not be treated as a lost active connection.
+      if (this.ws !== ws) return;
+
+      if (previousWs && previousWs !== ws && previousWs.readyState < this.WebSocket.CLOSING) {
+        // If the reconnect socket failed before its welcome message, continue
+        // using the old socket while Twitch's reconnect grace period remains.
+        this.ws = previousWs;
+        this.reconnecting = false;
+        return;
+      }
+
+      this.ws = null;
+      this.reconnecting = false;
       if (!this.dead) {
         this.onStatus({ type: "eventsub_disconnected" });
-        setTimeout(() => {
-          this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
-          this._open();
-        }, this.reconnectDelay);
+        this._scheduleReconnect();
       }
     });
 
@@ -271,32 +322,51 @@ class EventSubClient {
   }
 
   _reconnectTo(url) {
+    if (this.dead || this.reconnecting || !url) return;
     const oldWs = this.ws;
-    const ws = new WebSocket(url);
-    this.ws = ws;
-    this._attachHandlers(ws);
-    // Close old connection once new one sends welcome
-    const origOnMsg = ws.listeners("message")[0];
-    ws.once("message", (data) => {
-      try {
-        if (JSON.parse(data.toString()).metadata?.message_type === "session_welcome") {
-          oldWs.close();
-        }
-      } catch {}
-    });
+    if (!oldWs) {
+      this._open();
+      return;
+    }
+
+    this.reconnecting = true;
+    this._connect(url, { inheritedSubscriptions: true, previousWs: oldWs });
   }
 
-  _resetKeepalive() {
-    clearTimeout(this.keepaliveTimer);
-    this.keepaliveTimer = setTimeout(() => {
-      if (this.ws) this.ws.close();
-    }, KEEPALIVE_TIMEOUT_MS);
+  _scheduleReconnect() {
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      if (this.dead) return;
+      this.reconnectDelay = Math.min(this.reconnectDelay * 2, 30000);
+      this._open();
+    }, this.reconnectDelay);
+  }
+
+  _resetKeepalive(ws) {
+    this._clearKeepalive(ws);
+    const timeoutMs = ws._eventSubKeepaliveTimeoutMs || this.defaultKeepaliveTimeoutMs;
+    this.keepaliveTimers.set(ws, setTimeout(() => {
+      this.keepaliveTimers.delete(ws);
+      if (!this.dead && this.ws === ws) ws.close();
+    }, timeoutMs));
+  }
+
+  _clearKeepalive(ws) {
+    const timer = this.keepaliveTimers.get(ws);
+    if (timer) clearTimeout(timer);
+    this.keepaliveTimers.delete(ws);
   }
 
   disconnect() {
     this.dead = true;
-    clearTimeout(this.keepaliveTimer);
-    if (this.ws) { this.ws.close(); this.ws = null; }
+    this.reconnecting = false;
+    clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = null;
+    for (const ws of this.keepaliveTimers.keys()) this._clearKeepalive(ws);
+    for (const ws of this.sockets) ws.close();
+    this.sockets.clear();
+    this.ws = null;
   }
 }
 

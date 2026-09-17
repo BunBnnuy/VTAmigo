@@ -13,6 +13,7 @@ import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { mergeTitleWithDelimiter, parseVoiceCommand } from "./voiceCommands.js";
 import { isSongRequest } from "./chatCommands.js";
+import { chatTts, extractChatTTSMessage, formatChatTTSMessage, DEFAULT_CHAT_TTS_TEMPLATE } from "./ChatTTSController.js";
 import {
   CURRENT_ANNOUNCEMENT,
   shouldShowAnnouncement,
@@ -41,6 +42,10 @@ const DEFAULT_SETTINGS = {
   ttsVolume: 1,
   ttsProvider: "windows",
   piperVoice: "",
+  chatTtsEnabled: false,
+  chatTtsCommand: "",
+  chatTtsVoiceURI: "",
+  chatTtsTemplate: DEFAULT_CHAT_TTS_TEMPLATE,
   micMode: "off", // "off" | "voice" | "commands" | "full" — see App.jsx's voice.onTranscript handler
   micDeviceId: "",
   micLang: "es-ES",
@@ -640,6 +645,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     tts.setPiper({ voice: settings.piperVoice });
   }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice]);
 
+  // Chat command TTS is intentionally separate from the AI response TTS.
+  useEffect(() => {
+    chatTts.setVoice(settings.chatTtsVoiceURI);
+  }, [settings.chatTtsVoiceURI]);
+
+  useEffect(() => {
+    chatTts.setEnabled(settings.chatTtsEnabled);
+    return () => chatTts.stop();
+  }, [settings.chatTtsEnabled]);
+
   // ── Batch triggering ──────────────────────────────────────────────────────
 
   const triggerResponse = useCallback(async (manual) => {
@@ -786,6 +801,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         const data = JSON.parse(evt.data);
         if (data.type === "chat") {
           const msg = data.msg;
+          const commandText = extractChatTTSMessage(msg.text, settingsRef.current.chatTtsCommand);
+          if (commandText && settingsRef.current.chatTtsEnabled) {
+            chatTts.enqueue(formatChatTTSMessage(
+              settingsRef.current.chatTtsTemplate,
+              msg.username,
+              commandText,
+            ));
+          }
           const ignoredUsers = (settingsRef.current.ignoredUsers || "")
             .split(",").map((u) => u.trim().toLowerCase()).filter(Boolean);
           if (ignoredUsers.includes((msg.username || "").toLowerCase())) return;
@@ -1209,6 +1232,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           totalPoints: achievementsState.totalPoints,
           earnedTier: achievementsState.earnedTier,
           tierThresholds: achievementsState.tierThresholds,
+        }}
+        chatTtsPanelProps={{
+          enabled: settings.chatTtsEnabled,
+          command: settings.chatTtsCommand,
+          voiceURI: settings.chatTtsVoiceURI,
+          template: settings.chatTtsTemplate,
+          onUpdateSetting: updateSetting,
         }}
       />
 
