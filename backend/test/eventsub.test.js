@@ -44,6 +44,7 @@ describe("EventSub reconnect", () => {
 
     client.connect();
     const oldSocket = sockets[0];
+    expect(oldSocket.url).toContain("keepalive_timeout_seconds=30");
     oldSocket.readyState = FakeWebSocket.OPEN;
     oldSocket.emit("open");
     oldSocket.emit("message", message(

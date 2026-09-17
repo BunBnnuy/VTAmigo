@@ -1,8 +1,13 @@
 const WebSocket = require("ws");
 const https = require("https");
 
-const EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws";
+// Twitch currently defaults this session value to 10 seconds. That is too
+// tight for a VPS connection: a keepalive arriving at the boundary can make
+// the client close a healthy socket. Request 30 seconds and keep a small local
+// grace period for network and event-loop jitter.
+const EVENTSUB_URL = "wss://eventsub.wss.twitch.tv/ws?keepalive_timeout_seconds=30";
 const KEEPALIVE_TIMEOUT_MS = 35000;
+const KEEPALIVE_GRACE_MS = 5000;
 
 function httpsGet(url, headers) {
   return new Promise((resolve, reject) => {
@@ -223,7 +228,7 @@ class EventSubClient {
         const sessionId = session?.id;
         const keepaliveSeconds = Number(session?.keepalive_timeout_seconds);
         if (Number.isFinite(keepaliveSeconds) && keepaliveSeconds > 0) {
-          ws._eventSubKeepaliveTimeoutMs = keepaliveSeconds * 1000;
+          ws._eventSubKeepaliveTimeoutMs = keepaliveSeconds * 1000 + KEEPALIVE_GRACE_MS;
           this._resetKeepalive(ws);
         }
 
