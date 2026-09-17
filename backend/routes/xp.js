@@ -37,11 +37,24 @@ router.get("/overlay/xp", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "overlay", "xp.html"));
 });
 
+// GET /overlay/xp-ranking?token=... — transparent ranking-only overlay page.
+// It is separate from /overlay/xp so streamers can add the leaderboard to OBS
+// without also showing the animated XP gain bar.
+router.get("/overlay/xp-ranking", (req, res) => {
+  res.sendFile(path.join(__dirname, "..", "overlay", "xp-ranking.html"));
+});
+
 // GET /xp/overlay-url — the logged-in user's own OBS overlay URL, for Settings
 // to display with a copy button.
 router.get("/xp/overlay-url", (req, res) => {
   const token = getOverlayToken(req.user.twitchId);
   res.json({ url: `${req.protocol}://${req.get("host")}/overlay/xp?token=${token}` });
+});
+
+// GET /xp/ranking-overlay-url — the logged-in user's ranking-only OBS URL.
+router.get("/xp/ranking-overlay-url", (req, res) => {
+  const token = getOverlayToken(req.user.twitchId);
+  res.json({ url: `${req.protocol}://${req.get("host")}/overlay/xp-ranking?token=${token}` });
 });
 
 // POST /xp/config — { ignoredUsers: "name1, name2" | [] } — users that earn no XP

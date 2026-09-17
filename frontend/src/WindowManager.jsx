@@ -11,6 +11,8 @@ import AvatarPanel from "./AvatarPanel.jsx";
 import ActivityPanel from "./ActivityPanel.jsx";
 import AchievementsPanel from "./AchievementsPanel.jsx";
 import ChatTTSPPanel from "./ChatTTSPPanel.jsx";
+import ReactiveAvatarPanel from "./ReactiveAvatarPanel.jsx";
+import ChatRankingPanel from "./ChatRankingPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
@@ -25,6 +27,8 @@ export const DEFAULT_PANEL_LAYOUT = {
     activity:          { x: 1580, y: 20,  w: 320, h: 480, z: 9, collapsed: false, closed: false },
     achievements:      { x: 1580, y: 520, w: 320, h: 420, z: 10, collapsed: false, closed: false },
     chatTts:            { x: 1300, y: 860, w: 260, h: 300, z: 11, collapsed: false, closed: false },
+    reactiveAvatar:    { x: 1020, y: 940, w: 260, h: 260, z: 12, collapsed: false, closed: false },
+    chatRanking:        { x: 1580, y: 960, w: 320, h: 360, z: 13, collapsed: false, closed: false },
   },
 };
 
@@ -43,6 +47,8 @@ export const PANEL_META = [
   { id: "activity", titleKey: "activityPanel.title", dataTour: null },
   { id: "achievements", titleKey: "achievementsPanel.title", dataTour: null },
   { id: "chatTts", titleKey: "chatTtsPanel.title", dataTour: null },
+  { id: "reactiveAvatar", titleKey: "reactiveAvatarPanel.title", dataTour: null },
+  { id: "chatRanking", titleKey: "chatRankingPanel.title", dataTour: null },
 ];
 
 // Fills in any window key missing from a saved layout (new panel added in a
@@ -91,6 +97,8 @@ export default function WindowManager({
       case "activity": return <ActivityPanel {...activityPanelProps} lang={lang} />;
       case "achievements": return <AchievementsPanel {...achievementsPanelProps} lang={lang} />;
       case "chatTts": return <ChatTTSPPanel {...chatTtsPanelProps} lang={lang} />;
+      case "reactiveAvatar": return <ReactiveAvatarPanel lang={lang} />;
+      case "chatRanking": return <ChatRankingPanel lang={lang} />;
       default: return null;
     }
   };
@@ -107,14 +115,14 @@ export default function WindowManager({
           minWidth/minHeight, until that let the whole page grow past the
           viewport and clip the top/bottom bars). */}
       <div style={styles.surface}>
-        {PANEL_META.map(({ id, titleKey, dataTour }) => {
+        {PANEL_META.map(({ id, titleKey, title, dataTour }) => {
           const layout = panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id];
           if (layout.closed) return null;
           return (
             <Window
               key={id}
               id={id}
-              title={t(titleKey)}
+              title={title || t(titleKey)}
               dataTour={dataTour}
               layout={layout}
               onChange={(patch) => onUpdateWindow(id, patch)}
@@ -141,6 +149,6 @@ const styles = {
   surface: {
     position: "relative",
     width: 2000,
-    height: 1200,
+    height: 1400,
   },
 };

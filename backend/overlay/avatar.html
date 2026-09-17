@@ -37,11 +37,17 @@
   imgSpeaking.src = "/overlay/avatar/image?slot=speaking&token=" + encodeURIComponent(token);
   imgSilent.src = "/overlay/avatar/image?slot=silent&token=" + encodeURIComponent(token);
 
-  function setPlaying(playing) {
-    imgSpeaking.classList.toggle("show", playing);
-    imgSilent.classList.toggle("show", !playing);
+  let ttsPlaying = false;
+  let reactiveSpeaking = false;
+  function renderState() {
+    // Either signal can keep the avatar speaking. The two sources remain
+    // independent, so stopping the microphone cannot hide an active bot TTS
+    // state, and stopping TTS cannot hide an active microphone state.
+    const speaking = ttsPlaying || reactiveSpeaking;
+    imgSpeaking.classList.toggle("show", speaking);
+    imgSilent.classList.toggle("show", !speaking);
   }
-  setPlaying(false); // silent until we hear otherwise
+  renderState(); // silent until the first state event arrives
 
   function connect() {
     const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
@@ -49,7 +55,14 @@
     ws.onmessage = (e) => {
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
-      if (data.type === "tts_state") setPlaying(!!data.playing);
+      if (data.type === "tts_state") {
+        ttsPlaying = !!data.playing;
+        renderState();
+      }
+      if (data.type === "reactive_avatar_state") {
+        reactiveSpeaking = !!data.speaking;
+        renderState();
+      }
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }

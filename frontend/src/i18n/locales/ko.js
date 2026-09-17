@@ -168,7 +168,6 @@ export default {
 
     aiProvider: {
       title: "AI 제공자",
-      providerLabel: "제공자",
       exportMemoryLabel: "현재 모델의 메모리 내보내기",
       exporting: "내보내는 중…",
       exportTo: "{target}(으)로 내보내기",
@@ -184,9 +183,7 @@ export default {
       downloading: "다운로드 중…",
       downloadStarting: "시작하는 중…",
       downloadDone: "기억을 다운로드했습니다",
-      downloadCooldown: "{time}에 다시 이용할 수 있습니다.",
-      downloadCooldownError: "24시간에 한 번만 다운로드할 수 있습니다.",
-      downloadMemoryHint: "봇이 현재 기억하고 있는 모든 내용을 .md 파일로 저장합니다. 24시간에 한 번만 사용할 수 있습니다.",
+      downloadMemoryHint: "봇이 현재 기억하고 있는 모든 내용을 .md 파일로 저장합니다. 필요할 때 언제든 다운로드할 수 있습니다.",
     },
 
     prompt: {
@@ -421,9 +418,9 @@ export default {
   },
 
   quickControls: {
-    expand: "빠른 제어판 펼치기",
-    collapse: "빠른 제어판 접기",
-    title: "빠른 제어판",
+    expand: "AI 빠른 제어판 펼치기",
+    collapse: "AI 빠른 제어판 접기",
+    title: "AI 빠른 제어판",
     autoSend: "자동 전송",
     tts: "텍스트 음성 변환 (TTS)",
     skipTtsTitle: "현재 TTS 건너뛰기",
@@ -514,7 +511,7 @@ export default {
   },
 
   avatarPanel: {
-    title: "아바타",
+    title: "봇 아바타",
     speaking: "말하는 중",
     silent: "무음",
     copyOverlayTitle: "OBS용 아바타 오버레이 URL 복사",
@@ -528,6 +525,32 @@ export default {
     uploadError: "업로드 실패: {error}",
     readError: "{file} 읽기 실패",
     hint: "TTS가 재생되는 동안 오버레이가 말하는 이미지로 전환됩니다.",
+  },
+
+  reactiveAvatarPanel: {
+    title: "반응형 아바타",
+    intro: "아바타가 스트리머의 마이크 활동에 반응합니다.",
+    enabled: "반응형 아바타 켜짐",
+    disabled: "반응형 아바타 꺼짐",
+    speaking: "말하는 중",
+    silent: "조용함",
+    copyOverlayTitle: "OBS용 반응형 아바타 오버레이 URL 복사",
+    copied: "복사됨",
+    copyOverlay: "OBS용 오버레이 복사",
+    hint: "OBS에서 같은 아바타 URL을 사용합니다. 마이크 상태는 AI 봇 TTS와 독립적으로 작동합니다.",
+  },
+
+  chatRankingPanel: {
+    title: "채팅 상위 5명",
+    heading: "채팅 상위 5명",
+    refresh: "순위 새로 고침",
+    loading: "순위를 불러오는 중…",
+    empty: "아직 기록된 경험치가 없습니다.",
+    error: "순위를 불러오지 못했습니다.",
+    stats: "레벨 {level} · {xp} XP",
+    copied: "오버레이가 복사됨",
+    copyOverlay: "오버레이 복사",
+    hint: "오버레이에는 이 순위만 표시되며 자동으로 새로 고침됩니다.",
   },
 
   chatOverlayPreview: {

@@ -109,6 +109,34 @@ describe("avatar speaking state", () => {
     ws.close();
   });
 
+  it("POST /avatar/reactive/start broadcasts a separate reactive state", async () => {
+    const ws = await connectOverlay();
+    const message = nextMessage(ws, "reactive_avatar_state");
+
+    const res = await request(app)
+      .post("/avatar/reactive/start")
+      .set("Cookie", sessionCookie)
+      .send({});
+
+    expect(res.status).toBe(200);
+    await expect(message).resolves.toEqual({ type: "reactive_avatar_state", speaking: true });
+    ws.close();
+  });
+
+  it("POST /avatar/reactive/stop broadcasts speaking:false without changing the TTS channel", async () => {
+    const ws = await connectOverlay();
+    const message = nextMessage(ws, "reactive_avatar_state");
+
+    const res = await request(app)
+      .post("/avatar/reactive/stop")
+      .set("Cookie", sessionCookie)
+      .send({});
+
+    expect(res.status).toBe(200);
+    await expect(message).resolves.toEqual({ type: "reactive_avatar_state", speaking: false });
+    ws.close();
+  });
+
   it("still broadcasts with no VTube Studio anywhere in the process", async () => {
     // The point of the rename: the old handler bailed out to the VTS context
     // for everything past the broadcast. Nothing VTS-shaped exists now, and
@@ -152,6 +180,7 @@ describe("avatar speaking state", () => {
     const page = await request(app).get("/overlay/avatar");
     expect(page.status).toBe(200);
     expect(page.text).toContain("tts_state");
+    expect(page.text).toContain("reactive_avatar_state");
 
     // No token, no cookie -> the route's own inline auth answers, which is
     // 401 rather than the blanket gate. It's reachable, which is the point.

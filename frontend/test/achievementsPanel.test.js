@@ -63,4 +63,9 @@ describe("achievements window registration", () => {
   it("is listed in the Panels menu metadata", () => {
     expect(PANEL_META.map((p) => p.id)).toContain("achievements");
   });
+
+  it("uses separate localized titles for the bot and reactive avatars", () => {
+    expect(PANEL_META.find((panel) => panel.id === "avatar").titleKey).toBe("avatarPanel.title");
+    expect(PANEL_META.find((panel) => panel.id === "reactiveAvatar").titleKey).toBe("reactiveAvatarPanel.title");
+  });
 });
