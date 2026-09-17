@@ -440,6 +440,17 @@ export default {
     hint: "このパネルはコンパクトモードで非表示にできます",
   },
 
+  chatTtsPanel: {
+    title: "チャットTTSメッセージ",
+    enabled: "チャットTTSを有効にする",
+    command: "コマンド",
+    commandPlaceholder: "tts",
+    commandHint: "!{command} で始まるメッセージを読み上げます。別のコマンドを使うには tts を変更します。",
+    voice: "音声",
+    systemDefault: "システムのデフォルト",
+    hint: "AI共同ホストのTTSとは別に動作します。",
+  },
+
   activityPanel: {
     title: "アクティビティ",
     empty: "まだアクティビティがありません — フォロー、サブスク、レイドなどがここに表示されます。",

@@ -447,6 +447,17 @@ export default {
     hint: "This panel can be hidden in compact mode",
   },
 
+  chatTtsPanel: {
+    title: "Chat TTS Messages",
+    enabled: "Enable chat TTS",
+    command: "Command",
+    commandPlaceholder: "tts",
+    commandHint: "Messages starting with !{command} are read aloud. Change tts to use another command.",
+    voice: "Voice",
+    systemDefault: "System default",
+    hint: "Independent from the AI co-host TTS.",
+  },
+
   activityPanel: {
     title: "Activity",
     empty: "No activity yet — follows, subs, raids, and more will show up here.",

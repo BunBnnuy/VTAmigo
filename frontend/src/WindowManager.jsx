@@ -10,6 +10,7 @@ import ChatOverlayPreview from "./ChatOverlayPreview.jsx";
 import AvatarPanel from "./AvatarPanel.jsx";
 import ActivityPanel from "./ActivityPanel.jsx";
 import AchievementsPanel from "./AchievementsPanel.jsx";
+import ChatTTSPPanel from "./ChatTTSPPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
@@ -23,6 +24,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     chatOverlayPreview:{ x: 520,  y: 600, w: 480, h: 320, z: 8, collapsed: false, closed: false },
     activity:          { x: 1580, y: 20,  w: 320, h: 480, z: 9, collapsed: false, closed: false },
     achievements:      { x: 1580, y: 520, w: 320, h: 420, z: 10, collapsed: false, closed: false },
+    chatTts:            { x: 1300, y: 860, w: 260, h: 300, z: 11, collapsed: false, closed: false },
   },
 };
 
@@ -40,6 +42,7 @@ export const PANEL_META = [
   { id: "avatar", titleKey: "avatarPanel.title", dataTour: null },
   { id: "activity", titleKey: "activityPanel.title", dataTour: null },
   { id: "achievements", titleKey: "achievementsPanel.title", dataTour: null },
+  { id: "chatTts", titleKey: "chatTtsPanel.title", dataTour: null },
 ];
 
 // Fills in any window key missing from a saved layout (new panel added in a
@@ -57,7 +60,7 @@ export function mergePanelLayout(saved) {
 export default function WindowManager({
   panelLayout, onUpdateWindow, onFocusWindow, t,
   chatFeedProps, responsePanelProps, quickControlsProps, videoQueueProps,
-  avatarPanelProps, activityPanelProps, achievementsPanelProps, lang,
+  avatarPanelProps, activityPanelProps, achievementsPanelProps, chatTtsPanelProps, lang,
 }) {
   // `layout` is handed to panels that need to know whether they're actually on
   // screen — <Window> keeps collapsed children mounted (hidden with CSS) so
@@ -87,6 +90,7 @@ export default function WindowManager({
       case "avatar": return <AvatarPanel {...avatarPanelProps} lang={lang} />;
       case "activity": return <ActivityPanel {...activityPanelProps} lang={lang} />;
       case "achievements": return <AchievementsPanel {...achievementsPanelProps} lang={lang} />;
+      case "chatTts": return <ChatTTSPPanel {...chatTtsPanelProps} lang={lang} />;
       default: return null;
     }
   };

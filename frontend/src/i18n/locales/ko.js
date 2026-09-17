@@ -440,6 +440,17 @@ export default {
     hint: "이 패널은 컴팩트 모드에서 숨길 수 있습니다",
   },
 
+  chatTtsPanel: {
+    title: "채팅 TTS 메시지",
+    enabled: "채팅 TTS 사용",
+    command: "명령어",
+    commandPlaceholder: "tts",
+    commandHint: "!{command}로 시작하는 메시지를 읽습니다. 다른 명령어를 사용하려면 tts를 변경하세요.",
+    voice: "음성",
+    systemDefault: "시스템 기본값",
+    hint: "AI 공동 진행자의 TTS와 별도로 작동합니다.",
+  },
+
   activityPanel: {
     title: "활동",
     empty: "아직 활동이 없어요 — 팔로우, 구독, 레이드 등이 여기에 표시됩니다.",
