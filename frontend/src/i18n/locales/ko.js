@@ -448,6 +448,9 @@ export default {
     commandHint: "!{command}로 시작하는 메시지를 읽습니다. 다른 명령어를 사용하려면 tts를 변경하세요.",
     voice: "음성",
     systemDefault: "시스템 기본값",
+    template: "메시지 형식",
+    templatePlaceholder: "{user}님이 말했습니다: {message}",
+    templateHint: "{user}는 발신자, {message} 또는 {mensaje}는 채팅 내용으로 바뀝니다.",
     hint: "AI 공동 진행자의 TTS와 별도로 작동합니다.",
   },
 

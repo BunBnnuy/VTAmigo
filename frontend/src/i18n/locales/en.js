@@ -455,6 +455,9 @@ export default {
     commandHint: "Messages starting with !{command} are read aloud. Change tts to use another command.",
     voice: "Voice",
     systemDefault: "System default",
+    template: "Message template",
+    templatePlaceholder: "{user} said: {message}",
+    templateHint: "Use {user} for the sender and {message} or {mensaje} for the chat text.",
     hint: "Independent from the AI co-host TTS.",
   },
 

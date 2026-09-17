@@ -3,6 +3,7 @@
 // controller or update the avatar speaking state.
 
 export const DEFAULT_CHAT_TTS_COMMAND = "tts";
+export const DEFAULT_CHAT_TTS_TEMPLATE = "{user} dijo: {mensaje}";
 
 export function extractChatTTSMessage(text, command) {
   if (typeof text !== "string") return null;
@@ -19,6 +20,18 @@ export function extractChatTTSMessage(text, command) {
 
   const speech = text.slice(prefix.length).trim();
   return speech || null;
+}
+
+export function formatChatTTSMessage(template, user, message) {
+  const source = String(template || DEFAULT_CHAT_TTS_TEMPLATE);
+  const values = {
+    user: String(user || "Twitch"),
+    message: String(message || ""),
+    // The default is Spanish, so keep this alias alongside the requested
+    // English placeholder for convenient localized templates.
+    mensaje: String(message || ""),
+  };
+  return source.replace(/\{(user|message|mensaje)\}/gi, (_, key) => values[key.toLowerCase()] ?? "");
 }
 
 class ChatTTSController {

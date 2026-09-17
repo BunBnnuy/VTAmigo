@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ChatTTSController, extractChatTTSMessage } from "../src/ChatTTSController.js";
+import { ChatTTSController, extractChatTTSMessage, formatChatTTSMessage, DEFAULT_CHAT_TTS_TEMPLATE } from "../src/ChatTTSController.js";
 
 describe("extractChatTTSMessage", () => {
   it("extracts the text after the default command", () => {
@@ -18,6 +18,11 @@ describe("extractChatTTSMessage", () => {
 });
 
 describe("ChatTTSController", () => {
+  it("formats the default template and both message placeholder names", () => {
+    expect(formatChatTTSMessage(DEFAULT_CHAT_TTS_TEMPLATE, "Luna", "Hola")).toBe("Luna dijo: Hola");
+    expect(formatChatTTSMessage("{user}: {message} / {mensaje}", "Luna", "Hola")).toBe("Luna: Hola / Hola");
+  });
+
   it("keeps its own queue and applies the selected voice", () => {
     const spoken = [];
     const synth = {

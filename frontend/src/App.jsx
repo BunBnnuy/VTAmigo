@@ -13,7 +13,7 @@ import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { mergeTitleWithDelimiter, parseVoiceCommand } from "./voiceCommands.js";
 import { isSongRequest } from "./chatCommands.js";
-import { chatTts, extractChatTTSMessage } from "./ChatTTSController.js";
+import { chatTts, extractChatTTSMessage, formatChatTTSMessage, DEFAULT_CHAT_TTS_TEMPLATE } from "./ChatTTSController.js";
 import {
   CURRENT_ANNOUNCEMENT,
   shouldShowAnnouncement,
@@ -45,6 +45,7 @@ const DEFAULT_SETTINGS = {
   chatTtsEnabled: false,
   chatTtsCommand: "",
   chatTtsVoiceURI: "",
+  chatTtsTemplate: DEFAULT_CHAT_TTS_TEMPLATE,
   micMode: "off", // "off" | "voice" | "commands" | "full" — see App.jsx's voice.onTranscript handler
   micDeviceId: "",
   micLang: "es-ES",
@@ -801,7 +802,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         if (data.type === "chat") {
           const msg = data.msg;
           const commandText = extractChatTTSMessage(msg.text, settingsRef.current.chatTtsCommand);
-          if (commandText && settingsRef.current.chatTtsEnabled) chatTts.enqueue(commandText);
+          if (commandText && settingsRef.current.chatTtsEnabled) {
+            chatTts.enqueue(formatChatTTSMessage(
+              settingsRef.current.chatTtsTemplate,
+              msg.username,
+              commandText,
+            ));
+          }
           const ignoredUsers = (settingsRef.current.ignoredUsers || "")
             .split(",").map((u) => u.trim().toLowerCase()).filter(Boolean);
           if (ignoredUsers.includes((msg.username || "").toLowerCase())) return;
@@ -1230,6 +1237,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           enabled: settings.chatTtsEnabled,
           command: settings.chatTtsCommand,
           voiceURI: settings.chatTtsVoiceURI,
+          template: settings.chatTtsTemplate,
           onUpdateSetting: updateSetting,
         }}
       />

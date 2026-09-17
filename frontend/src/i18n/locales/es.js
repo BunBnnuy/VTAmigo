@@ -448,6 +448,9 @@ export default {
     commandHint: "Los mensajes que comiencen con !{command} se leerán en voz alta. Cambia tts para usar otro comando.",
     voice: "Voz",
     systemDefault: "Predeterminada del sistema",
+    template: "Formato del mensaje",
+    templatePlaceholder: "{user} dijo: {mensaje}",
+    templateHint: "Usa {user} para el usuario y {message} o {mensaje} para el texto del chat.",
     hint: "Es independiente del TTS del bot IA.",
   },
 

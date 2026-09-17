@@ -448,6 +448,9 @@ export default {
     commandHint: "!{command} で始まるメッセージを読み上げます。別のコマンドを使うには tts を変更します。",
     voice: "音声",
     systemDefault: "システムのデフォルト",
+    template: "メッセージ形式",
+    templatePlaceholder: "{user} が言いました: {message}",
+    templateHint: "{user} は送信者、{message} または {mensaje} はチャット本文に置き換わります。",
     hint: "AI共同ホストのTTSとは別に動作します。",
   },
 
