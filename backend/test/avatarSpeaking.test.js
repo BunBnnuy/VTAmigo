@@ -187,4 +187,14 @@ describe("avatar speaking state", () => {
     const image = await request(app).get("/overlay/avatar/image?slot=speaking");
     expect(image.status).toBe(401);
   });
+
+  it("serves the reactive avatar overlay separately from the bot avatar overlay", async () => {
+    const page = await request(app).get("/overlay/avatar-reactive");
+    expect(page.status).toBe(200);
+    expect(page.text).toContain("avatar-reactive/image");
+    expect(page.text).toContain("reactive_avatar_state");
+
+    const image = await request(app).get("/overlay/avatar-reactive/image?slot=speaking");
+    expect(image.status).toBe(401);
+  });
 });

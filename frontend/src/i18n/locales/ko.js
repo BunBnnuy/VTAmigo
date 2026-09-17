@@ -537,6 +537,13 @@ export default {
     copyOverlayTitle: "OBS용 반응형 아바타 오버레이 URL 복사",
     copied: "복사됨",
     copyOverlay: "OBS용 오버레이 복사",
+    uploadSpeaking: "말하는 이미지",
+    uploadSilent: "조용한 이미지",
+    uploading: "업로드 중…",
+    badFormat: "JPEG, PNG, GIF 또는 WebP를 사용하세요.",
+    tooLarge: "이미지는 5MB보다 작아야 합니다.",
+    uploadError: "업로드 실패: {error}",
+    readError: "{file}을(를) 읽을 수 없습니다.",
     hint: "OBS에서 같은 아바타 URL을 사용합니다. 마이크 상태는 AI 봇 TTS와 독립적으로 작동합니다.",
   },
 

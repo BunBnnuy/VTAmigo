@@ -544,6 +544,13 @@ export default {
     copyOverlayTitle: "Copy the reactive avatar overlay URL for OBS",
     copied: "Copied",
     copyOverlay: "Copy overlay for OBS",
+    uploadSpeaking: "Speaking image",
+    uploadSilent: "Silent image",
+    uploading: "Uploading…",
+    badFormat: "Use JPEG, PNG, GIF, or WebP.",
+    tooLarge: "The image must be under 5 MB.",
+    uploadError: "Upload failed: {error}",
+    readError: "Could not read {file}.",
     hint: "Use the same avatar URL in OBS. Microphone state is independent from the AI bot TTS.",
   },
 

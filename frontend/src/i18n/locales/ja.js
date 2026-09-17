@@ -537,6 +537,13 @@ export default {
     copyOverlayTitle: "OBS用リアクティブアバターのオーバーレイURLをコピー",
     copied: "コピーしました",
     copyOverlay: "OBS用オーバーレイをコピー",
+    uploadSpeaking: "発話中の画像",
+    uploadSilent: "無音の画像",
+    uploading: "アップロード中…",
+    badFormat: "JPEG、PNG、GIF、WebPを使用してください。",
+    tooLarge: "画像は5MB未満にしてください。",
+    uploadError: "アップロードに失敗しました: {error}",
+    readError: "{file}を読み込めませんでした。",
     hint: "OBSでは同じアバターURLを使用します。マイク状態はAIボットのTTSとは別に動作します。",
   },
 

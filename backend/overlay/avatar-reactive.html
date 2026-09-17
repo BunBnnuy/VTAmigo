@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<title>Avatar Reactivo</title>
+<style>
+  html, body { margin: 0; padding: 0; background: transparent; overflow: hidden; width: 100vw; height: 100vh; user-select: none; }
+  img { position: fixed; inset: 0; width: 100%; height: 100%; object-fit: contain; display: none; }
+  img.show { display: block; }
+</style>
+</head>
+<body>
+  <img id="img-silent" alt="" />
+  <img id="img-speaking" alt="" />
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+  const imgSpeaking = document.getElementById("img-speaking");
+  const imgSilent = document.getElementById("img-silent");
+  imgSpeaking.src = "/overlay/avatar-reactive/image?slot=speaking&token=" + encodeURIComponent(token);
+  imgSilent.src = "/overlay/avatar-reactive/image?slot=silent&token=" + encodeURIComponent(token);
+
+  function setSpeaking(speaking) {
+    imgSpeaking.classList.toggle("show", speaking);
+    imgSilent.classList.toggle("show", !speaking);
+  }
+  setSpeaking(false);
+
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (event) => {
+      let data;
+      try { data = JSON.parse(event.data); } catch { return; }
+      if (data.type === "reactive_avatar_state") setSpeaking(!!data.speaking);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

@@ -537,6 +537,13 @@ export default {
     copyOverlayTitle: "Copiar la URL del overlay reactivo para OBS",
     copied: "Copiado",
     copyOverlay: "Copiar overlay para OBS",
+    uploadSpeaking: "Imagen hablando",
+    uploadSilent: "Imagen silencio",
+    uploading: "Subiendo…",
+    badFormat: "Usa JPEG, PNG, GIF o WebP.",
+    tooLarge: "La imagen debe pesar menos de 5 MB.",
+    uploadError: "Error al subir: {error}",
+    readError: "No se pudo leer {file}.",
     hint: "Usa la misma URL del avatar en OBS. El estado del micrófono es independiente del TTS del bot IA.",
   },
 
