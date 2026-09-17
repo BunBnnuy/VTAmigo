@@ -27,4 +27,4 @@ jobs:
             cd /opt/vtamigo-dev
             git pull
             cd backend && npm ci && chown -R vtamigo:vtamigo .
-            cd ../frontend && npm ci
+            cd ../frontend && npm ci && npm run build
