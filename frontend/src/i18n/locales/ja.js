@@ -168,7 +168,6 @@ export default {
 
     aiProvider: {
       title: "AIプロバイダー",
-      providerLabel: "プロバイダー",
       exportMemoryLabel: "現在のモデルのメモリをエクスポート",
       exporting: "エクスポート中…",
       exportTo: "{target} へエクスポート",
@@ -184,9 +183,7 @@ export default {
       downloading: "ダウンロード中…",
       downloadStarting: "開始しています…",
       downloadDone: "記憶をダウンロードしました",
-      downloadCooldown: "{time} に再度利用可能になります。",
-      downloadCooldownError: "24時間に1回のみダウンロードできます。",
-      downloadMemoryHint: "ボットが現在覚えていることをすべて.mdファイルとして保存します。24時間に1回まで利用できます。",
+      downloadMemoryHint: "ボットが現在覚えていることをすべて.mdファイルとして保存します。必要なときにいつでもダウンロードできます。",
     },
 
     prompt: {
@@ -421,9 +418,9 @@ export default {
   },
 
   quickControls: {
-    expand: "クイックコントロールを展開",
-    collapse: "クイックコントロールを折りたたむ",
-    title: "クイックコントロール",
+    expand: "AIクイックコントロールを展開",
+    collapse: "AIクイックコントロールを折りたたむ",
+    title: "AIクイックコントロール",
     autoSend: "自動送信",
     tts: "テキスト読み上げ（TTS）",
     skipTtsTitle: "現在のTTSをスキップ",
@@ -514,7 +511,7 @@ export default {
   },
 
   avatarPanel: {
-    title: "アバター",
+    title: "ボットアバター",
     speaking: "話している",
     silent: "無音",
     copyOverlayTitle: "OBS用のアバターオーバーレイURLをコピー",
@@ -528,6 +525,39 @@ export default {
     uploadError: "アップロード失敗: {error}",
     readError: "{file} の読み込みに失敗しました",
     hint: "TTSの再生中は、オーバーレイが「話している」画像に切り替わります。",
+  },
+
+  reactiveAvatarPanel: {
+    title: "リアクティブアバター",
+    intro: "アバターは配信者のマイクの音声に反応します。",
+    enabled: "リアクティブアバターを有効化",
+    disabled: "リアクティブアバターを無効化",
+    speaking: "発話中",
+    silent: "無音",
+    copyOverlayTitle: "OBS用リアクティブアバターのオーバーレイURLをコピー",
+    copied: "コピーしました",
+    copyOverlay: "OBS用オーバーレイをコピー",
+    uploadSpeaking: "発話中の画像",
+    uploadSilent: "無音の画像",
+    uploading: "アップロード中…",
+    badFormat: "JPEG、PNG、GIF、WebPを使用してください。",
+    tooLarge: "画像は5MB未満にしてください。",
+    uploadError: "アップロードに失敗しました: {error}",
+    readError: "{file}を読み込めませんでした。",
+    hint: "OBSでは同じアバターURLを使用します。マイク状態はAIボットのTTSとは別に動作します。",
+  },
+
+  chatRankingPanel: {
+    title: "チャットのトップ5",
+    heading: "チャットのトップ5",
+    refresh: "ランキングを更新",
+    loading: "ランキングを読み込み中…",
+    empty: "まだ経験値の記録がありません。",
+    error: "ランキングを読み込めませんでした。",
+    stats: "レベル {level} · {xp} XP",
+    copied: "オーバーレイをコピーしました",
+    copyOverlay: "オーバーレイをコピー",
+    hint: "オーバーレイにはこのランキングだけが表示され、自動更新されます。",
   },
 
   chatOverlayPreview: {

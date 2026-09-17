@@ -13,3 +13,11 @@
   - EventSub now requests a 30-second keepalive window with local grace time.
 - Fixed the development deployment workflow so it builds `frontend/dist` after dependency installation.
 - Updated `multer` to a secure release.
+- Added the independent **Avatar Reactivo** feature.
+  - Detects streamer microphone activity without transcribing or playing audio.
+  - Supports separate speaking and silent images with its own OBS overlay.
+  - Keeps reactive avatar images separate from the Avatar Bot images.
+- Added a chat XP top-five ranking panel and a dedicated OBS overlay with a copy button.
+- Removed the 24-hour cooldown from memory downloads while keeping concurrent-download protection.
+- Updated window names for Avatar Bot, Avatar Reactivo, and AI quick controls.
+- Removed the per-user AI provider selector from Settings.

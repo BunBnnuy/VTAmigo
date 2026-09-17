@@ -1,17 +1,9 @@
-// Tracks memory-download job progress and the 24h cooldown, persisted to
-// disk so the cooldown survives backend restarts and can't be reset by
-// refreshing the page. The CLI dump can take a couple of minutes, so this
-// runs as a background job (like memoryExport) instead of blocking a single
-// HTTP request — a synchronous request risked hitting nginx's proxy timeout
-// and getting an HTML error page back instead of JSON. Both the job and the
-// cooldown are keyed by Twitch account so one streamer's download/cooldown
-// never blocks or leaks into another account's Settings panel. The cooldown
-// is persisted in the memory_download_state SQLite table (see db.js) —
-// previously a flat JSON file (.memory-download-state.json).
+// Tracks memory-download job progress per Twitch account. The CLI dump can
+// take a couple of minutes, so this runs as a background job (like
+// memoryExport) instead of blocking a single HTTP request — a synchronous
+// request risked hitting nginx's proxy timeout and getting an HTML error page
+// back instead of JSON.
 const { dumpMemory } = require("./claude");
-const { db } = require("./db");
-
-const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 // Simulated progress — the CLI call itself doesn't report incremental
 // progress, so this just ramps pct up through a few descriptive stages while
@@ -28,23 +20,8 @@ const EMPTY_JOB = { running: false, pct: 0, stage: "", error: null, markdown: nu
 const jobs = new Map(); // twitchId -> job
 const stageTimers = new Map(); // twitchId -> interval handle
 
-const getLastDownloadStmt = db.prepare(`SELECT lastDownloadAt FROM memory_download_state WHERE twitchId = ?`);
-const setLastDownloadStmt = db.prepare(`
-  INSERT INTO memory_download_state (twitchId, lastDownloadAt) VALUES (?, ?)
-  ON CONFLICT(twitchId) DO UPDATE SET lastDownloadAt = excluded.lastDownloadAt
-`);
-
-function getAvailableAt(twitchId) {
-  const row = getLastDownloadStmt.get(twitchId);
-  return row ? row.lastDownloadAt + COOLDOWN_MS : 0;
-}
-
-function setLastDownloadAt(twitchId, ts) {
-  setLastDownloadStmt.run(twitchId, ts);
-}
-
 function getStatus(twitchId) {
-  return { ...(jobs.get(twitchId) || EMPTY_JOB), availableAt: getAvailableAt(twitchId) };
+  return { ...(jobs.get(twitchId) || EMPTY_JOB) };
 }
 
 function friendlyError(message, provider) {
@@ -55,15 +32,9 @@ function friendlyError(message, provider) {
   return message;
 }
 
-function startDownload(provider, twitchId) {
+function startDownload(provider, twitchId, dumpMemoryFn = dumpMemory) {
   if (!twitchId) throw new Error("No autenticado");
   if ((jobs.get(twitchId) || EMPTY_JOB).running) throw new Error("ALREADY_RUNNING");
-  const availableAt = getAvailableAt(twitchId);
-  if (Date.now() < availableAt) {
-    const err = new Error("COOLDOWN");
-    err.availableAt = availableAt;
-    throw err;
-  }
 
   jobs.set(twitchId, { running: true, pct: 0, stage: STAGES[0].stage, error: null, markdown: null });
   let stageIndex = 0;
@@ -74,11 +45,10 @@ function startDownload(provider, twitchId) {
   }, STAGE_INTERVAL_MS);
   stageTimers.set(twitchId, timer);
 
-  dumpMemory(provider, twitchId)
+  dumpMemoryFn(provider, twitchId)
     .then((markdown) => {
       clearInterval(stageTimers.get(twitchId));
       stageTimers.delete(twitchId);
-      setLastDownloadAt(twitchId, Date.now());
       jobs.set(twitchId, { running: false, pct: 100, stage: "Listo", error: null, markdown });
     })
     .catch((err) => {

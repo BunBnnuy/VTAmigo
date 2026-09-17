@@ -101,23 +101,21 @@ router.post("/memory/import", async (req, res) => {
   }
 });
 
-// GET /memory/download/status — when this account's 24h cooldown next clears
+// GET /memory/download/status — progress for this account's memory download
 router.get("/memory/download/status", (req, res) => {
   res.json(memoryDownload.getStatus(req.user?.twitchId));
 });
 
 // POST /memory/download — start a background job dumping the bot's current
-// memory as Markdown, gated by a 24h cooldown. Returns immediately; poll
-// GET /memory/download/status for progress (the CLI call itself can take a
-// couple of minutes, longer than nginx's proxy timeout allows for one request).
+// memory as Markdown. Downloads can be started again after a job finishes.
+// Returns immediately; poll GET /memory/download/status for progress (the CLI
+// call itself can take a couple of minutes, longer than nginx's proxy timeout
+// allows for one request).
 router.post("/memory/download", (req, res) => {
   try {
     memoryDownload.startDownload(siteConfig.getProvider(), req.user?.twitchId);
     res.json({ ok: true });
   } catch (err) {
-    if (err.message === "COOLDOWN") {
-      return res.status(429).json({ error: "COOLDOWN", availableAt: err.availableAt });
-    }
     if (err.message === "ALREADY_RUNNING") {
       return res.status(409).json({ error: "Ya hay una descarga en curso" });
     }

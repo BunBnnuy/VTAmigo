@@ -168,7 +168,6 @@ export default {
 
     aiProvider: {
       title: "AI Provider",
-      providerLabel: "Provider",
       exportMemoryLabel: "Export current model's memory",
       exporting: "Exporting…",
       exportTo: "Export to {target}",
@@ -184,9 +183,7 @@ export default {
       downloading: "Downloading…",
       downloadStarting: "Starting…",
       downloadDone: "Memory downloaded",
-      downloadCooldown: "Available again at {time}.",
-      downloadCooldownError: "This can only be downloaded once every 24 hours.",
-      downloadMemoryHint: "Saves everything the bot currently remembers as a .md file. Limited to once every 24 hours.",
+      downloadMemoryHint: "Saves everything the bot currently remembers as a .md file. You can download it whenever needed.",
     },
 
     prompt: {
@@ -424,9 +421,9 @@ export default {
   },
 
   quickControls: {
-    expand: "Expand quick controls",
-    collapse: "Collapse quick controls",
-    title: "Quick Controls",
+    expand: "Expand AI quick controls",
+    collapse: "Collapse AI quick controls",
+    title: "AI Quick Controls",
     aiResponses: "AI responses",
     queued: "Queued messages: {count}",
     prune: "Prune",
@@ -521,7 +518,7 @@ export default {
   },
 
   avatarPanel: {
-    title: "Avatar",
+    title: "Avatar Bot",
     speaking: "Speaking",
     silent: "Silent",
     copyOverlayTitle: "Copy the avatar overlay URL for OBS",
@@ -535,6 +532,39 @@ export default {
     uploadError: "Upload failed: {error}",
     readError: "Failed to read {file}",
     hint: "The overlay swaps to the speaking image while TTS is talking.",
+  },
+
+  reactiveAvatarPanel: {
+    title: "Reactive Avatar",
+    intro: "The avatar reacts to the streamer's microphone activity.",
+    enabled: "Reactive avatar enabled",
+    disabled: "Reactive avatar disabled",
+    speaking: "Speaking",
+    silent: "Silent",
+    copyOverlayTitle: "Copy the reactive avatar overlay URL for OBS",
+    copied: "Copied",
+    copyOverlay: "Copy overlay for OBS",
+    uploadSpeaking: "Speaking image",
+    uploadSilent: "Silent image",
+    uploading: "Uploading…",
+    badFormat: "Use JPEG, PNG, GIF, or WebP.",
+    tooLarge: "The image must be under 5 MB.",
+    uploadError: "Upload failed: {error}",
+    readError: "Could not read {file}.",
+    hint: "Use the same avatar URL in OBS. Microphone state is independent from the AI bot TTS.",
+  },
+
+  chatRankingPanel: {
+    title: "Chat Top 5",
+    heading: "Chat Top 5",
+    refresh: "Refresh ranking",
+    loading: "Loading ranking…",
+    empty: "No experience recorded yet.",
+    error: "Could not load the ranking.",
+    stats: "Level {level} · {xp} XP",
+    copied: "Overlay copied",
+    copyOverlay: "Copy overlay",
+    hint: "The overlay shows only this ranking and refreshes automatically.",
   },
 
   chatOverlayPreview: {

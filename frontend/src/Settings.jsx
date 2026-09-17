@@ -30,7 +30,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
   const [importFile, setImportFile] = useState(null); // { name, content }
   const [importStatus, setImportStatus] = useState(null); // null | {running, error, ok}
-  const [downloadMemoryStatus, setDownloadMemoryStatus] = useState({ running: false, pct: 0, stage: "", error: null, markdown: null, availableAt: 0 });
+  const [downloadMemoryStatus, setDownloadMemoryStatus] = useState({ running: false, pct: 0, stage: "", error: null, markdown: null });
   const downloadTriggeredRef = useRef(false);
   const [overlayUrl, setOverlayUrl] = useState("");
   const [overlayCopied, setOverlayCopied] = useState(false);
@@ -326,7 +326,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setDownloadMemoryStatus((s) => ({ ...s, running: false, error: data.error, availableAt: data.availableAt || s.availableAt }));
+        setDownloadMemoryStatus((s) => ({ ...s, running: false, error: data.error }));
         return;
       }
       setDownloadMemoryStatus((s) => ({ ...s, running: true, pct: 0, stage: t("settings.aiProvider.downloadStarting"), error: null, markdown: null }));
@@ -676,17 +676,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
 
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>{t("settings.aiProvider.title")}</h3>
-            {/* The option list is still hardcoded — D1 replaces it with what
-                GET /ai/providers reports the server can actually reach. */}
-            <div style={styles.field}>
-              <label>{t("settings.aiProvider.providerLabel")}</label>
-              <select value={form.provider || "claude"} onChange={(e) => set("provider", e.target.value)}>
-                <option value="claude">Claude (claude -p)</option>
-                <option value="grok">Grok (grok -p)</option>
-                <option value="agy">AGY CLI (agy -p)</option>
-                <option value="chatgpt">ChatGPT (OpenAI API)</option>
-              </select>
-            </div>
             {/* Memory export between provider CLIs is still hidden pending D1. */}
             <div style={{ ...styles.disabledSection, marginBottom: 12 }}>
             <fieldset disabled style={styles.disabledFieldset}>
@@ -796,70 +785,59 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 </div>
               );
             })()}
-            {(() => {
-              const onCooldown = !downloadMemoryStatus.running && Date.now() < (downloadMemoryStatus.availableAt || 0);
-              const canDownload = !onCooldown && !downloadMemoryStatus.running;
-              return (
-                <div style={styles.field}>
-                  <label>{t("settings.aiProvider.downloadMemoryLabel")}</label>
-                  <button
-                    type="button"
-                    onClick={() => downloadMemories()}
-                    disabled={!canDownload}
+            <div style={styles.field}>
+              <label>{t("settings.aiProvider.downloadMemoryLabel")}</label>
+              <button
+                type="button"
+                onClick={() => downloadMemories()}
+                disabled={downloadMemoryStatus.running}
+                style={{
+                  background: "var(--surface2)",
+                  border: "1px solid var(--border)",
+                  color: "var(--text)",
+                  opacity: downloadMemoryStatus.running ? 0.5 : 1,
+                  width: "100%",
+                }}
+              >
+                {downloadMemoryStatus.running
+                  ? t("settings.aiProvider.downloading")
+                  : (<><Download size={14} color="var(--accent)" /> {t("settings.aiProvider.downloadMemoryButton")}</>)}
+              </button>
+              {downloadMemoryStatus.running && (
+                <div style={{ marginTop: 8 }}>
+                  <div
                     style={{
+                      height: 10,
                       background: "var(--surface2)",
                       border: "1px solid var(--border)",
-                      color: "var(--text)",
-                      opacity: !canDownload ? 0.5 : 1,
-                      width: "100%",
+                      borderRadius: 5,
+                      overflow: "hidden",
                     }}
                   >
-                    {downloadMemoryStatus.running
-                      ? t("settings.aiProvider.downloading")
-                      : (<><Download size={14} color="var(--accent)" /> {t("settings.aiProvider.downloadMemoryButton")}</>)}
-                  </button>
-                  {downloadMemoryStatus.running && (
-                    <div style={{ marginTop: 8 }}>
-                      <div
-                        style={{
-                          height: 10,
-                          background: "var(--surface2)",
-                          border: "1px solid var(--border)",
-                          borderRadius: 5,
-                          overflow: "hidden",
-                        }}
-                      >
-                        <div
-                          style={{
-                            height: "100%",
-                            width: `${downloadMemoryStatus.pct || 0}%`,
-                            background: "var(--accent)",
-                            transition: "width 0.4s ease",
-                          }}
-                        />
-                      </div>
-                      <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                        {downloadMemoryStatus.stage} ({downloadMemoryStatus.pct || 0}%)
-                      </span>
-                    </div>
-                  )}
-                  {!downloadMemoryStatus.running && downloadMemoryStatus.pct >= 100 && !downloadMemoryStatus.error && (
-                    <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}><CheckCircle2 size={14} color="var(--green)" /> {t("settings.aiProvider.downloadDone")}</span>
-                  )}
-                  {onCooldown && (
-                    <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
-                      {t("settings.aiProvider.downloadCooldown", { time: new Date(downloadMemoryStatus.availableAt).toLocaleString() })}
-                    </span>
-                  )}
-                  {downloadMemoryStatus.error && (
-                    <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
-                      <XCircle size={14} color="var(--red)" /> {downloadMemoryStatus.error === "COOLDOWN" ? t("settings.aiProvider.downloadCooldownError") : downloadMemoryStatus.error}
-                    </span>
-                  )}
-                  <span style={styles.hint}>{t("settings.aiProvider.downloadMemoryHint")}</span>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${downloadMemoryStatus.pct || 0}%`,
+                        background: "var(--accent)",
+                        transition: "width 0.4s ease",
+                      }}
+                    />
+                  </div>
+                  <span style={{ ...styles.hint, marginTop: 4, display: "block" }}>
+                    {downloadMemoryStatus.stage} ({downloadMemoryStatus.pct || 0}%)
+                  </span>
                 </div>
-              );
-            })()}
+              )}
+              {!downloadMemoryStatus.running && downloadMemoryStatus.pct >= 100 && !downloadMemoryStatus.error && (
+                <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}><CheckCircle2 size={14} color="var(--green)" /> {t("settings.aiProvider.downloadDone")}</span>
+              )}
+              {downloadMemoryStatus.error && (
+                <span style={{ ...styles.hint, marginTop: 4, display: "flex", alignItems: "center", gap: 4 }}>
+                  <XCircle size={14} color="var(--red)" /> {downloadMemoryStatus.error}
+                </span>
+              )}
+              <span style={styles.hint}>{t("settings.aiProvider.downloadMemoryHint")}</span>
+            </div>
           </section>
 
           <section style={styles.section} data-tour="ai-prompt">

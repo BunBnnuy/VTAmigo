@@ -168,7 +168,6 @@ export default {
 
     aiProvider: {
       title: "Proveedor de IA",
-      providerLabel: "Proveedor",
       exportMemoryLabel: "Exportar memoria del modelo actual",
       exporting: "Exportando…",
       exportTo: "Exportar a {target}",
@@ -184,9 +183,7 @@ export default {
       downloading: "Descargando…",
       downloadStarting: "Iniciando…",
       downloadDone: "Memoria descargada",
-      downloadCooldown: "Disponible de nuevo a las {time}.",
-      downloadCooldownError: "Solo se puede descargar una vez cada 24 horas.",
-      downloadMemoryHint: "Guarda todo lo que el bot recuerda actualmente como archivo .md. Limitado a una vez cada 24 horas.",
+      downloadMemoryHint: "Guarda todo lo que el bot recuerda actualmente como archivo .md. Puedes descargarlo cuando lo necesites.",
     },
 
     prompt: {
@@ -421,9 +418,9 @@ export default {
   },
 
   quickControls: {
-    expand: "Expandir controles rápidos",
-    collapse: "Colapsar controles rápidos",
-    title: "Controles Rápidos",
+    expand: "Expandir controles rápidos de IA",
+    collapse: "Colapsar controles rápidos de IA",
+    title: "Controles rápidos de IA",
     autoSend: "Envío automático",
     tts: "Texto a voz (TTS)",
     skipTtsTitle: "Saltar TTS actual",
@@ -514,7 +511,7 @@ export default {
   },
 
   avatarPanel: {
-    title: "Avatar",
+    title: "Avatar Bot",
     speaking: "Hablando",
     silent: "Silencio",
     copyOverlayTitle: "Copiar la URL del overlay del avatar para OBS",
@@ -528,6 +525,39 @@ export default {
     uploadError: "Error al subir: {error}",
     readError: "Error al leer {file}",
     hint: "El overlay cambia a la imagen de «hablando» mientras suena el TTS.",
+  },
+
+  reactiveAvatarPanel: {
+    title: "Avatar Reactivo",
+    intro: "El avatar reacciona a la actividad del micrófono del streamer.",
+    enabled: "Avatar reactivo activado",
+    disabled: "Avatar reactivo desactivado",
+    speaking: "Hablando",
+    silent: "Silencio",
+    copyOverlayTitle: "Copiar la URL del overlay reactivo para OBS",
+    copied: "Copiado",
+    copyOverlay: "Copiar overlay para OBS",
+    uploadSpeaking: "Imagen hablando",
+    uploadSilent: "Imagen silencio",
+    uploading: "Subiendo…",
+    badFormat: "Usa JPEG, PNG, GIF o WebP.",
+    tooLarge: "La imagen debe pesar menos de 5 MB.",
+    uploadError: "Error al subir: {error}",
+    readError: "No se pudo leer {file}.",
+    hint: "Usa la misma URL del avatar en OBS. El estado del micrófono es independiente del TTS del bot IA.",
+  },
+
+  chatRankingPanel: {
+    title: "Top 5 del chat",
+    heading: "Top 5 del chat",
+    refresh: "Actualizar ranking",
+    loading: "Cargando ranking…",
+    empty: "Aún no hay experiencia registrada.",
+    error: "No se pudo cargar el ranking.",
+    stats: "Nivel {level} · {xp} XP",
+    copied: "Overlay copiado",
+    copyOverlay: "Copiar overlay",
+    hint: "El overlay muestra solo este ranking y se actualiza automáticamente.",
   },
 
   chatOverlayPreview: {

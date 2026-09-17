@@ -93,14 +93,13 @@ describe("Settings no longer renders the retired desktop features", () => {
   });
 });
 
-describe("AI provider picker", () => {
-  it("is selectable and keeps all four providers", () => {
+describe("AI provider settings", () => {
+  it("does not render a provider selector", () => {
     const { container } = renderSettings();
-    // The label isn't wired to the control with htmlFor, so reach the select
-    // through an option only it can have.
-    const select = container.querySelector('option[value="agy"]').closest("select");
-    expect(select).toBeEnabled();
-    expect([...select.options].map((o) => o.value)).toEqual(["claude", "grok", "agy", "chatgpt"]);
+    expect(container.querySelector('option[value="claude"]')).toBeNull();
+    expect(container.querySelector('option[value="chatgpt"]')).toBeNull();
+    expect(screen.queryByText("Provider")).toBeNull();
+    expect(screen.queryByText("Proveedor")).toBeNull();
   });
 
   it("no longer claims only Claude is available", () => {
