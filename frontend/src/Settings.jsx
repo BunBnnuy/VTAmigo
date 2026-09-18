@@ -11,6 +11,20 @@ const TIER_NAMES = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "P
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
+// Credential keys that must never be persisted in the browser, synced to the
+// server, or exported to a file: the bot moved to the OAuth bot-link flow,
+// whose tokens live only in the backend's encrypted columns. Old settings
+// blobs and old exported .json files may still carry a manually-pasted bot
+// token + username, so every path that writes settings out strips them.
+const CREDENTIAL_KEYS = ["botToken", "botUsername", "accessToken", "refreshToken", "oauthToken"];
+
+function stripCredentialKeys(obj) {
+  if (!obj || typeof obj !== "object") return obj;
+  const clean = { ...obj };
+  for (const key of CREDENTIAL_KEYS) delete clean[key];
+  return clean;
+}
+
 function formatWindowLabel(sec) {
   if (sec < 60) return `${sec}s`;
   const min = sec / 60;
@@ -18,7 +32,9 @@ function formatWindowLabel(sec) {
 }
 
 export default function Settings({ settings, tier, onSave, onClose }) {
-  const [form, setForm] = useState(() => ({ ...settings, ...clampToTier(tier, settings) }));
+  // Strip on the way in too: props from an old localStorage blob may still
+  // carry a manually-pasted bot token, which must not linger in form state.
+  const [form, setForm] = useState(() => stripCredentialKeys({ ...settings, ...clampToTier(tier, settings) }));
   const limits = tierLimits(tier);
   const { t } = useTranslation(form.language);
   const micChromeAllowed = voice.supported && isChromeBrowser();
@@ -379,7 +395,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [settingsFileStatus, setSettingsFileStatus] = useState(null); // null | {error} | {ok}
 
   const exportSettings = () => {
-    const blob = new Blob([JSON.stringify(form, null, 2)], { type: "application/json" });
+    // Never write a token into the downloaded file.
+    const blob = new Blob([JSON.stringify(stripCredentialKeys(form), null, 2)], { type: "application/json" });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
@@ -405,7 +422,10 @@ export default function Settings({ settings, tier, onSave, onClose }) {
           delete parsed.backendUrl;
           droppedStaleBackendUrl = true;
         }
-        setForm((f) => ({ ...f, ...parsed }));
+        // An old export may carry a manually-pasted bot token — never
+        // import credentials back into the browser.
+        const clean = stripCredentialKeys(parsed);
+        setForm((f) => ({ ...f, ...clean }));
         setSettingsFileStatus({ ok: true, droppedStaleBackendUrl });
       } catch (err) {
         setSettingsFileStatus({ error: t("settings.copySettings.invalidFile", { error: err.message }) });
@@ -1079,7 +1099,7 @@ export default function Settings({ settings, tier, onSave, onClose }) {
 
         <div style={styles.footer}>
           <button style={styles.cancelBtn} onClick={onClose}>{t("settings.cancel")}</button>
-          <button style={styles.saveBtn} data-tour="save-apply" onClick={() => onSave(form)}>{t("settings.save")}</button>
+          <button style={styles.saveBtn} data-tour="save-apply" onClick={() => onSave(stripCredentialKeys(form))}>{t("settings.save")}</button>
         </div>
       </div>
     </div>

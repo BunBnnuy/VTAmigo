@@ -176,15 +176,52 @@ const USER_COLUMNS = [
   "createdAt", "approvedAt", "twitchAccessTokenEnc", "twitchRefreshTokenEnc",
   "twitchTokenExpiresAt", "botTwitchId", "botLogin", "botAccessTokenEnc",
   "botRefreshTokenEnc", "botTokenExpiresAt", "botLinkedAt",
-  "overlayTokenVersion",
+  "overlayTokenVersion", "sessionVersion",
 ];
 
-// overlayTokenVersion is NOT NULL DEFAULT 1 in the schema, but writeUsers
-// takes whole user objects from callers that never heard of the column, so
-// normalise instead of writing a null the column rejects.
+// overlayTokenVersion / sessionVersion are NOT NULL DEFAULT 1 in the schema,
+// but writeUsers takes whole user objects from callers that never heard of
+// the columns, so normalise instead of writing a null the column rejects.
 function normalizeOverlayVersion(value) {
   const n = Number(value);
   return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+function normalizeSessionVersion(value) {
+  const n = Number(value);
+  return Number.isInteger(n) && n > 0 ? n : 1;
+}
+
+// ── Cookie flags (Issue 5) ─────────────────────────────────────────────
+// Every cookie this router sets uses these flags explicitly:
+//   httpOnly — JS can't read session/state values (XSS can't steal them).
+//   path:'/' — the cookie is sent on every backend path, and clearCookie
+//     below must use the same path or the browser keeps the old value.
+//   sameSite:'lax' — sent on top-level navigations (OAuth redirects back in)
+//     but not on cross-site subrequests (CSRF protection for POSTs).
+//   secure:true — sent over HTTPS only. Behind nginx (TLS-terminating reverse
+//     proxy on localhost, see app.js `trust proxy: loopback`) the browser
+//     still sees HTTPS, so this is correct in production. Local plain-HTTP
+//     testing still works for supertest/Set-Cookie assertions; real browsers
+//     exempt http://localhost from the Secure requirement.
+// NOTE (nginx/HSTS): HSTS is intentionally NOT set here — Express must not
+// emit Strict-Transport-Security behind a TLS-terminating proxy that also
+// serves plain-HTTP challenges. Enable it in nginx instead, e.g.:
+//   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+// (only on the HTTPS server block, after confirming HTTPS works).
+function baseCookieOptions() {
+  return { httpOnly: true, path: "/", sameSite: "lax", secure: true };
+}
+
+function sessionCookieOptions(maxAge) {
+  return { ...baseCookieOptions(), maxAge };
+}
+
+// clearCookie must carry the same path/sameSite/secure as the matching
+// res.cookie call, otherwise the browser treats it as a different cookie and
+// keeps the original.
+function clearCookieOptions() {
+  return { ...baseCookieOptions() };
 }
 
 const upsertUserStmt = db.prepare(`
@@ -218,6 +255,7 @@ function writeUsers(users) {
       for (const c of USER_COLUMNS) {
         if (c === "approved") row[c] = u[c] ? 1 : 0;
         else if (c === "overlayTokenVersion") row[c] = normalizeOverlayVersion(u[c]);
+        else if (c === "sessionVersion") row[c] = normalizeSessionVersion(u[c]);
         else row[c] = u[c] === undefined ? null : u[c];
       }
       upsertUserStmt.run(row);
@@ -411,8 +449,54 @@ async function forceRefreshBotToken(streamerTwitchId) {
   return refreshBotToken(streamerTwitchId, user);
 }
 
+// Session JWTs carry `sv` (the user's sessionVersion at issue time).
+// readSession/getApprovedUserFromCookieHeader reject tokens whose `sv` no
+// longer matches the DB row, so logout/revoke invalidates old cookies
+// server-side — clearing the cookie alone is not enough (a stolen copy would
+// stay valid for its remaining 30d lifetime).
 function signSession(user) {
-  return jwt.sign({ twitchId: user.twitchId }, SESSION_JWT_KEY, { expiresIn: "30d" });
+  const sv = normalizeSessionVersion(
+    user.sessionVersion !== undefined ? user.sessionVersion : readSessionVersion(user.twitchId)
+  );
+  return jwt.sign({ twitchId: user.twitchId, sv }, SESSION_JWT_KEY, { expiresIn: "30d" });
+}
+
+const selectSessionVersionStmt = db.prepare(`SELECT sessionVersion FROM users WHERE twitchId = ?`);
+
+function readSessionVersion(twitchId) {
+  try {
+    const row = selectSessionVersionStmt.get(twitchId);
+    return row ? normalizeSessionVersion(row.sessionVersion) : 1;
+  } catch {
+    return 1;
+  }
+}
+
+// Increment the revocation counter, invalidating every JWT previously issued
+// for this account (including copies the browser no longer holds). Called on
+// logout and on security events (admin revoke). Returns the new version.
+function bumpSessionVersion(twitchId) {
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === twitchId);
+  if (!user) return null;
+  user.sessionVersion = normalizeSessionVersion(user.sessionVersion) + 1;
+  writeUsers(users);
+  return user.sessionVersion;
+}
+
+// Central version check shared by the HTTP and WS paths. Legacy cookies
+// issued before `sv` existed carry no claim: accept those only while the
+// account has never been revoked (version 1) and legacy cookies are still
+// enabled; once bumped, even claim-less tokens are dead. Set
+// SESSION_LEGACY_COOKIES=0 once the 30-day migration window has passed to
+// retire the bare-secret signature entirely (see ACCEPT_LEGACY_SESSION_COOKIES).
+function isSessionPayloadValid(payload, user) {
+  if (!payload || !payload.twitchId || !user) return false;
+  const expected = normalizeSessionVersion(user.sessionVersion);
+  if (payload.sv === undefined) {
+    return expected === 1 && ACCEPT_LEGACY_SESSION_COOKIES;
+  }
+  return payload.sv === expected;
 }
 
 // Verifies a session cookie and returns its payload, or null. Signing always
@@ -437,7 +521,10 @@ function verifySessionToken(token) {
 function readSession(req) {
   const payload = verifySessionToken(req.cookies && req.cookies[SESSION_COOKIE]);
   if (!payload || !payload.twitchId) return null;
-  return findUser(payload.twitchId) || null;
+  const user = findUser(payload.twitchId);
+  if (!user) return null;
+  if (!isSessionPayloadValid(payload, user)) return null;
+  return user;
 }
 
 // Express middleware — 401s unless the session cookie maps to an approved user.
@@ -456,6 +543,18 @@ function requireApprovedUser(req, res, next) {
 // they end up in access logs, referrers and screen-shared OBS dialogs, and
 // before the version there was no way to take one back short of rotating
 // SESSION_SECRET for every account at once.
+//
+// Surfaces carrying ?token= today (all scoped to one account, all revoked
+// together by rotateOverlayToken / POST /overlay-token/rotate — there is
+// deliberately one token per account, not one per surface):
+//   /video/state, /video/ended, /xp/ranking, /chat WS (?token=),
+//   /overlay/* pages and their data/image/asset fetches, /chat-overlay/*,
+//   /overlay/custom/*, /avatar/reactive/image. Grep for `req.query.token`
+//   for the full inline list.
+// Log hygiene: never log req.url with its query string on these routes —
+// access logs must strip/redact `?token=...` (see the nginx note in app.js).
+// No expiry is embedded: rotation is the expiry. Rotate after any leak and
+// tell the streamer to paste the fresh URL into OBS.
 //
 // `version` is optional purely to save a lookup when the caller already has
 // the user row in hand (findUserByOverlayToken loops over every user).
@@ -512,7 +611,9 @@ function getApprovedUserFromCookieHeader(cookieHeader) {
   const payload = verifySessionToken(cookies[SESSION_COOKIE]);
   if (!payload || !payload.twitchId) return null;
   const user = findUser(payload.twitchId);
-  return user && user.approved ? user : null;
+  if (!user || !user.approved) return null;
+  if (!isSessionPayloadValid(payload, user)) return null;
+  return user;
 }
 
 const router = express.Router();
@@ -533,7 +634,7 @@ router.get("/auth/twitch/login", (req, res) => {
   }
   sendEvent("login_attempt", { req });
   const state = crypto.randomBytes(16).toString("hex");
-  res.cookie(STATE_COOKIE, state, { httpOnly: true, sameSite: "lax", maxAge: 5 * 60 * 1000 });
+  res.cookie(STATE_COOKIE, state, sessionCookieOptions(5 * 60 * 1000));
   const url = new URL("https://id.twitch.tv/oauth2/authorize");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -547,13 +648,17 @@ router.get("/auth/twitch/callback", async (req, res) => {
   res.set("Cache-Control", "no-store");
   const { code, state } = req.query;
   const expectedState = req.cookies && req.cookies[STATE_COOKIE];
-  res.clearCookie(STATE_COOKIE);
+  res.clearCookie(STATE_COOKIE, clearCookieOptions());
   if (!code || !state || !expectedState || state !== expectedState) {
+    // Issue 6: never log OAuth secrets. `state`/`expectedState` are unguessable
+    // CSRF tokens, `code` is a single-use Twitch grant, and the cookie header
+    // carries the session — logging any of them turns the log file into a
+    // credential store. Booleans + a request id are enough to debug CSRF vs
+    // missing-cookie failures.
     console.error("[auth/twitch/callback] state mismatch", {
-      state,
-      expectedState,
-      cookieHeader: req.headers.cookie,
-      allCookies: req.cookies,
+      hasState: !!state,
+      hasExpectedState: !!expectedState,
+      requestId: req.headers["x-request-id"] || req.id,
     });
     return res.status(400).send("Invalid OAuth state — please try logging in again.");
   }
@@ -602,11 +707,7 @@ router.get("/auth/twitch/callback", async (req, res) => {
     });
 
     const sessionToken = signSession(user);
-    res.cookie(SESSION_COOKIE, sessionToken, {
-      httpOnly: true,
-      sameSite: "lax",
-      maxAge: 30 * 24 * 60 * 60 * 1000,
-    });
+    res.cookie(SESSION_COOKIE, sessionToken, sessionCookieOptions(30 * 24 * 60 * 60 * 1000));
     sendEvent("login_success", { req, twitchLogin: user.login });
     res.redirect("/");
   } catch (err) {
@@ -632,9 +733,38 @@ router.get("/auth/me", (req, res) => {
   });
 });
 
+// POST /auth/logout — server-side revocation, not just client-side clearing.
+// Bumps sessionVersion so the JWT in the cleared cookie (and any stolen copy)
+// fails isSessionPayloadValid from now on. Still clears the cookie and still
+// answers {ok:true} when there was no session, so logout is idempotent.
 router.post("/auth/logout", (req, res) => {
-  res.clearCookie(SESSION_COOKIE);
+  try {
+    const payload = verifySessionToken(req.cookies && req.cookies[SESSION_COOKIE]);
+    if (payload && payload.twitchId) bumpSessionVersion(payload.twitchId);
+  } catch {
+    /* logout stays idempotent even if the cookie is garbage */
+  }
+  res.clearCookie(SESSION_COOKIE, clearCookieOptions());
   res.json({ ok: true });
+});
+
+// POST /overlay-token/rotate — invalidates the account's current overlay
+// token (?token= URLs for /video/state, /video/ended, /xp/ranking, /chat WS
+// and the other overlay routes listed in getOverlayToken's header) and
+// returns the replacement. Behind requireApprovedUser so only the streamer
+// can rotate their own account's token. The streamer must re-copy the
+// browser-source URL into OBS afterwards — that's the point.
+//
+// Overlay tokens are single per-account HMACs, not scoped per surface: every
+// ?token= URL for the account shares one value, so rotation revokes them all
+// at once. They carry no expiry of their own (deterministic HMAC of
+// twitchId+version) — treat them like a password: anyone holding the URL has
+// read/report access to that account's overlay feeds until the next rotation,
+// so rotate after any screen-share, log leak, or staff change.
+router.post("/overlay-token/rotate", requireApprovedUser, (req, res) => {
+  const token = rotateOverlayToken(req.user.twitchId);
+  if (!token) return res.status(404).json({ error: "User not found" });
+  res.json({ token });
 });
 
 // ── Bot-account linking ──────────────────────────────────────────────────
@@ -702,7 +832,7 @@ router.get("/auth/twitch/bot-link/:linkToken", (req, res) => {
   if (!clientId || !redirectUri) {
     return res.status(503).send("Bot-account linking is not configured on this server.");
   }
-  res.cookie(BOT_LINK_STATE_COOKIE, linkToken, { httpOnly: true, sameSite: "lax", maxAge: 10 * 60 * 1000 });
+  res.cookie(BOT_LINK_STATE_COOKIE, linkToken, sessionCookieOptions(10 * 60 * 1000));
   const url = new URL("https://id.twitch.tv/oauth2/authorize");
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", redirectUri);
@@ -719,7 +849,7 @@ router.get("/auth/twitch/bot-callback", async (req, res) => {
   res.set("Cache-Control", "no-store");
   const { code, state } = req.query;
   const expectedState = req.cookies && req.cookies[BOT_LINK_STATE_COOKIE];
-  res.clearCookie(BOT_LINK_STATE_COOKIE);
+  res.clearCookie(BOT_LINK_STATE_COOKIE, clearCookieOptions());
   if (!code || !state || !expectedState || state !== expectedState) {
     return res.status(400).send("Invalid or expired bot-account link — please generate a new one from VTAmigo Settings.");
   }
@@ -789,6 +919,12 @@ router.get("/auth/twitch/bot-callback", async (req, res) => {
 module.exports = {
   router,
   requireApprovedUser,
+  readSession,
+  verifySessionToken,
+  signSession,
+  bumpSessionVersion,
+  readSessionVersion,
+  normalizeSessionVersion,
   getApprovedUserFromCookieHeader,
   readUsers,
   writeUsers,
@@ -801,6 +937,9 @@ module.exports = {
   forceRefreshBotToken,
   clearBotTwitchTokens,
   rotateOverlayToken,
+  SESSION_COOKIE,
+  STATE_COOKIE,
+  BOT_LINK_STATE_COOKIE,
   // Exported for adminAuth.js, which needs its own subkey off the same trust
   // root, and for the test suite, which asserts the boot-time contract without
   // spawning a process.

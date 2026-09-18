@@ -15,40 +15,22 @@ const express = require("express");
 const { sendEvent } = require("../analytics");
 const { queryClaudeCLI, containsPromptLeak } = require("../claude");
 const siteConfig = require("../siteConfig");
-const { TwitchIRCClient } = require("../twitch");
 const { TikTokChatClient } = require("../tiktok");
 const sessions = require("../sessions");
 const achievements = require("../achievements");
 
-const { twitchSessions, broadcast, broadcastToAccount, handleChat, connectTwitchForUser } = sessions;
+const { twitchSessions, broadcast, handleChat, connectTwitchForUser } = sessions;
 
 const router = express.Router();
 
-// POST /connect-bot — (re)connect only the bot client for this user's session, no WS disruption
+// POST /connect-bot — REMOVED (manual pasted-token bot connect). The bot now
+// posts only through the OAuth-linked bot account (/bot-link/* in auth.js) or
+// the site-wide fallback, so pasted tokens are never accepted, transmitted,
+// or stored. This stub stays registered so old clients get an explicit
+// "gone, link a bot in Settings" instead of a bare 404 — and so the route
+// still answers 401 unauthenticated (see routing.test.js).
 router.post("/connect-bot", (req, res) => {
-  const { botUsername, botToken } = req.body || {};
-  if (!botUsername || !botToken) {
-    return res.status(400).json({ error: "botUsername and botToken are required" });
-  }
-  const twitchId = req.user.twitchId;
-  const channel = req.user.login;
-  const session = twitchSessions.get(twitchId) || { login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: null, botCreds: {} };
-  if (session.botClient) { session.botClient.disconnect(); session.botClient = null; }
-  session.botCreds = { botUsername, botToken };
-  session.botUsername = botUsername.toLowerCase();
-  session.botClient = new TwitchIRCClient({
-    channel,
-    token: botToken,
-    username: botUsername,
-    onMessage: () => {},
-    onStatus: (status) => {
-      console.log("[bot]", status.type);
-      broadcastToAccount(twitchId, { type: "bot_status", status });
-    },
-  });
-  session.botClient.connect();
-  twitchSessions.set(twitchId, session);
-  res.json({ ok: true });
+  res.status(410).json({ error: "Manual bot tokens are no longer supported — link a bot account in Settings instead" });
 });
 
 // POST /say — send a message to chat as the bot user, on behalf of the logged-in user's session
@@ -66,7 +48,7 @@ router.post("/say", (req, res) => {
   }
 
   const session = twitchSessions.get(req.user.twitchId);
-  if (!session || !session.botClient) return res.status(503).json({ error: "Bot not connected — add bot credentials in Settings" });
+  if (!session || !session.botClient) return res.status(503).json({ error: "Bot not connected — link a bot account in Settings" });
   const sent = session.botClient.say(text);
   if (!sent) return res.status(503).json({ error: "Bot WebSocket not open" });
   res.json({ ok: true });
@@ -123,12 +105,15 @@ router.post("/say-as-streamer", (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /connect — connect to the logged-in user's own Twitch channel
+// POST /connect — connect to the logged-in user's own Twitch channel.
+// The bot client always uses the OAuth-linked bot account (/bot-link/*) or
+// the site-wide fallback — any botUsername/botToken in the body is ignored
+// (old clients still send them; they must never be trusted or stored).
 router.post("/connect", async (req, res) => {
-  const { botUsername, botToken, manual } = req.body || {};
+  const { manual } = req.body || {};
   if (manual) sendEvent("manual_connect", { req, twitchLogin: req.user?.login });
   try {
-    const { channel } = await connectTwitchForUser(req.user, { botUsername, botToken });
+    const { channel } = await connectTwitchForUser(req.user);
     // first_connect (plus any retroactive milestones for pre-feature
     // accounts) settles here, with connectedNow so a brand-new account earns
     // it on this call rather than waiting for its first chat message.

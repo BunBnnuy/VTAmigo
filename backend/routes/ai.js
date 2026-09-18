@@ -7,6 +7,8 @@
 const express = require("express");
 const { sendEvent } = require("../analytics");
 const { queryClaudeCLI, importMemory } = require("../claude");
+const { sanitizeBasePrompt } = require("../agentHardening");
+const { aiLimiter } = require("../rateLimits");
 const usage = require("../usage");
 const achievements = require("../achievements");
 const { notifyAchievements } = require("../sessions");
@@ -16,8 +18,9 @@ const memoryDownload = require("../memoryDownload");
 
 const router = express.Router();
 
-// POST /respond — run Claude CLI with a batch of messages
-router.post("/respond", async (req, res) => {
+// POST /respond — run Claude CLI with a batch of messages. Capped by
+// aiLimiter (5/min per IP): each call burns provider CLI/GPU time.
+router.post("/respond", aiLimiter, async (req, res) => {
   const { messages, style, basePrompt, manual } = req.body;
   if (!messages || !Array.isArray(messages) || messages.length === 0) {
     return res.status(400).json({ error: "messages array is required" });
@@ -25,14 +28,23 @@ router.post("/respond", async (req, res) => {
 
   // The AI provider is a site-wide admin setting — any provider sent by the
   // client is ignored so a user's own Settings preference can't override it.
+  // (Verified: req.body.provider is never read here; siteConfig.getProvider()
+  // is the single source of truth. Keep it that way.)
   const provider = siteConfig.getProvider();
   const twitchId = req.user?.twitchId;
+
+  // basePrompt is streamer-controlled input that becomes part of the agent
+  // prompt: bound to 2000 chars, stripped of control chars (sanitize is
+  // idempotent — queryClaudeCLI re-applies it centrally for /event too).
+  // NOTE: req.body deliberately destructures no `provider` (see above).
+  const cleanBasePrompt = sanitizeBasePrompt(basePrompt);
+  const cleanStyle = typeof style === "string" && style ? style : "auto";
 
   sendEvent("ai_response_generated", { req, twitchLogin: req.user?.login, data: { provider } });
   if (manual) sendEvent("now_button_click", { req, twitchLogin: req.user?.login });
 
   try {
-    const response = await queryClaudeCLI(messages, style || "auto", basePrompt || "", null, provider, twitchId);
+    const response = await queryClaudeCLI(messages, cleanStyle, cleanBasePrompt, null, provider, twitchId);
     usage.recordGeneration({
       twitchId: req.user?.twitchId,
       login: req.user?.login,
@@ -57,6 +69,12 @@ router.post("/respond", async (req, res) => {
     }
     if (err.message === "TIMEOUT") {
       return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
+    }
+    if (err.message === "OPENAI_PROMPT_TOO_LONG") {
+      return res.status(400).json({ error: "Prompt too long" });
+    }
+    if (err.message === "OPENAI_DAILY_BUDGET_EXCEEDED") {
+      return res.status(429).json({ error: "Daily AI budget reached, try again tomorrow" });
     }
     console.error("[ai]", err.message);
     res.status(500).json({ error: err.message });

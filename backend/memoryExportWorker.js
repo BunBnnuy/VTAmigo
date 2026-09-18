@@ -6,6 +6,11 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { parentPort, workerData } = require("worker_threads");
+// Same process-boundary hardening as the main-thread spawnCLI in claude.js:
+// per-provider tool-surface flags, isolated scratch cwd, minimal allowlist
+// env. This worker spawns the same agent CLIs, so it must not spawn them any
+// less locked down. See agentHardening.js.
+const hardening = require("./agentHardening");
 
 const { from, to, exes, source, target, memoriesDir, timeoutMs } = workerData;
 
@@ -19,7 +24,14 @@ function runCLI(exe, args, provider) {
     let stderr = "";
     let timedOut = false;
 
-    const proc = spawn(exe, args, { shell: false, windowsHide: true });
+    const proc = spawn(exe, args, {
+      shell: false,
+      windowsHide: true,
+      // Isolated scratch cwd + minimal allowlist env — never the backend
+      // repo dir, never the backend's environment (see agentHardening.js).
+      cwd: hardening.resolveAgentCwd(null),
+      env: hardening.buildRestrictedEnv(process.env),
+    });
 
     const timer = setTimeout(() => {
       timedOut = true;
@@ -58,17 +70,19 @@ function runCLI(exe, args, provider) {
 }
 
 function buildArgs(provider, prompt, session, isTarget = false) {
+  // Session flags keep their exact shapes; the per-provider hardening flags
+  // (tool/plugin/skill/MCP lockdown) are appended after them.
   if (provider === "agy") {
     const args = ["-p", prompt, "--output-format", "json"];
     if (session && session.started && session.id) {
       args.push("--conversation", session.id);
     }
-    return args;
+    return [...args, ...hardening.getHardeningArgs(provider)];
   }
   const sessionFlags = isTarget
     ? (session.started ? ["--resume", session.id] : ["--session-id", session.id])
     : ["--resume", session.id];
-  return ["-p", prompt, ...sessionFlags];
+  return ["-p", prompt, ...sessionFlags, ...hardening.getHardeningArgs(provider)];
 }
 
 const DUMP_PROMPT = `Necesito exportar tu memoria a otro asistente que va a ocupar tu lugar como co-presentador del stream.

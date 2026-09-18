@@ -45,8 +45,9 @@ const REMOVED_ENDPOINTS = [
   { method: "post", path: "/device/lookup" },
   { method: "post", path: "/device/approve" },
   { method: "get", path: "/device/status" },
-  // Served the tunnel client binary that drove the enrollment above.
-  { method: "get", path: "/downloads/tunnel-client.exe" },
+  // NOTE: /downloads/tunnel-client.exe is deliberately NOT in this list any
+  // more. It has an explicit 410 tombstone route in app.js (see the
+  // "tombstone" block below), so it IS a registered route by design.
 ];
 
 // Walks the Express router stack for paths that are actually registered.
@@ -92,6 +93,23 @@ describe("desktop-legacy purge", () => {
       expect(res.status).toBe(401);
     }
   );
+
+  // Tombstone for the retired tunnel-client binary: the unsigned .exe is
+  // deleted from frontend/public/downloads, but the path stays registered on
+  // purpose as an explicit 410 Gone (registered BEFORE the static middleware
+  // in app.js, so even a stale dist/ copy or CDN edge can't 200 it again).
+  // If this route ever disappears, the path falls through to a 404 — which
+  // is safe, but the 410 is the deliberate signal, so keep it.
+  describe("tunnel-client.exe tombstone", () => {
+    it("is a registered route (the 410 is intentional, not a missing handler)", () => {
+      expect(registeredPaths()).toContain("/downloads/tunnel-client.exe");
+    });
+
+    it("GET /downloads/tunnel-client.exe responds 410 Gone", async () => {
+      const res = await request(app).get("/downloads/tunnel-client.exe");
+      expect(res.status).toBe(410);
+    });
+  });
 
   it("no longer requires any of the deleted modules", () => {
     for (const mod of [

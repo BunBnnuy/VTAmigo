@@ -51,8 +51,6 @@ const DEFAULT_SETTINGS = {
   micLang: "es-ES",
   micLabel: "Streamer",
   micTitleDelimiter: "",
-  botUsername: "",
-  botToken: "",
   autoSendToChat: false,
   aiResponsesEnabled: true,
   ignoredUsers: "jonejo_ia, streamelements, nightbot, moobot, fossabot, streamlabs, soundalerts, wizebot, botisimo, coebot, sery_bot, kofistreambot, commanderroot, virgoproz, aparatchik, logviewer, electricallongboard, anotherttvviewer, twitchraidshadow",
@@ -70,6 +68,14 @@ const KNOWN_SETTING_KEYS = new Set([
   "backendUrl",
 ]);
 
+// Credential keys that must never live in the settings blob (localStorage,
+// the POST /settings server sync, or an exported .json): the bot moved to
+// the OAuth bot-link flow, whose tokens live only in the backend's encrypted
+// users-table columns (see backend/auth.js setBotTwitchTokens). Old builds
+// stored a manually-pasted bot token + username here, so they are stripped
+// on load instead of lingering or syncing up to SQLite.
+const LEGACY_CREDENTIAL_KEYS = ["botToken", "botUsername", "accessToken", "refreshToken", "oauthToken"];
+
 // Turns whatever is in localStorage into a settings object this build
 // understands: legacy shapes are migrated, unknown keys are discarded, and
 // anything missing falls back to DEFAULT_SETTINGS. Pure — exported so it can
@@ -80,13 +86,34 @@ export function migrateSettings(saved) {
   for (const [key, value] of Object.entries(raw)) {
     if (KNOWN_SETTING_KEYS.has(key)) kept[key] = value;
   }
-  return {
+  // Belt and braces: even if a credential key ever lands back in
+  // KNOWN_SETTING_KEYS, it must not survive migration.
+  for (const key of LEGACY_CREDENTIAL_KEYS) delete kept[key];
+  const out = {
     ...DEFAULT_SETTINGS,
     ...kept,
     // Old on/off mic checkbox → the 4-way mic mode
     micMode: raw.micMode === undefined ? (raw.micEnabled ? "voice" : "off") : raw.micMode,
     panelLayout: mergePanelLayout(raw.panelLayout),
   };
+  for (const key of LEGACY_CREDENTIAL_KEYS) delete out[key];
+  return out;
+}
+
+// One-time cleanup for browsers that still carry a manually-pasted bot token
+// from before the OAuth bot-link flow: drop the credential keys from the
+// persisted blob in place so they are never read or synced again. Exported
+// for testing; AppInner calls it on load and before the server sync.
+export function scrubStoredSettings() {
+  try {
+    const raw = JSON.parse(localStorage.getItem("settings") || "{}");
+    if (raw && typeof raw === "object" && LEGACY_CREDENTIAL_KEYS.some((k) => k in raw)) {
+      for (const key of LEGACY_CREDENTIAL_KEYS) delete raw[key];
+      localStorage.setItem("settings", JSON.stringify(raw));
+    }
+  } catch {
+    // Malformed blob — callers fall back to defaults; nothing to scrub.
+  }
 }
 
 const HYPE_KEYWORDS = ["pogchamp", "pog", "omegalul", "lul", "kekw", "lets go", "let's go", "clip it", "letsgo", "hype"];
@@ -148,7 +175,10 @@ export default function App() {
     try {
       // Migrated, not raw: this is the one path that copies a browser's
       // settings blob onto the server, so it must not carry keys from
-      // retired features up with it.
+      // retired features up with it. migrateSettings also strips the legacy
+      // manually-pasted bot token, which must never reach SQLite — the
+      // OAuth-linked bot tokens live only in the backend's encrypted columns.
+      scrubStoredSettings();
       const localSettings = migrateSettings(JSON.parse(localStorage.getItem("settings") || "{}"));
       apiFetch("/settings", {
         method: "POST",
@@ -171,6 +201,9 @@ export default function App() {
 function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [settings, setSettings] = useState(() => {
     try {
+      // Scrub first so a legacy manually-pasted bot token is deleted from
+      // the persisted blob, not just from this session's state.
+      scrubStoredSettings();
       return migrateSettings(JSON.parse(localStorage.getItem("settings") || "{}"));
     } catch {
       // Unreadable or malformed localStorage — start from the defaults.
@@ -910,14 +943,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
 
   const handleConnect = useCallback(async (manual) => {
     try {
+      // The bot account is resolved server-side from the OAuth-linked bot
+      // (/bot-link/*) or the site-wide fallback — no credentials travel here.
       const res = await apiFetch("/connect", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          botUsername: settingsRef.current.botUsername,
-          botToken: settingsRef.current.botToken,
-          manual: !!manual,
-        }),
+        body: JSON.stringify({ manual: !!manual }),
       });
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
@@ -1009,19 +1040,6 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       clearTimeout(batchTimerRef.current);
       clearInterval(countdownIntervalRef.current);
       startCountdown();
-    }
-    // Reconnect only the bot client if credentials changed — avoids disrupting the main WS
-    if (newSettings.botUsername && newSettings.botToken &&
-      (newSettings.botUsername !== prev.botUsername || newSettings.botToken !== prev.botToken)
-    ) {
-      apiFetch("/connect-bot", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          botUsername: newSettings.botUsername,
-          botToken: newSettings.botToken,
-        }),
-      }).catch(() => {});
     }
     // Reconnect TikTok if username changed
     if (newSettings.tiktokUsername !== prev.tiktokUsername) {
@@ -1259,8 +1277,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           </div>
         )}
 
-        {/* Bot status */}
-        {(settings.botUsername || activeBotUsername) && (
+        {/* Bot status — the login comes from the server (WS bot_status /
+            OAuth-linked account), never from client settings: no token or
+            username is stored in the browser any more. */}
+        {activeBotUsername && (
           <div style={styles.statusGroup}>
             <span style={{
               ...styles.dot,
@@ -1269,7 +1289,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             <span style={styles.statusText}>
               {t("app.botLine", {
                 status: botStatus === "connected"
-                  ? `${activeBotUsername || settings.botUsername}${usingSiteBot ? t("app.botSiteSuffix") : ""}`
+                  ? `${activeBotUsername}${usingSiteBot ? t("app.botSiteSuffix") : ""}`
                   : botStatus === "connecting" ? t("app.botConnecting") : t("app.botDisconnected"),
               })}
             </span>

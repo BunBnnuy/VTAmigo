@@ -2,6 +2,9 @@ const { spawn } = require("child_process");
 const path = require("path");
 const { randomUUID } = require("crypto");
 const errorLog = require("./errorLog");
+// Process-boundary hardening for the agent CLIs spawned below (tool-surface
+// flags, isolated scratch cwd, minimal allowlist env). See agentHardening.js.
+const hardening = require("./agentHardening");
 
 const TIMEOUT_MS = 60000;
 
@@ -17,7 +20,10 @@ Responde en 1–3 oraciones. Sé ingenioso, no cringe. Aporta algo — no solo r
 // crafted chat message could otherwise blend into what looks like the
 // trusted instructions block.
 function wrapSystemPrompt(basePrompt) {
-  const base = (basePrompt || DEFAULT_BASE_PROMPT).trim();
+  // sanitizeBasePrompt bounds the length, strips control chars and
+  // neutralizes our own framing tags, so the trusted block can't be broken
+  // out of. Empty (or non-string) input falls back to the default persona.
+  const base = hardening.sanitizeBasePrompt(basePrompt) || DEFAULT_BASE_PROMPT;
   return `<system_instructions>
 ${base}
 
@@ -28,8 +34,11 @@ Respond in plain text only — this gets read aloud by TTS and posted directly i
 }
 
 function wrapUntrusted(content) {
+  // neutralizeOwnTags keeps a literal "</untrusted_data>" inside viewer text
+  // from closing this block early (see agentHardening.js).
+  const safe = hardening.neutralizeOwnTags(content == null ? "" : String(content));
   return `<untrusted_data>
-${content}
+${safe}
 </untrusted_data>`;
 }
 
@@ -38,7 +47,7 @@ ${content}
 // a backstop for when the delimiting above still gets talked past.
 const lastBasePromptByUser = new Map();
 function rememberBasePrompt(twitchId, basePrompt) {
-  if (twitchId) lastBasePromptByUser.set(twitchId, (basePrompt || DEFAULT_BASE_PROMPT).trim());
+  if (twitchId) lastBasePromptByUser.set(twitchId, hardening.sanitizeBasePrompt(basePrompt) || DEFAULT_BASE_PROMPT);
 }
 
 // Blocks obvious prompt-scaffolding leaks (our own delimiter tags surfacing
@@ -83,25 +92,39 @@ function stripMarkdown(text) {
 }
 
 function describeEvent(event) {
-  switch (event.kind) {
+  // Event fields arrive from webhooks/chat input and are untrusted: bound
+  // them and strip control chars before they reach the prompt (same
+  // treatment chat lines get in buildPrompt via sanitizeMessages).
+  const ev = {
+    kind: event.kind,
+    username: hardening.stripControlChars(event.username || "?").slice(0, 100),
+    message: hardening.stripControlChars(event.message || "").slice(0, 2000),
+    isGift: event.isGift,
+    isAnonymous: event.isAnonymous,
+    months: Number(event.months) || 0,
+    count: Number(event.count) || 0,
+    viewers: Number(event.viewers) || 0,
+    bits: Number(event.bits) || 0,
+  };
+  switch (ev.kind) {
     case "follow":
-      return `¡${event.username} acaba de seguir el canal!`;
+      return `¡${ev.username} acaba de seguir el canal!`;
     case "sub":
-      return `¡${event.username} acaba de suscribirse al canal${event.isGift ? " (regalo)" : ""}!`;
+      return `¡${ev.username} acaba de suscribirse al canal${ev.isGift ? " (regalo)" : ""}!`;
     case "resub":
-      return `¡${event.username} renovó su suscripción por ${event.months} ${event.months === 1 ? "mes" : "meses"}!${event.message ? ` Mensaje: "${event.message}"` : ""}`;
+      return `¡${ev.username} renovó su suscripción por ${ev.months} ${ev.months === 1 ? "mes" : "meses"}!${ev.message ? ` Mensaje: "${ev.message}"` : ""}`;
     case "giftsub":
-      return event.isAnonymous
-        ? `¡Un anónimo regaló ${event.count} ${event.count === 1 ? "suscripción" : "suscripciones"}!`
-        : `¡${event.username} regaló ${event.count} ${event.count === 1 ? "suscripción" : "suscripciones"}!`;
+      return ev.isAnonymous
+        ? `¡Un anónimo regaló ${ev.count} ${ev.count === 1 ? "suscripción" : "suscripciones"}!`
+        : `¡${ev.username} regaló ${ev.count} ${ev.count === 1 ? "suscripción" : "suscripciones"}!`;
     case "raid":
-      return `¡${event.username} está haciendo un raid con ${event.viewers} ${event.viewers === 1 ? "espectador" : "espectadores"}!`;
+      return `¡${ev.username} está haciendo un raid con ${ev.viewers} ${ev.viewers === 1 ? "espectador" : "espectadores"}!`;
     case "cheer":
-      return event.isAnonymous
-        ? `¡Un anónimo donó ${event.bits} bits!${event.message ? ` Mensaje: "${event.message}"` : ""}`
-        : `¡${event.username} donó ${event.bits} bits!${event.message ? ` Mensaje: "${event.message}"` : ""}`;
+      return ev.isAnonymous
+        ? `¡Un anónimo donó ${ev.bits} bits!${ev.message ? ` Mensaje: "${ev.message}"` : ""}`
+        : `¡${ev.username} donó ${ev.bits} bits!${ev.message ? ` Mensaje: "${ev.message}"` : ""}`;
     default:
-      return `Evento desconocido de ${event.username}.`;
+      return `Evento desconocido de ${ev.username}.`;
   }
 }
 
@@ -116,6 +139,9 @@ Reacciona y agradece este evento en 1–2 oraciones. Sé entusiasta y auténtico
 }
 
 function buildPrompt(messages, style, basePrompt) {
+  // Viewer chat is untrusted input: validate shape and bound size/count here
+  // (central choke point — covers /respond and any future callers).
+  messages = hardening.sanitizeMessages(messages);
   const styleInstruction =
     style === "chatbot"
       ? "Céntrate en dirigirte al chat directamente como un chatbot amigable."
@@ -165,8 +191,29 @@ const AGY_EXE =
 // Shared CLI runner — spawns `claude -p` (or grok) and resolves with stdout
 const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-mini";
 
-function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS } = {}) {
+// Cost/abuse caps for the OpenAI path (Issue 2). The CLI providers run
+// locally, but every OpenAI call bills the site owner's key — so the input
+// and the output are both bounded, and one account can't burn the whole
+// daily budget. The daily check is deliberately cheap: it reuses the
+// estimated counts usage.js already records per /respond call (good enough
+// as an abuse ceiling, not for billing).
+// TODO: replace the per-day generation count with real $-cost accounting
+// (input+output tokens x model price) once usage.js records token costs.
+const OPENAI_MAX_PROMPT_CHARS = 12000; // ~3k tokens in; over → OPENAI_PROMPT_TOO_LONG
+const OPENAI_MAX_OUTPUT_TOKENS = 500; // short co-host replies; bounds $/call
+const OPENAI_DAILY_GENERATIONS_PER_USER = 200; // over → OPENAI_DAILY_BUDGET_EXCEEDED
+
+function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS, maxOutputTokens = OPENAI_MAX_OUTPUT_TOKENS, twitchId = null } = {}) {
+  if ((prompt || "").length > OPENAI_MAX_PROMPT_CHARS) {
+    return Promise.reject(new Error("OPENAI_PROMPT_TOO_LONG"));
+  }
   if (!process.env.OPENAI_API_KEY) return Promise.reject(new Error("OPENAI_API_KEY_MISSING"));
+  if (twitchId) {
+    const today = require("./usage").getSummary()[twitchId];
+    if (today && today.day >= OPENAI_DAILY_GENERATIONS_PER_USER) {
+      return Promise.reject(new Error("OPENAI_DAILY_BUDGET_EXCEEDED"));
+    }
+  }
 
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
@@ -177,7 +224,7 @@ function runOpenAI(prompt, { timeoutMs = TIMEOUT_MS } = {}) {
       Authorization: `Bearer ${process.env.OPENAI_API_KEY}`,
       "Content-Type": "application/json",
     },
-    body: JSON.stringify({ model: OPENAI_MODEL, input: prompt }),
+    body: JSON.stringify({ model: OPENAI_MODEL, input: prompt, max_output_tokens: maxOutputTokens }),
     signal: controller.signal,
   })
     .then(async (response) => {
@@ -290,7 +337,7 @@ function logEmptyResponse(out, { provider, twitchId, prompt }) {
 
 function runCLI(prompt, { provider = "claude", twitchId = null, model = null, cwd = null, timeoutMs = TIMEOUT_MS, session = true } = {}) {
   if (provider === "chatgpt") {
-    return runOpenAI(prompt, { timeoutMs }).then((out) => logEmptyResponse(out, { provider, twitchId, prompt }));
+    return runOpenAI(prompt, { timeoutMs, twitchId }).then((out) => logEmptyResponse(out, { provider, twitchId, prompt }));
   }
   if (!session || !twitchId || !sessions[provider]) {
     return spawnCLI(prompt, { provider, model, cwd, timeoutMs }).then((out) => logEmptyResponse(out, { provider, twitchId, prompt }));
@@ -349,16 +396,27 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
     let timedOut = false;
 
     const exe = provider === "grok" ? GROK_EXE : provider === "agy" ? AGY_EXE : CLAUDE_EXE;
+    // Session args (-p prompt plus --session-id/--resume/--conversation) keep
+    // their exact positions and shapes; the hardening flags are appended
+    // after them (flag order is irrelevant to these CLIs), so session
+    // behavior is unchanged. See agentHardening.js for what each flag does
+    // and the verification notes per provider.
     const args = ["-p", prompt, ...sessionArgs];
     if (provider === "agy") {
       args.push("--output-format", "json");
     }
     if (model && (provider === "claude" || provider === "agy")) args.push("--model", model);
+    args.push(...hardening.getHardeningArgs(provider));
 
     const proc = spawn(exe, args, {
       shell: false,
       windowsHide: true,
-      ...(cwd ? { cwd } : {}),
+      // Never inherit the backend's cwd (agent CLIs treat cwd as their
+      // workspace) nor its environment (backend secrets, tokens, paths).
+      // resolveAgentCwd falls back to an isolated tmp work dir unless the
+      // caller passed an explicit dir OUTSIDE the backend tree.
+      cwd: hardening.resolveAgentCwd(cwd),
+      env: hardening.buildRestrictedEnv(process.env),
     });
 
     const timer = setTimeout(() => {
@@ -433,6 +491,13 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
 // and `messages` here fed the Reddit story reader, a desktop-era feature that
 // no longer exists — hence the shorter parameter list.
 async function queryClaudeCLI(messages, style = "auto", basePrompt = "", event = null, provider = "claude", twitchId = null) {
+  // Central validation for every prompt built here (/respond, /event):
+  // basePrompt is bounded/stripped, chat lines are shape-checked + bounded.
+  // (Framing of both sides still happens in wrapSystemPrompt/wrapUntrusted
+  // via buildPrompt/buildEventPrompt below.)
+  messages = hardening.sanitizeMessages(messages);
+  basePrompt = hardening.sanitizeBasePrompt(basePrompt);
+  if (typeof style !== "string" || !style) style = "auto";
   rememberBasePrompt(twitchId, basePrompt);
   const prompt = event
     ? buildEventPrompt(event, basePrompt)
@@ -485,5 +550,13 @@ module.exports = {
   withSessions,
   saveSessions,
   containsPromptLeak,
+  wrapSystemPrompt,
+  wrapUntrusted,
+  buildPrompt,
+  buildEventPrompt,
+  runOpenAI,
+  OPENAI_MAX_PROMPT_CHARS,
+  OPENAI_MAX_OUTPUT_TOKENS,
+  OPENAI_DAILY_GENERATIONS_PER_USER,
   CLI_PATHS: { claude: CLAUDE_EXE, grok: GROK_EXE, agy: AGY_EXE },
 };

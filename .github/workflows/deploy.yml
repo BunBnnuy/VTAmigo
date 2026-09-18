@@ -10,7 +10,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.0.3
+        # Pinned to the full commit SHA for v1.0.3 (mutable tags can be
+        # re-pointed after a compromise); keep the `# v1.0.3` comment so the
+        # intended version stays readable. Bump by updating both together.
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}

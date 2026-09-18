@@ -63,7 +63,7 @@ function attach(deps) {
 // one login's /connect tearing down another's. tiktokClient stays a single
 // global since TikTok isn't tied to an approved-user login.
 let tiktokClient = null;
-const twitchSessions = new Map(); // twitchId -> { login, twitchClient, botClient, eventSubClient, accessToken, botCreds }
+const twitchSessions = new Map(); // twitchId -> { login, twitchClient, botClient, eventSubClient, accessToken, usingSiteBot, botUsername }
 
 function getTikTokClient() {
   return tiktokClient;
@@ -181,8 +181,8 @@ const botAuthErrorInFlight = new Set();
 // end up retrying forever with a token Twitch will never accept again.
 // Reacts to that by force-refreshing and swapping in a new IRC client once —
 // self-healing without waiting for the 30-min periodic sweep below. Only
-// wired up for linked-via-OAuth bots (see connectTwitchForUser); manual
-// pasted tokens and the site-wide bot have no refresh token to fall back to.
+// wired up for linked-via-OAuth bots (see connectTwitchForUser); the
+// site-wide fallback bot has no refresh token to fall back to.
 //
 // Deliberately does NOT keep re-triggering itself on the new client's own
 // auth_error (learned the hard way): a bad token is only one possible cause
@@ -226,12 +226,15 @@ async function handleBotAuthError(twitchId) {
 
 // Connects Twitch chat + EventSub as the given (approved, logged-in) user,
 // using their own Twitch OAuth login — no manually-entered channel/token/
-// client-ID. Only tears down that same user's previous session, leaving any
-// other logged-in account's connection untouched. Shared by POST /connect
-// (routes/chat.js) and the periodic token-refresh timer in app.js, which
-// calls this again when a rotated token needs reconnecting — that shared use
-// is why it lives here next to twitchSessions rather than in the chat router.
-async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
+// client-ID, and no pasted bot token either (bot OAuth moved to the
+// /bot-link flow; its tokens live only in the encrypted users-table columns,
+// never in client-reachable settings). Only tears down that same user's
+// previous session, leaving any other logged-in account's connection
+// untouched. Shared by POST /connect (routes/chat.js) and the periodic
+// token-refresh timer in app.js, which calls this again when a rotated token
+// needs reconnecting — that shared use is why it lives here next to
+// twitchSessions rather than in the chat router.
+async function connectTwitchForUser(user) {
   const token = await getValidTwitchToken(user.twitchId); // throws NO_TWITCH_TOKEN / TWITCH_TOKEN_REFRESH_FAILED
   const channel = user.login;
   const twitchId = user.twitchId;
@@ -248,32 +251,30 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
   // redemptions — see activity.js for why subs/raids/cheers can't be).
   activity.backfillIfEmpty(twitchId, token).catch(() => {});
 
-  // Priority: manually-pasted creds (legacy) > the user's own linked bot
-  // account (OAuth, see /bot-link/* in auth.js) > the site-wide fallback bot.
+  // The bot posts as the user's own linked bot account (OAuth, see
+  // /bot-link/* in auth.js), falling back to the site-wide bot account.
   let linkedBot = null;
-  if (!(botUsername && botToken)) {
-    try {
-      linkedBot = await getValidBotTwitchToken(twitchId);
-    } catch (err) {
-      console.error("[connect] linked bot token unavailable, falling back:", err.message);
-    }
+  try {
+    linkedBot = await getValidBotTwitchToken(twitchId);
+  } catch (err) {
+    console.error("[connect] linked bot token unavailable, falling back:", err.message);
   }
-  const usingSiteBot = !(botUsername && botToken) && !linkedBot && !!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN);
-  const effectiveBotUsername = botUsername || (linkedBot ? linkedBot.username : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
-  const effectiveBotToken = botToken || (linkedBot ? linkedBot.token : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
+  const usingSiteBot = !linkedBot && !!(process.env.TWITCH_SITE_BOT_USERNAME && process.env.TWITCH_SITE_BOT_TOKEN);
+  const effectiveBotUsername = (linkedBot ? linkedBot.username : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_USERNAME : null);
+  const effectiveBotToken = (linkedBot ? linkedBot.token : null) || (usingSiteBot ? process.env.TWITCH_SITE_BOT_TOKEN : null);
 
   const session = {
     login: channel, twitchClient: null, botClient: null, eventSubClient: null, accessToken: token,
-    botCreds: { botUsername: botUsername || null, botToken: botToken || null }, usingSiteBot,
+    usingSiteBot,
     // Lowercase login of whichever account is currently posting as "the bot"
     // in this channel — used to flag msg.isBot for the chat overlay's
     // "show bot messages" toggle. Kept in sync on reconnect below.
     botUsername: effectiveBotUsername ? effectiveBotUsername.toLowerCase() : null,
   };
 
-  // Bot client — separate user that can send messages. Uses the user's own
-  // bot creds if configured in Settings, otherwise falls back to the
-  // site-wide bot account (TWITCH_SITE_BOT_USERNAME/TOKEN) if one is set.
+  // Bot client — separate user that can send messages. Uses the streamer's
+  // OAuth-linked bot account, otherwise falls back to the site-wide bot
+  // account (TWITCH_SITE_BOT_USERNAME/TOKEN) if one is set.
   if (effectiveBotUsername && effectiveBotToken) {
     session.botClient = new TwitchIRCClient({
       channel,
@@ -288,7 +289,7 @@ async function connectTwitchForUser(user, { botUsername, botToken } = {}) {
     });
     session.botClient.connect();
   } else {
-    console.log("[bot] no bot client created (no user creds and no/incomplete site-wide fallback)");
+    console.log("[bot] no bot client created (no linked bot and no/incomplete site-wide fallback)");
   }
 
   session.twitchClient = new TwitchIRCClient({
