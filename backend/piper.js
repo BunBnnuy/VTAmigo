@@ -63,17 +63,29 @@ function generateSpeech({ text, voice }) {
   return new Promise((resolve, reject) => {
     if (!text) return reject(new Error("TEXT_REQUIRED"));
     if (text.length > MAX_TEXT_CHARS) return reject(new Error("PIPER_TEXT_TOO_LONG"));
-    if (!isInstalled()) return reject(new Error("PIPER_NOT_INSTALLED"));
+
+    // Saturation is checked before anything that needs the binary: a host
+    // with no Piper installed still has a bounded number of slots, and a
+    // caller holding all of them must see PIPER_BUSY, not PIPER_NOT_INSTALLED.
+    // The slot is released on every early rejection below so it never leaks.
+    if (!tryAcquireSlot()) return reject(new Error("PIPER_BUSY"));
+    if (!isInstalled()) {
+      releaseSlot();
+      return reject(new Error("PIPER_NOT_INSTALLED"));
+    }
 
     const voiceFile = voice || DEFAULT_VOICE;
     // Voice id comes from the frontend — keep it to a bare filename inside voices/
     if (voiceFile.includes("/") || voiceFile.includes("\\") || !voiceFile.endsWith(".onnx")) {
+      releaseSlot();
       return reject(new Error("PIPER_BAD_VOICE"));
     }
     const modelPath = path.join(VOICES_DIR, voiceFile);
-    if (!fs.existsSync(modelPath)) return reject(new Error("PIPER_BAD_VOICE"));
+    if (!fs.existsSync(modelPath)) {
+      releaseSlot();
+      return reject(new Error("PIPER_BAD_VOICE"));
+    }
 
-    if (!tryAcquireSlot()) return reject(new Error("PIPER_BUSY"));
     // Every settle path below must go through done(), or the slot leaks and
     // the cap degrades to a permanent outage after two failures.
     const done = (fn) => (value) => {

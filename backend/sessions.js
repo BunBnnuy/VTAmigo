@@ -73,8 +73,11 @@ function setTikTokClient(client) {
   tiktokClient = client;
 }
 
-// Broadcast to all connected frontend clients
+// Broadcast to all connected frontend clients. No-op until app.js calls
+// attach() (and in tests that never attach a WebSocketServer): route
+// handlers must not 500 just because there is nobody to broadcast to.
 function broadcast(data) {
+  if (!wss) return;
   const msg = JSON.stringify(data);
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN) ws.send(msg);
@@ -85,6 +88,7 @@ function broadcast(data) {
 // otherwise every logged-in user (on any browser) would see chat/events from
 // every connected account instead of just their own.
 function broadcastToAccount(twitchId, data) {
+  if (!wss) return;
   const msg = JSON.stringify(data);
   wss.clients.forEach((ws) => {
     if (ws.readyState === WebSocket.OPEN && ws.twitchId === twitchId) ws.send(msg);
