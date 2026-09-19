@@ -46,8 +46,23 @@ db.exec(`
     -- leak into access logs and screen-shared OBS dialogs; before this there
     -- was no way to take one back short of rotating SESSION_SECRET for every
     -- account at once.
-    overlayTokenVersion INTEGER NOT NULL DEFAULT 1
+    overlayTokenVersion INTEGER NOT NULL DEFAULT 1,
+    -- Bumped to invalidate an account's session JWTs server-side (see
+    -- auth.js's signSession/readSession/bumpSessionVersion). POST
+    -- /auth/logout, admin revokes and other security events increment this;
+    -- the JWT carries the version as "sv" and readSession rejects mismatches.
+    sessionVersion INTEGER NOT NULL DEFAULT 1
   );
+
+  -- Single-row revocation counter for the password-only /admin session (see
+  -- adminAuth.js). Admin JWTs carry "sv"; requireAdmin rejects mismatches so
+  -- POST /admin/logout (which bumps this) invalidates the old cookie
+  -- server-side instead of just clearing it client-side.
+  CREATE TABLE IF NOT EXISTS admin_state (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    sessionVersion INTEGER NOT NULL DEFAULT 1
+  );
+  INSERT OR IGNORE INTO admin_state (id, sessionVersion) VALUES (1, 1);
 
   CREATE TABLE IF NOT EXISTS chat_overlay_config (
     twitchId TEXT PRIMARY KEY,
@@ -181,5 +196,6 @@ function addColumnIfMissing(table, column, definition) {
 }
 
 addColumnIfMissing("users", "overlayTokenVersion", "INTEGER NOT NULL DEFAULT 1");
+addColumnIfMissing("users", "sessionVersion", "INTEGER NOT NULL DEFAULT 1");
 
 module.exports = { db, ENV, DB_PATH };

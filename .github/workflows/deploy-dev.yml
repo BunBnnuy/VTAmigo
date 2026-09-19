@@ -17,7 +17,9 @@ jobs:
       # so this only fast-forwards with `git pull` — never `reset --hard` —
       # and fails loudly instead of silently discarding uncommitted edits.
       - name: Deploy over SSH
-        uses: appleboy/ssh-action@v1.0.3
+        # Pinned to the full commit SHA for v1.0.3 (see deploy.yml) — mutable
+        # tags can be re-pointed after a compromise. Bump both files together.
+        uses: appleboy/ssh-action@029f5b4aeeeb58fdfe1410a5d17f967dacf36262 # v1.0.3
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}

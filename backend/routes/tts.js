@@ -12,6 +12,7 @@
 // answering 401 for the removed /tts/elevenlabs* routes.
 const express = require("express");
 const piper = require("../piper");
+const { aiLimiter } = require("../rateLimits");
 const { broadcastToAccount } = require("../sessions");
 
 const router = express.Router();
@@ -54,8 +55,9 @@ router.get("/tts/piper/voices", (req, res) => {
   res.json({ installed: piper.isInstalled(), voices: piper.listVoices() });
 });
 
-// POST /tts/piper — { text, voice? } → audio/wav
-router.post("/tts/piper", async (req, res) => {
+// POST /tts/piper — { text, voice? } → audio/wav. Shares aiLimiter (5/min
+// per IP) with POST /respond: each call spawns the local Piper exe.
+router.post("/tts/piper", aiLimiter, async (req, res) => {
   const { text, voice } = req.body || {};
   if (!text) return res.status(400).json({ error: "text is required" });
   try {
@@ -63,6 +65,12 @@ router.post("/tts/piper", async (req, res) => {
     res.set("Content-Type", "audio/wav");
     res.send(audio);
   } catch (err) {
+    if (err.message === "PIPER_BUSY") {
+      return res.status(429).json({ error: "TTS is busy, try again shortly" });
+    }
+    if (err.message === "PIPER_TEXT_TOO_LONG") {
+      return res.status(400).json({ error: `Text too long (max ${piper.MAX_TEXT_CHARS} characters)` });
+    }
     if (err.message === "PIPER_NOT_INSTALLED") {
       return res.status(503).json({ error: "piper.exe not found in projects/piperttsspanish" });
     }

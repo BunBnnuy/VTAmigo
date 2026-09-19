@@ -27,6 +27,7 @@ const { WebSocketServer } = require("ws");
 const { router: authRouter, requireApprovedUser, getApprovedUserFromCookieHeader, getValidTwitchToken, readUsers, findUserByOverlayToken } = require("./auth");
 const { sendEvent } = require("./analytics");
 const errorLog = require("./errorLog");
+const { anonymousLimiter } = require("./rateLimits");
 const { router: adminRouter } = require("./adminAuth");
 const sessions = require("./sessions");
 const aiRouter = require("./routes/ai");
@@ -50,15 +51,95 @@ const app = express();
 // 127.0.0.1/::1 — i.e. only nginx can set them, so req.ip reflects the real
 // visitor without letting an internet client spoof its own IP by hand.
 app.set("trust proxy", "loopback");
-app.use(cors({ origin: true, credentials: true }));
+// ── CORS allowlist (Issue 12) ──────────────────────────────────────────────
+// Previously cors({ origin: true, credentials: true }) reflected ANY origin
+// with credentials — any website could have the visitor's browser send
+// authenticated requests here and read the responses. Now only origins on
+// this list get an Access-Control-Allow-Origin response (and thus
+// credentials); everyone else gets no CORS headers, so the browser blocks
+// the read. Requests with no Origin header (same-origin page loads, curl,
+// the Electron build served from this same process) are unaffected.
+// Override with ALLOWED_ORIGINS="https://a.example,https://b.example" for
+// self-hosted setups (e.g. a LAN backendUrl); otherwise the canonical public
+// host plus localhost dev origins (Vite :5173, bundled backend :3001).
+function getAllowedOrigins() {
+  const fromEnv = (process.env.ALLOWED_ORIGINS || "")
+    .split(",")
+    .map((s) => s.trim().toLowerCase())
+    .filter(Boolean);
+  if (fromEnv.length) return fromEnv;
+  const canonical = (process.env.CANONICAL_HOST || "vtamigo.top").toLowerCase().replace(/^www\./, "");
+  const origins = [`https://${canonical}`, `https://www.${canonical}`];
+  if (process.env.APP_ENV !== "production" || process.env.VITE_DEV) {
+    origins.push(
+      "http://localhost:5173",
+      "http://127.0.0.1:5173",
+      "http://localhost:3001",
+      "http://127.0.0.1:3001"
+    );
+  }
+  return origins;
+}
+const allowedOriginSet = new Set(getAllowedOrigins());
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin) return cb(null, true); // no Origin header: not a CORS read
+      cb(null, allowedOriginSet.has(origin.toLowerCase()));
+    },
+    credentials: true,
+  })
+);
 app.use(cookieParser());
-app.use(express.json({ limit: "10mb" })); // memory .md imports and base64 avatar image uploads (5MB image -> ~6.7MB base64) can be large
+// ── Referrer-Policy + overlay-token log hygiene (Issue 7) ────────────────
+// Overlay tokens travel in ?token= query strings (see auth.js getOverlayToken:
+// /video/state, /video/ended, /xp/ranking, /chat WS and the /overlay/*,
+// /chat-overlay/*, /overlay/custom/*, /avatar/reactive/image fetches).
+//   1. Referrer-Policy:no-referrer so the browser never leaks those URLs in a
+//      Referer header when an overlay page fetches a third-party asset.
+//   2. Query strings must never reach persistent logs. This app has no
+//      morgan/pino access logger (grep confirms), so there is no
+//      query-logging code to patch — but nginx in front MUST NOT log
+//      $request_uri raw. Strip the query in nginx, e.g.:
+//        log_format redacted '$remote_addr - $remote_user [$time_local] '
+//                            '"$request_method $uri $server_protocol" ...';
+//      ($uri excludes the query string; do NOT use $request which includes
+//      ?token=...). Same for any error/proxy logs of overlay URLs.
+// NOTE (HSTS, Issue 5): Strict-Transport-Security is intentionally not set
+// here — nginx terminates TLS. Enable it on the HTTPS server block only:
+//   add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+app.use((req, res, next) => {
+  res.set("Referrer-Policy", "no-referrer");
+  next();
+});
+// ── JSON body limits (Issue 2) ─────────────────────────────────────────────
+// The default is small (100kb): the analytics/error relays and most API
+// routes only carry chat lines and settings. Two routes legitimately carry
+// more and get their own larger parsers via exact-path dispatch below — one
+// app.use instead of per-path mounts so a prefix match can't accidentally
+// widen the budget of a route that doesn't exist yet.
+const jsonDefault = express.json({ limit: "100kb" });
+const jsonMemoryImport = express.json({ limit: "1mb" }); // hand-picked .md memory files
+const jsonAvatarUpload = express.json({ limit: "10mb" }); // 5MB image -> ~6.7MB base64 dataUrl
+app.use((req, res, next) => {
+  if (req.path === "/avatar/reactive/upload") return jsonAvatarUpload(req, res, next);
+  if (req.path === "/memory/import") return jsonMemoryImport(req, res, next);
+  return jsonDefault(req, res, next);
+});
+// body-parser size rejections default to an HTML 413; the frontend expects JSON.
+app.use((err, req, res, next) => {
+  if (err && (err.status === 413 || err.type === "entity.too.large")) {
+    return res.status(413).json({ error: "Request body too large" });
+  }
+  next(err);
+});
 
 // POST /api/collect — relay for frontend-only analytics events (settings
 // changes, button clicks with no other network signal). Same-origin, so it
 // isn't recognized as a third-party tracker the way calling cloud.umami.is
-// directly from the browser is.
-app.post("/api/collect", (req, res) => {
+// directly from the browser is. Capped by anonymousLimiter (10/min per IP) —
+// public and unauthenticated, so otherwise one tab could flood the pipeline.
+app.post("/api/collect", anonymousLimiter, (req, res) => {
   const { event, data } = req.body || {};
   if (event) {
     const user = getApprovedUserFromCookieHeader(req.headers.cookie);
@@ -70,16 +151,22 @@ app.post("/api/collect", (req, res) => {
 // POST /api/log-error — relay for frontend app errors (uncaught exceptions,
 // unhandled promise rejections, React render errors, and explicit logError()
 // calls). Public/unauthenticated on purpose — errors can happen before login
-// (e.g. on the login screen) and we still want to see those.
-app.post("/api/log-error", (req, res) => {
+// (e.g. on the login screen) and we still want to see those. Same anonymous
+// cap as /api/collect so an error storm can't fill the admin log unbounded.
+app.post("/api/log-error", anonymousLimiter, (req, res) => {
   const { message, stack, source } = req.body || {};
   if (message) {
     const user = getApprovedUserFromCookieHeader(req.headers.cookie);
+    // Issue 7: the frontend sends location.href, which on overlay pages
+    // includes ?token=... — strip the query before persisting so the admin
+    // error log never becomes a token store.
+    const rawUrl = req.body?.url;
+    const url = typeof rawUrl === "string" ? rawUrl.split("?")[0] : rawUrl;
     errorLog.addEntry({
       message,
       stack,
       source,
-      url: req.body?.url,
+      url,
       userAgent: req.headers["user-agent"],
       twitchLogin: user?.login,
     });
@@ -115,6 +202,17 @@ function isCanonicalHost(req) {
 app.use((req, res, next) => {
   if (!isCanonicalHost(req)) res.set("X-Robots-Tag", "noindex, nofollow");
   next();
+});
+
+// Tombstone for the retired tunnel-client.exe (desktop-legacy purge).
+// The unsigned binary is no longer shipped in frontend/public/downloads, but
+// a bare 404 would let a stale CDN edge or a cached dist/ copy serve the
+// file again with a 200. This explicit 410 sits BEFORE the static middleware
+// (and outside `if (isProd)` so dev is covered too) and wins either way.
+// backend/test/purge.test.js pins the 410. NOTE: purge the CDN cache for
+// this path on deploy, or edge nodes keep serving the old binary.
+app.get("/downloads/tunnel-client.exe", (req, res) => {
+  res.status(410).json({ error: "gone", message: "tunnel-client.exe is no longer distributed" });
 });
 
 if (isProd) {
@@ -245,7 +343,7 @@ function startBackgroundJobs() {
           const user = readUsers().find((u) => u.twitchId === twitchId);
           if (user) {
             console.log(`[twitch] token refreshed for ${user.login} — reconnecting`);
-            await sessions.connectTwitchForUser(user, session.botCreds);
+            await sessions.connectTwitchForUser(user);
           }
         }
       } catch (err) {
@@ -259,4 +357,4 @@ function startBackgroundJobs() {
 // listens and never starts a timer — that's index.js's job. Tests can import
 // { app } and drive it with supertest without binding a port or kicking off
 // the background refresh loop.
-module.exports = { app, server, wss, startBackgroundJobs, PORT };
+module.exports = { app, server, wss, startBackgroundJobs, PORT, getAllowedOrigins };

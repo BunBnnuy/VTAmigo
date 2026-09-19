@@ -9,7 +9,11 @@ const UMAMI_ENDPOINT = process.env.UMAMI_ENDPOINT || "https://gateway.umami.is/a
 function sendEvent(name, { req, twitchLogin, data } = {}) {
   if (!name) return;
   const hostname = (req?.headers?.host || "vtamigo.top").split(":")[0];
-  const url = req?.originalUrl || "/";
+  // Issue 7: overlay tokens travel in ?token= query strings. originalUrl
+  // includes the query, so sending it raw would ship tokens to the analytics
+  // endpoint (and its logs). Strip everything from '?' on — the path alone is
+  // enough for analytics.
+  const url = (req?.originalUrl || "/").split("?")[0] || "/";
   const payload = {
     website: UMAMI_WEBSITE_ID,
     hostname,
