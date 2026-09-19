@@ -416,7 +416,7 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
       // resolveAgentCwd falls back to an isolated tmp work dir unless the
       // caller passed an explicit dir OUTSIDE the backend tree.
       cwd: hardening.resolveAgentCwd(cwd),
-      env: hardening.buildRestrictedEnv(process.env),
+      env: hardening.buildRestrictedEnv(process.env, provider),
     });
 
     const timer = setTimeout(() => {

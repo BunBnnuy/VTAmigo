@@ -30,7 +30,7 @@ function runCLI(exe, args, provider) {
       // Isolated scratch cwd + minimal allowlist env — never the backend
       // repo dir, never the backend's environment (see agentHardening.js).
       cwd: hardening.resolveAgentCwd(null),
-      env: hardening.buildRestrictedEnv(process.env),
+      env: hardening.buildRestrictedEnv(process.env, provider),
     });
 
     const timer = setTimeout(() => {
