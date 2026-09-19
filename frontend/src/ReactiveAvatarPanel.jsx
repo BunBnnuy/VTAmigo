@@ -10,6 +10,25 @@ import { useTranslation } from "./i18n/index.js";
 const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
 const ALLOWED_AVATAR_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"];
 
+function Toggle({ checked, onChange, label }) {
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-label={label}
+      aria-checked={checked}
+      onClick={onChange}
+      style={{ ...styles.toggle, background: checked ? "var(--accent)" : "var(--border)" }}
+    >
+      <span style={{
+        ...styles.toggleKnob,
+        background: checked ? "var(--on-accent)" : "#fff",
+        transform: checked ? "translateX(16px)" : "translateX(0)",
+      }} />
+    </button>
+  );
+}
+
 export default function ReactiveAvatarPanel({ lang }) {
   const { t } = useTranslation(lang);
   const [enabled, setEnabled] = useState(reactiveAvatar.enabled);
@@ -125,10 +144,14 @@ export default function ReactiveAvatarPanel({ lang }) {
         <span>{t("reactiveAvatarPanel.intro")}</span>
       </div>
 
-      <label style={styles.toggleRow}>
-        <input type="checkbox" checked={enabled} onChange={toggle} />
+      <div style={styles.toggleRow}>
         <span>{enabled ? t("reactiveAvatarPanel.enabled") : t("reactiveAvatarPanel.disabled")}</span>
-      </label>
+        <Toggle
+          checked={enabled}
+          onChange={toggle}
+          label={enabled ? t("reactiveAvatarPanel.enabled") : t("reactiveAvatarPanel.disabled")}
+        />
+      </div>
 
       <div style={{ ...styles.status, color: speaking ? "var(--accent)" : "var(--text-muted)" }}>
         {speaking ? <Mic size={15} /> : <MicOff size={15} />}
@@ -202,7 +225,9 @@ export default function ReactiveAvatarPanel({ lang }) {
 const styles = {
   body: { display: "flex", flexDirection: "column", gap: 14, padding: 14, overflowY: "auto" },
   intro: { display: "flex", gap: 8, alignItems: "flex-start", color: "var(--text-muted)", fontSize: 12, lineHeight: 1.4 },
-  toggleRow: { display: "flex", gap: 8, alignItems: "center", cursor: "pointer", fontWeight: 600 },
+  toggleRow: { display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, fontWeight: 600 },
+  toggle: { width: 38, height: 22, borderRadius: 11, padding: 3, display: "flex", alignItems: "center", justifyContent: "flex-start", flexShrink: 0 },
+  toggleKnob: { width: 16, height: 16, flexShrink: 0, borderRadius: "50%", transition: "transform 0.15s" },
   status: { display: "flex", gap: 7, alignItems: "center", fontSize: 13, fontWeight: 700 },
   error: { color: "var(--red)", fontSize: 11, lineHeight: 1.4 },
   copyButton: { background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", justifyContent: "center" },
