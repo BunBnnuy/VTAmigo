@@ -24,18 +24,19 @@ fi
 # .config/grok, .agy (or any other account's CLI login) into the service
 # user's home. Rationale (Security Issue 1):
 #   * The backend spawns the provider CLIs with tool access disabled and an
-#     emptied HOME, so file-based OAuth logins are UNUSED — Claude runs with
-#     --bare, which ignores OAuth/keychain files entirely and authenticates
-#     strictly via ANTHROPIC_API_KEY.
+#     emptied HOME. Claude runs with --bare, which ignores OAuth/keychain files
+#     and authenticates strictly via ANTHROPIC_API_KEY. Grok OAuth is available
+#     only through an explicit GROK_HOME in the root-owned environment file.
 #   * Copying another account's credentials across users turns one compromised
 #     box into two compromised accounts and breaks credential ownership.
 # Authenticate with API-key env vars in the root-owned 0600 env file instead:
 #   ANTHROPIC_API_KEY=...   (Claude — required, --bare reads nothing else)
 #   XAI_API_KEY=...         (Grok — if your build supports env auth)
 #   AGY_API_KEY=...         (AGY — if your build supports env auth)
-# If a provider only supports interactive login, run its `login` command AS
-# the service user (sudo -u "$SERVICE_USER" -H <cli> login) — never copy
-# another user's files. See server/vtamigo.env.example.
+# If a provider supports interactive login, run its `login` command AS the
+# service user and with the same configured auth directory. For Grok, use
+# `sudo -u "$SERVICE_USER" env GROK_HOME=/path grok login --device-code`.
+# Never copy another user's files. See server/vtamigo.env.example.
 chown -R "$SERVICE_USER":"$SERVICE_USER" "/home/$SERVICE_USER"
 
 # Code stays root-owned so a compromised service account cannot rewrite the

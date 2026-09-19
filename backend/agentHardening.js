@@ -190,10 +190,11 @@ function resolveAgentCwd(requestedCwd) {
   return scratch;
 }
 
-// An intentionally empty home dir for the agent child processes. Nothing
-// reads credentials from here (Claude --bare ignores OAuth files by design;
-// API-key auth rides in on the preserved env vars below), and nothing
-// sensitive may be written here by the backend.
+// An intentionally empty home dir for the agent child processes. Claude
+// --bare ignores OAuth files by design. Grok can use a separate, explicitly
+// configured GROK_HOME for its service-account OAuth file. API-key auth rides
+// in on the preserved env vars below. Nothing sensitive from the service
+// account's general home is exposed here.
 function getEmptyHome() {
   const dir = path.join(getScratchRoot(), "empty-home");
   fs.mkdirSync(dir, { recursive: true });
@@ -220,7 +221,7 @@ const VERBATIM_ENV_VARS = ["PATH", "Path", "PATHEXT", "SystemRoot", "SystemDrive
 // injection), LD_PRELOAD / DYLD_* (library injection).
 const PRESERVE_ENV_PATTERNS = [/^(https?|all)_proxy$/i, /^no_proxy$/i, /(_api_key|_auth_token)$/i];
 
-function buildRestrictedEnv(sourceEnv = process.env) {
+function buildRestrictedEnv(sourceEnv = process.env, provider = null) {
   const env = {};
   for (const name of VERBATIM_ENV_VARS) {
     if (sourceEnv[name] != null) env[name] = String(sourceEnv[name]);
@@ -248,6 +249,13 @@ function buildRestrictedEnv(sourceEnv = process.env) {
   env.CLAUDE_CONFIG_DIR = path.join(emptyHome, "claude");
   env.GROK_CONFIG_DIR = path.join(emptyHome, "grok");
   env.AGY_CONFIG_DIR = path.join(emptyHome, "agy");
+  // Grok documents GROK_HOME as the location of its private auth/config
+  // directory. Permit it only for Grok and only as an absolute path. The
+  // systemd environment file is root-owned, so clients cannot select this
+  // directory. HOME and all XDG paths remain isolated above.
+  if (provider === "grok" && typeof sourceEnv.GROK_HOME === "string" && path.isAbsolute(sourceEnv.GROK_HOME)) {
+    env.GROK_HOME = sourceEnv.GROK_HOME;
+  }
   // Best-effort telemetry off-switch (common convention; ignored if unknown).
   env.DISABLE_TELEMETRY = "1";
   return env;

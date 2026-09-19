@@ -296,6 +296,21 @@ describe("agentHardening input validation (Issue 1)", () => {
     expect(env.TWITCH_CLIENT_SECRET).toBeUndefined();
     expect(env.LD_PRELOAD).toBeUndefined();
   });
+
+  it("passes an absolute GROK_HOME only to the Grok provider", () => {
+    const source = {
+      PATH: "/bin",
+      GROK_HOME: path.join(os.tmpdir(), "grok-service-auth"),
+    };
+    const grokEnv = hardening.buildRestrictedEnv(source, "grok");
+    const claudeEnv = hardening.buildRestrictedEnv(source, "claude");
+    const relativeEnv = hardening.buildRestrictedEnv({ ...source, GROK_HOME: "relative/grok" }, "grok");
+
+    expect(grokEnv.GROK_HOME).toBe(source.GROK_HOME);
+    expect(claudeEnv.GROK_HOME).toBeUndefined();
+    expect(relativeEnv.GROK_HOME).toBeUndefined();
+    expect(grokEnv.HOME).not.toBe(source.GROK_HOME);
+  });
 });
 
 describe("POST /respond input handling (Issue 1)", () => {
