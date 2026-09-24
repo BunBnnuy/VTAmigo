@@ -93,9 +93,18 @@ function usesRecentWindow(mode) {
   return mode === "recent-random" || mode === "most-recent";
 }
 
+// Twitch's Get Clips examples use second-precision RFC3339
+// ("2019-10-21T00:00:00Z"); strip the milliseconds toISOString() adds so a
+// stricter parser can't reject the window.
+function rfc3339Seconds(ms) {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
 function recentWindow(now = Date.now()) {
-  const startedAt = new Date(now - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000);
-  return { startedAt: startedAt.toISOString(), endedAt: new Date(now).toISOString() };
+  return {
+    startedAt: rfc3339Seconds(now - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000),
+    endedAt: rfc3339Seconds(now),
+  };
 }
 
 // Pure selection over an already-fetched clip list. Never relies on the order

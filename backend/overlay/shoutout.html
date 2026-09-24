@@ -108,7 +108,10 @@
   const token = params.get("token") || "";
 
   const wrap = document.getElementById("wrap");
-  const top = document.getElementById("top");
+  // NB: not named `top` — a top-level `const top` throws "Identifier 'top' has
+  // already been declared" in a classic script (window.top is a restricted
+  // global), which silently breaks the whole overlay.
+  const topRow = document.getElementById("top");
   const avatar = document.getElementById("avatar");
   const clipBox = document.getElementById("clip-box");
   const message = document.getElementById("message");
@@ -213,7 +216,7 @@
     message.style.fontFamily = `"${data.messageFont || DEFAULT_FONT}", Quicksand, sans-serif`;
     // Channel icon.
     const showAvatar = data.showAvatar !== false && !!data.avatarUrl;
-    top.classList.toggle("no-avatar", !showAvatar);
+    topRow.classList.toggle("no-avatar", !showAvatar);
     avatar.hidden = !showAvatar;
     avatar.classList.toggle("square", data.avatarShape === "square");
     if (showAvatar) avatar.src = data.avatarUrl;

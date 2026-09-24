@@ -216,11 +216,12 @@ describe("clip playback url", () => {
 });
 
 describe("recent window", () => {
-  it("covers exactly the last 30 days, end = now", () => {
+  it("covers exactly the last 30 days, end = now, at second precision", () => {
     const now = Date.parse("2026-09-24T00:00:00Z");
     const w = shoutout.recentWindow(now);
-    expect(w.endedAt).toBe(new Date(now).toISOString());
-    expect((now - Date.parse(w.startedAt)) / (24 * 60 * 60 * 1000)).toBeCloseTo(30, 5);
+    expect(w.endedAt).toBe("2026-09-24T00:00:00Z");
+    expect(w.startedAt).toBe("2026-08-25T00:00:00Z");
+    expect(w.startedAt).not.toMatch(/\.\d{3}Z/); // no milliseconds
   });
 
   it("applies to the recent modes only", () => {
