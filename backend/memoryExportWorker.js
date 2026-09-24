@@ -29,9 +29,11 @@ function runCLI(provider, args) {
     const proc = spawn(registry.get(provider).exe(), args, {
       shell: false,
       windowsHide: true,
-      // Isolated scratch cwd + minimal allowlist env, plus the provider's
-      // own switches — never the backend repo dir, never the backend's
-      // environment (see agentHardening.js).
+      // stdin closed (see ai/runner.js: `opencode run` hangs on an open
+      // stdin pipe), isolated scratch cwd + minimal allowlist env, plus the
+      // provider's own switches — never the backend repo dir, never the
+      // backend's environment (see agentHardening.js).
+      stdio: ["ignore", "pipe", "pipe"],
       cwd: hardening.resolveAgentCwd(null),
       env: { ...hardening.buildRestrictedEnv(process.env, provider), ...registry.envFor(provider) },
     });

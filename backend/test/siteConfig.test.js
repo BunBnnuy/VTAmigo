@@ -16,9 +16,9 @@ afterAll(() => {
 });
 
 describe("site config AI provider + model", () => {
-  it("defaults opencode to the cheap conversational Zen model", () => {
+  it("defaults opencode to the free zero-retention Zen model", () => {
     siteConfig.setModel("opencode", "");
-    expect(siteConfig.getModel("opencode")).toBe("opencode/claude-haiku-4-5");
+    expect(siteConfig.getModel("opencode")).toBe("opencode/space-bunny-free");
   });
 
   it("stores a per-provider model and validates its shape", () => {

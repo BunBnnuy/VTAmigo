@@ -12,9 +12,13 @@ const DEFAULT_PROVIDER = "claude";
 // Default model per provider, used until an admin overrides it. Only
 // providers whose CLI takes a model flag use it; grok ignores it. Values are
 // provider-native ids — for opencode that's `<provider>/<model>` exactly as
-// `opencode models` prints them. Claude Haiku 4.5 is the cheapest natural
-// conversational model on Zen (see README).
-const DEFAULT_MODELS = { opencode: "opencode/claude-haiku-4-5" };
+// `opencode models` prints them.
+// Space Bunny Free is the only no-API-key Zen free model that works while the
+// CLI runs with every tool permission denied (other free models answer a 403
+// "free tier can only be used from within OpenCode" under restrictive
+// permissions). It's also zero-retention. Free ids are limited-time, so
+// expect to swap the model in the admin panel when Zen rotates it.
+const DEFAULT_MODELS = { opencode: "opencode/space-bunny-free" };
 
 // Model ids are passed as argv to the provider CLIs, so keep them to the
 // characters real ids use (`opencode/claude-haiku-4-5`) and bound the length.

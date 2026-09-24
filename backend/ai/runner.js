@@ -85,6 +85,10 @@ function spawnCLI(prompt, { provider = "claude", model = null, cwd = null, timeo
     const proc = spawn(desc.exe(), args, {
       shell: false,
       windowsHide: true,
+      // stdin must be closed, not an open pipe: `opencode run` waits for EOF
+      // on a piped stdin, which hung every reply. The other CLIs ignore
+      // stdin, so this is safe for them too.
+      stdio: ["ignore", "pipe", "pipe"],
       // Never inherit the backend's cwd (agent CLIs treat cwd as their
       // workspace) nor its environment (backend secrets, tokens, paths).
       // resolveAgentCwd falls back to an isolated tmp work dir unless the

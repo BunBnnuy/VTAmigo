@@ -236,5 +236,14 @@ solo exista ahí.
   migración masiva del panel admin reutiliza el dump→inject por cuenta
   (`aiTransfer.js`), es secuencial, y persiste estado por cuenta en
   `agent_migrations` para ser reanudable; `done` se salta, `error` se reintenta.
+  `opencode run` espera EOF en stdin canalizado, así que el runner y el worker
+  lo cierran con `stdio: ["ignore","pipe","pipe"]` — sin eso cada respuesta
+  colgaba. El tier gratuito de Zen rechaza con 403 ("free tier can only be used
+  from within OpenCode") cualquier request cuando el CLI corre con permisos
+  restrictivos, así que de los modelos gratuitos sin key solo funciona
+  `opencode/space-bunny-free` con el endurecimiento puesto; el resto
+  (muse-spark, big-pickle, nemotron, …) exige permisos por defecto, que
+  dejarían bash/lectura de ficheros al alcance de un prompt inyectado. Ese es
+  el modelo por defecto: gratuito, sin API key, zero-retention.
   El bloque de exportación por usuario en Settings sigue oculto/deshabilitado:
   decidir si se elimina del todo ahora que la migración vive en el admin.

@@ -119,7 +119,7 @@ All settings are available in the in-app Settings panel:
 | `GROK_PATH` | `C:\Users\<you>\.grok\bin\grok.exe` | Path to the `grok` binary |
 | `AGY_PATH` | `C:\Users\<you>\AppData\Local\agy\bin\agy.exe` | Path to the Google Antigravity `agy` binary |
 | `OPENCODE_PATH` | `opencode` (its `.exe` on Windows) | Path to the OpenCode binary |
-| `OPENCODE_API_KEY` | — | API key for OpenCode Zen (the model can be any `opencode models` id, set in the admin panel) |
+| `OPENCODE_API_KEY` | — | Only for paid OpenCode Zen models; the free-tier models (e.g. `opencode/space-bunny-free`, the default) need no key |
 | `YOUTUBE_API_KEY` | — | Optional; enables YouTube search/playlist lookup for song requests (direct URLs/IDs work without it) |
 | `TWITCH_SITE_BOT_USERNAME` / `TWITCH_SITE_BOT_TOKEN` | — | Shared site-wide bot account, used when a user hasn't linked their own bot |
 | `UMAMI_WEBSITE_ID` / `UMAMI_ENDPOINT` | project's shared Umami instance | Optional overrides for usage analytics |

@@ -397,7 +397,10 @@ export default function Admin() {
                 <p style={{ ...styles.muted, marginTop: 8 }}>
                   The model only applies to providers that take one (OpenCode, Claude, AGY); Grok
                   ignores it. OpenCode ids are <code>provider/model</code>, exactly as shown by{" "}
-                  <code>opencode models</code>.
+                  <code>opencode models</code>. Free Zen ids (e.g.{" "}
+                  <code>opencode/space-bunny-free</code>, the only one compatible with the hardened
+                  CLI) work without an API key; paid ones need <code>OPENCODE_API_KEY</code> on the
+                  server.
                 </p>
 
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>

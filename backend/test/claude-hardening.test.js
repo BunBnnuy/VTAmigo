@@ -174,6 +174,8 @@ describe("agent CLI spawn hardening (Issue 1)", () => {
       expect(first.exe).toBe("opencode-shim");
       expect(first.args[0]).toBe("run");
       expect(first.args[first.args.indexOf("--format") + 1]).toBe("json");
+      // stdin must be closed: `opencode run` waits for EOF on a piped stdin.
+      expect(first.options.stdio).toEqual(["ignore", "pipe", "pipe"]);
       // A brand-new opencode session takes no session flag; the id is
       // captured from the JSON stream and used on the next call.
       expect(first.args).not.toContain("--session");
