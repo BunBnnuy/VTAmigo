@@ -1,5 +1,5 @@
 // The contents below were written by reading what the code actually does
-// (backend/auth.js, db.js, claude.js, analytics.js).
+// (backend/auth.js, db.js, backend/ai/, analytics.js).
 // If you add a new third-party service or start storing a new field, this page
 // needs updating too — nothing here is generated automatically.
 import React from "react";

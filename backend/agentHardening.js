@@ -1,5 +1,5 @@
 // Process-boundary hardening for the server-side agent CLIs (claude/grok/agy)
-// spawned by backend/claude.js and backend/memoryExportWorker.js.
+// spawned by backend/ai/runner.js and backend/memoryExportWorker.js.
 //
 // Security Issue 1: POST /respond (and /event) feed user-controlled chat text
 // into general-purpose *coding-agent* CLIs. Those CLIs ship with file/shell/
@@ -14,8 +14,8 @@
 //   3. A minimal allowlist env: PATH + proxy + `*_API_KEY`/`*_AUTH_TOKEN`
 //      auth vars only; HOME and every known agent config-dir override point
 //      at empty tmp dirs.
-// Prompt-level delimiting (wrapSystemPrompt/wrapUntrusted in claude.js) stays
-// as the inner layer; this module is the process boundary.
+// Prompt-level delimiting (wrapSystemPrompt/wrapUntrusted in ai/prompt.js)
+// stays as the inner layer; this module is the process boundary.
 //
 // Pure functions with no side effects on require, so the worker thread and
 // the test suite can load this module directly.
@@ -48,7 +48,7 @@ function stripControlChars(s) {
   return String(s ?? "").replace(CONTROL_CHARS_RE, "");
 }
 
-// Our own prompt-framing tags. wrapUntrusted() in claude.js wraps viewer text
+// Our own prompt-framing tags. wrapUntrusted() in ai/prompt.js wraps viewer text
 // in <untrusted_data>…</untrusted_data>; a chat line containing a literal
 // closing tag would break out of that block and could then masquerade as
 // trusted instructions. Neutralize any such sequence inside untrusted text
@@ -89,71 +89,6 @@ function sanitizeMessages(messages) {
     out.push(clean);
   }
   return out;
-}
-
-// ---------------------------------------------------------------------------
-// CLI tool-surface flags, per provider.
-//
-// Verified 2026-09 against the exact binaries this backend shells out to
-// (`<cli> --help` on the deploy box); version floors are noted where a flag
-// is recent. Unknown flags make these CLIs exit non-zero, which surfaces
-// through the existing CLI error path (never silently ignored), so a stale
-// binary fails loudly instead of running unhardened.
-// ---------------------------------------------------------------------------
-
-// Claude Code: --tools "" disables ALL built-in tools (verified in --help:
-// 'Use "" to disable all tools'); --strict-mcp-config with no --mcp-config
-// means zero MCP servers; --disable-slash-commands disables all skills;
-// --bare skips hooks, plugin sync, auto-memory and CLAUDE.md discovery —
-// and, critically, makes auth strictly ANTHROPIC_API_KEY (OAuth/keychain
-// files are never read), which is why file-credential copying was removed
-// from server/install-service.sh; --permission-mode dontAsk denies anything
-// left by default. Deliberately NOT --no-session-persistence: persistent
-// --session-id/--resume sessions are the product feature.
-// (--setting-sources has no "none" value — valid options are only
-// user,project,local — so there is no reliable flag to fully unload settings
-// files; --tools "" makes their permission rules moot because no tool
-// remains in the model's context to approve.)
-const CLAUDE_HARDENING_ARGS = [
-  "--bare",
-  "--tools", "",
-  "--disallowedTools", "mcp__*",
-  "--strict-mcp-config",
-  "--disable-slash-commands",
-  "--permission-mode", "dontAsk",
-];
-
-// Grok CLI: --tools takes the built-in allow-list (comma-separated); an
-// empty value was verified accepted (exit 0) via node spawn. --max-turns 1
-// was probed live: a file-read attempt burned the single turn on the tool
-// call and the content never came back ("Max turns reached"), so even a
-// tool the allow-list missed can't exfiltrate through the transcript.
-// --disable-web-search / --no-subagents / --permission-mode dontAsk are
-// verbatim --help flags. NOT used: --sandbox (takes an undocumented
-// <PROFILE> value — guessing one risks a startup failure; the scratch
-// cwd + minimal env below are the sandbox) and --deny/--disallowed-tools
-// (redundant once the allow-list is empty).
-const GROK_HARDENING_ARGS = [
-  "--tools", "",
-  "--disable-web-search",
-  "--no-subagents",
-  "--permission-mode", "dontAsk",
-  "--max-turns", "1",
-];
-
-// AGY CLI: --help exposes exactly one restriction flag — --sandbox (boolean,
-// "terminal restrictions enabled"), verified accepted via node spawn. There
-// are NO --tools / --disallowedTools / --permission-mode equivalents, so for
-// AGY the cwd + env isolation below and the prompt delimiting do the heavy
-// lifting; --sandbox is still strictly better than the default. (Also
-// deliberately NOT passed: --dangerously-skip-permissions — that would
-// auto-approve the very tool prompts we want denied.)
-const AGY_HARDENING_ARGS = ["--sandbox"];
-
-function getHardeningArgs(provider) {
-  if (provider === "grok") return [...GROK_HARDENING_ARGS];
-  if (provider === "agy") return [...AGY_HARDENING_ARGS];
-  return [...CLAUDE_HARDENING_ARGS];
 }
 
 // ---------------------------------------------------------------------------
@@ -198,7 +133,7 @@ function resolveAgentCwd(requestedCwd) {
 function getEmptyHome() {
   const dir = path.join(getScratchRoot(), "empty-home");
   fs.mkdirSync(dir, { recursive: true });
-  for (const sub of ["claude", "grok", "agy", "config", "cache", "data"]) {
+  for (const sub of ["claude", "grok", "agy", "opencode", "config", "cache", "data"]) {
     fs.mkdirSync(path.join(dir, sub), { recursive: true });
   }
   return dir;
@@ -249,6 +184,7 @@ function buildRestrictedEnv(sourceEnv = process.env, provider = null) {
   env.CLAUDE_CONFIG_DIR = path.join(emptyHome, "claude");
   env.GROK_CONFIG_DIR = path.join(emptyHome, "grok");
   env.AGY_CONFIG_DIR = path.join(emptyHome, "agy");
+  env.OPENCODE_CONFIG_DIR = path.join(emptyHome, "opencode");
   // Grok documents GROK_HOME as the location of its private auth/config
   // directory. Permit it only for Grok and only as an absolute path. The
   // systemd environment file is root-owned, so clients cannot select this
@@ -265,10 +201,6 @@ module.exports = {
   MAX_BASE_PROMPT_LENGTH,
   MAX_MESSAGE_TEXT_LENGTH,
   MAX_MESSAGES,
-  CLAUDE_HARDENING_ARGS,
-  GROK_HARDENING_ARGS,
-  AGY_HARDENING_ARGS,
-  getHardeningArgs,
   getScratchRoot,
   resolveAgentCwd,
   getEmptyHome,

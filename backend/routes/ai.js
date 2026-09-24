@@ -6,7 +6,7 @@
 // before this router is mounted, and must stay that way.
 const express = require("express");
 const { sendEvent } = require("../analytics");
-const { queryClaudeCLI, importMemory } = require("../claude");
+const { queryAI, importMemory } = require("../ai");
 const { sanitizeBasePrompt } = require("../agentHardening");
 const { aiLimiter } = require("../rateLimits");
 const usage = require("../usage");
@@ -31,11 +31,12 @@ router.post("/respond", aiLimiter, async (req, res) => {
   // (Verified: req.body.provider is never read here; siteConfig.getProvider()
   // is the single source of truth. Keep it that way.)
   const provider = siteConfig.getProvider();
+  const model = siteConfig.getModel(provider);
   const twitchId = req.user?.twitchId;
 
   // basePrompt is streamer-controlled input that becomes part of the agent
   // prompt: bound to 2000 chars, stripped of control chars (sanitize is
-  // idempotent — queryClaudeCLI re-applies it centrally for /event too).
+  // idempotent — queryAI re-applies it centrally for /event too).
   // NOTE: req.body deliberately destructures no `provider` (see above).
   const cleanBasePrompt = sanitizeBasePrompt(basePrompt);
   const cleanStyle = typeof style === "string" && style ? style : "auto";
@@ -44,7 +45,7 @@ router.post("/respond", aiLimiter, async (req, res) => {
   if (manual) sendEvent("now_button_click", { req, twitchLogin: req.user?.login });
 
   try {
-    const response = await queryClaudeCLI(messages, cleanStyle, cleanBasePrompt, null, provider, twitchId);
+    const response = await queryAI(messages, cleanStyle, cleanBasePrompt, null, provider, twitchId, { model });
     usage.recordGeneration({
       twitchId: req.user?.twitchId,
       login: req.user?.login,
@@ -60,21 +61,12 @@ router.post("/respond", aiLimiter, async (req, res) => {
     if (achUpgradedTier) sendEvent("tier_auto_upgraded", { req, twitchLogin: req.user?.login, data: { newTier: achUpgradedTier } });
     res.json({ response, tier: achUpgradedTier || upgradedTier || undefined });
   } catch (err) {
-    if (err.message === "OPENAI_API_KEY_MISSING") {
-      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
-    }
     if (err.message === "CLI_NOT_FOUND") {
       const name = provider.charAt(0).toUpperCase() + provider.slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });
     }
     if (err.message === "TIMEOUT") {
       return res.status(504).json({ error: `${provider} CLI timed out (>60s)` });
-    }
-    if (err.message === "OPENAI_PROMPT_TOO_LONG") {
-      return res.status(400).json({ error: "Prompt too long" });
-    }
-    if (err.message === "OPENAI_DAILY_BUDGET_EXCEEDED") {
-      return res.status(429).json({ error: "Daily AI budget reached, try again tomorrow" });
     }
     console.error("[ai]", err.message);
     res.status(500).json({ error: err.message });
@@ -102,7 +94,7 @@ router.post("/memory/import", async (req, res) => {
   const { markdown } = req.body || {};
   const provider = siteConfig.getProvider();
   try {
-    const response = await importMemory(markdown, provider, req.user?.twitchId);
+    const response = await importMemory(markdown, provider, req.user?.twitchId, siteConfig.getModel(provider));
     sendEvent("memory_upload", { req, twitchLogin: req.user?.login, data: { provider } });
     res.json({ ok: true, response });
   } catch (err) {
@@ -131,7 +123,8 @@ router.get("/memory/download/status", (req, res) => {
 // allows for one request).
 router.post("/memory/download", (req, res) => {
   try {
-    memoryDownload.startDownload(siteConfig.getProvider(), req.user?.twitchId);
+    const provider = siteConfig.getProvider();
+    memoryDownload.startDownload(provider, req.user?.twitchId, siteConfig.getModel(provider));
     res.json({ ok: true });
   } catch (err) {
     if (err.message === "ALREADY_RUNNING") {

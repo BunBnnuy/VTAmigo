@@ -9,6 +9,7 @@ const sysmonitor = require("./sysmonitor");
 const usage = require("./usage");
 const siteConfig = require("./siteConfig");
 const errorLog = require("./errorLog");
+const aiMigration = require("./aiMigration");
 
 // Its own subkey off the shared trust root, rather than SESSION_SECRET
 // directly. requireAdmin does check `subject: "admin"`, so a user session JWT
@@ -180,19 +181,49 @@ router.post("/admin/users/:twitchId/revoke", requireAdmin, (req, res) => {
   res.json({ ok: true, user });
 });
 
-// GET /admin/site-config — currently just the site-wide AI provider
+// GET /admin/site-config — the site-wide AI provider and its model
 router.get("/admin/site-config", requireAdmin, (req, res) => {
-  res.json({ aiProvider: siteConfig.getProvider() });
+  const aiProvider = siteConfig.getProvider();
+  res.json({ aiProvider, aiModel: siteConfig.getModel(aiProvider) });
 });
 
 // POST /admin/site-config — set the AI provider used for every user's chat
-// responses site-wide (a user's own Settings preference is ignored)
+// responses site-wide (a user's own Settings preference is ignored) and,
+// optionally, its model
 router.post("/admin/site-config", requireAdmin, (req, res) => {
-  const { aiProvider } = req.body || {};
+  const { aiProvider, aiModel } = req.body || {};
   try {
-    siteConfig.setProvider(aiProvider);
-    res.json({ ok: true, aiProvider: siteConfig.getProvider() });
+    if (aiProvider !== undefined) siteConfig.setProvider(aiProvider);
+    if (aiModel !== undefined) siteConfig.setModel(siteConfig.getProvider(), aiModel);
+    res.json({ ok: true, aiProvider: siteConfig.getProvider(), aiModel: siteConfig.getModel() });
   } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// GET /admin/ai/migrate/status?from=&to= — bulk migration progress for a
+// provider pair: counts from agent_migrations, plus the live stage while a
+// run is active.
+router.get("/admin/ai/migrate/status", requireAdmin, (req, res) => {
+  const { from, to } = req.query || {};
+  try {
+    res.json(aiMigration.getStatus(from, to));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+// POST /admin/ai/migrate { to } — move every account's memory from the
+// current site provider to `to`. This does NOT switch the site provider; the
+// admin runs the migration first, then changes the provider above.
+router.post("/admin/ai/migrate", requireAdmin, (req, res) => {
+  const { to } = req.body || {};
+  const from = siteConfig.getProvider();
+  try {
+    aiMigration.startMigration(from, to);
+    res.json({ ok: true, from, to });
+  } catch (err) {
+    if (err.message === "ALREADY_RUNNING") return res.status(409).json({ error: err.message });
     res.status(400).json({ error: err.message });
   }
 });

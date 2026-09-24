@@ -3,7 +3,7 @@
 // memoryExport) instead of blocking a single HTTP request — a synchronous
 // request risked hitting nginx's proxy timeout and getting an HTML error page
 // back instead of JSON.
-const { dumpMemory } = require("./claude");
+const { dumpMemory } = require("./ai");
 
 // Simulated progress — the CLI call itself doesn't report incremental
 // progress, so this just ramps pct up through a few descriptive stages while
@@ -32,7 +32,7 @@ function friendlyError(message, provider) {
   return message;
 }
 
-function startDownload(provider, twitchId, dumpMemoryFn = dumpMemory) {
+function startDownload(provider, twitchId, model = null, dumpMemoryFn = dumpMemory) {
   if (!twitchId) throw new Error("No autenticado");
   if ((jobs.get(twitchId) || EMPTY_JOB).running) throw new Error("ALREADY_RUNNING");
 
@@ -45,7 +45,7 @@ function startDownload(provider, twitchId, dumpMemoryFn = dumpMemory) {
   }, STAGE_INTERVAL_MS);
   stageTimers.set(twitchId, timer);
 
-  dumpMemoryFn(provider, twitchId)
+  dumpMemoryFn(provider, twitchId, model)
     .then((markdown) => {
       clearInterval(stageTimers.get(twitchId));
       stageTimers.delete(twitchId);

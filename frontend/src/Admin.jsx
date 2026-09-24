@@ -1,6 +1,10 @@
 import React, { useState, useEffect, useCallback } from "react";
+import { ArrowRightLeft } from "lucide-react";
 import { apiFetch } from "./api.js";
 import logo from "./img/logo.png";
+
+const PROVIDER_IDS = ["claude", "grok", "opencode"];
+const PROVIDER_LABELS = { claude: "Claude", grok: "Grok", opencode: "OpenCode" };
 
 export default function Admin() {
   const [checkingSession, setCheckingSession] = useState(true);
@@ -13,6 +17,13 @@ export default function Admin() {
   const [busy, setBusy] = useState(false);
   const [siteConfig, setSiteConfig] = useState(null);
   const [savingProvider, setSavingProvider] = useState(false);
+  const [modelInput, setModelInput] = useState("");
+  const [configError, setConfigError] = useState("");
+  const [migrationTarget, setMigrationTarget] = useState("");
+  const [migrationStatus, setMigrationStatus] = useState(null);
+  const [migrationStarted, setMigrationStarted] = useState(false);
+  const [migrationError, setMigrationError] = useState("");
+  const [migrationPollKey, setMigrationPollKey] = useState(0);
   const [errorLog, setErrorLog] = useState(null);
 
   // On mount, check for an existing (still-valid) admin session so a page
@@ -71,6 +82,63 @@ export default function Admin() {
     if (authed) { loadUsers(); loadUsage(); loadSiteConfig(); loadErrorLog(); }
   }, [authed, loadUsers, loadUsage, loadSiteConfig, loadErrorLog]);
 
+  // Keep the model field in sync with whatever the server last confirmed
+  // (initial load, provider switch, or a previous save).
+  useEffect(() => {
+    if (siteConfig) setModelInput(siteConfig.aiModel || "");
+  }, [siteConfig]);
+
+  // Default the migration target to some provider other than the current one.
+  useEffect(() => {
+    if (!siteConfig) return;
+    setMigrationTarget((prev) =>
+      prev && prev !== siteConfig.aiProvider ? prev : PROVIDER_IDS.find((p) => p !== siteConfig.aiProvider) || ""
+    );
+  }, [siteConfig]);
+
+  // Poll migration progress while a run is active (and once when the target
+  // changes, so a reload during a long run picks it back up).
+  useEffect(() => {
+    if (!siteConfig || !migrationTarget || migrationTarget === siteConfig.aiProvider) return;
+    let cancelled = false;
+    let timer;
+    const url = `/admin/ai/migrate/status?from=${siteConfig.aiProvider}&to=${migrationTarget}`;
+    const poll = async () => {
+      try {
+        const res = await apiFetch(url);
+        if (cancelled || !res.ok) return;
+        const data = await res.json();
+        if (cancelled) return;
+        setMigrationStatus(data);
+        if (data.running) timer = setTimeout(poll, 3000);
+      } catch {
+        // Network hiccup: the panel simply keeps the last known status.
+      }
+    };
+    poll();
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [siteConfig, migrationTarget, migrationPollKey]);
+
+  const startMigration = async () => {
+    setMigrationError("");
+    try {
+      const res = await apiFetch("/admin/ai/migrate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ to: migrationTarget }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setMigrationError(data.error || "Could not start the migration");
+        return;
+      }
+      setMigrationStarted(true);
+      setMigrationPollKey((k) => k + 1);
+    } catch (err) {
+      setMigrationError(err.message || "Could not start the migration");
+    }
+  };
+
   useEffect(() => {
     if (!authed) return;
     loadStats();
@@ -116,6 +184,7 @@ export default function Admin() {
 
   const setAiProvider = async (aiProvider) => {
     setSavingProvider(true);
+    setConfigError("");
     try {
       const res = await apiFetch("/admin/site-config", {
         method: "POST",
@@ -126,6 +195,23 @@ export default function Admin() {
         const data = await res.json();
         setSiteConfig(data);
       }
+    } finally {
+      setSavingProvider(false);
+    }
+  };
+
+  const setAiModel = async () => {
+    setSavingProvider(true);
+    setConfigError("");
+    try {
+      const res = await apiFetch("/admin/site-config", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ aiModel: modelInput }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (res.ok) setSiteConfig(data);
+      else setConfigError(data.error || "Could not save the model");
     } finally {
       setSavingProvider(false);
     }
@@ -284,16 +370,96 @@ export default function Admin() {
             {!siteConfig ? (
               <p style={styles.muted}>Loading…</p>
             ) : (
-              <select
-                value={siteConfig.aiProvider}
-                onChange={(e) => setAiProvider(e.target.value)}
-                disabled={savingProvider}
-                style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 220 }}
-              >
-                <option value="claude">Claude</option>
-                <option value="grok">Grok</option>
-              </select>
+              <>
+                <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                  <select
+                    value={siteConfig.aiProvider}
+                    onChange={(e) => setAiProvider(e.target.value)}
+                    disabled={savingProvider}
+                    style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 220 }}
+                  >
+                    <option value="claude">Claude</option>
+                    <option value="grok">Grok</option>
+                    <option value="opencode">OpenCode</option>
+                  </select>
+                  <input
+                    style={{ ...styles.input, margin: 0, maxWidth: 320 }}
+                    value={modelInput}
+                    onChange={(e) => setModelInput(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") setAiModel(); }}
+                    placeholder="Model (e.g. opencode/claude-haiku-4-5)"
+                    disabled={savingProvider}
+                  />
+                  <button style={styles.btn} onClick={setAiModel} disabled={savingProvider}>
+                    {savingProvider ? "Saving…" : "Save model"}
+                  </button>
+                </div>
+                <p style={{ ...styles.muted, marginTop: 8 }}>
+                  The model only applies to providers that take one (OpenCode, Claude, AGY); Grok
+                  ignores it. OpenCode ids are <code>provider/model</code>, exactly as shown by{" "}
+                  <code>opencode models</code>.
+                </p>
+
+                <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
+                  <p style={{ ...styles.muted, marginBottom: 8 }}>
+                    Move every account's saved memory to another provider. This does not switch the
+                    provider — migrate first, then change it above. Finished accounts are skipped and
+                    failed ones are retried the next time you run it.
+                  </p>
+                  <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <select
+                      value={migrationTarget}
+                      onChange={(e) => setMigrationTarget(e.target.value)}
+                      disabled={migrationStatus?.running}
+                      style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 220 }}
+                    >
+                      {PROVIDER_IDS.filter((p) => p !== siteConfig.aiProvider).map((p) => (
+                        <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
+                      ))}
+                    </select>
+                    <button
+                      style={{ ...styles.btn, justifyContent: "center", opacity: migrationStatus?.running ? 0.5 : 1 }}
+                      onClick={startMigration}
+                      disabled={migrationStatus?.running || !migrationTarget}
+                    >
+                      <ArrowRightLeft size={14} color="var(--on-accent)" />
+                      {migrationStatus?.running ? "Migrating…" : migrationStarted ? "Migrate again" : "Migrate sessions"}
+                    </button>
+                  </div>
+                  {migrationError && <div style={{ ...styles.error, marginTop: 8 }}>{migrationError}</div>}
+                  {migrationStatus && (migrationStatus.running || migrationStarted) && (
+                    <div style={{ marginTop: 10 }}>
+                      <div
+                        style={{
+                          height: 10,
+                          background: "var(--surface2)",
+                          border: "1px solid var(--border)",
+                          borderRadius: 5,
+                          overflow: "hidden",
+                        }}
+                      >
+                        <div
+                          style={{
+                            height: "100%",
+                            width: `${migrationStatus.total ? Math.round(((migrationStatus.done + migrationStatus.failed) / migrationStatus.total) * 100) : 0}%`,
+                            background: migrationStatus.failed && !migrationStatus.running ? "var(--red)" : "var(--accent)",
+                            transition: "width 0.4s ease",
+                          }}
+                        />
+                      </div>
+                      <span style={{ ...styles.muted, display: "block", marginTop: 6 }}>
+                        {migrationStatus.total === 0
+                          ? "No accounts have memory on the current provider yet."
+                          : `${migrationStatus.done} of ${migrationStatus.total} migrated${migrationStatus.failed ? ` · ${migrationStatus.failed} failed` : ""}`}
+                        {migrationStatus.running && migrationStatus.current ? ` · now: ${migrationStatus.current}` : ""}
+                        {migrationStatus.running && migrationStatus.stage ? ` · ${migrationStatus.stage}` : ""}
+                      </span>
+                    </div>
+                  )}
+                </div>
+              </>
             )}
+            {configError && <div style={styles.error}>{configError}</div>}
           </section>
 
           {/* User access */}

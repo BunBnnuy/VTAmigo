@@ -33,7 +33,7 @@ conjuntos de archivos disjuntos, y ahí está el paralelismo real.
 | B2 — Purga frontend | B | `claude/legacy-refactor/b2-frontend-purge` | mergeado | 47 | `App.jsx` 1641→1035, `Settings.jsx` 1500→1096; bundle bajo 500 kB |
 | B3 — Purga build/docs/i18n | B | `claude/legacy-refactor/b3-build-docs` | mergeado | 21 | −8070 LOC; `npm audit` del frontend de 7 a 2 |
 | C — Separar rutas en `routes/` | C (barrera) | `claude/legacy-refactor/c-router-split` | mergeado | 20 | `app.js` 1526→258 LOC; 10 routers. Los 95 tests previos, sin tocar |
-| D1 — Proveedores de IA | D | `claude/legacy-refactor/d1-ai-providers` | pendiente | — | |
+| D1 — Proveedores de IA | D | `claude/legacy-refactor/d1-ai-providers` | en revisión | 242 | `backend/ai/` (registro de proveedores, sesiones, runner, memoria); proveedor opencode con permisos denegados y plugins apagados; migración masiva desde el panel admin; 3 tests de `cliNotFound` se saltan en Windows (shims POSIX) |
 | D2 — Overlays | D | `claude/legacy-refactor/d2-overlays` | pendiente | — | |
 | D3 — Chat / Twitch / actividad | D | `claude/legacy-refactor/d3-chat-twitch` | pendiente | — | |
 | D4 — Descomposición frontend | D | `claude/legacy-refactor/d4-frontend-split` | pendiente | — | |
@@ -225,3 +225,16 @@ solo exista ahí.
     (`spawn` con array, sin `shell`), path traversal en subidas (nombres
     derivados de `twitchId` + UUID + extensión de un mapa MIME cerrado), y
     escalada de sesión de usuario a admin (`requireAdmin` valida `subject`).
+- **[D1]** `backend/claude.js` quedó reemplazado por `backend/ai/` (descriptor
+  por proveedor en `ai/providers/`, registro sin dependencias de DB para que el
+  worker de memoria lo cargue, sesiones y runner genéricos). El camino
+  ChatGPT/OpenAI era inalcanzable (`VALID_PROVIDERS` nunca lo incluyó) y se
+  borró. `opencode` se endurece por entorno, no por flags:
+  `OPENCODE_PERMISSION` deniega todas las herramientas — con `"*"` solo no
+  alcanza, porque los defaults del CLI definen `read`, `external_directory` y
+  `doom_loop` explícitamente y `config.permission` se mergea último. La
+  migración masiva del panel admin reutiliza el dump→inject por cuenta
+  (`aiTransfer.js`), es secuencial, y persiste estado por cuenta en
+  `agent_migrations` para ser reanudable; `done` se salta, `error` se reintenta.
+  El bloque de exportación por usuario en Settings sigue oculto/deshabilitado:
+  decidir si se elimina del todo ahora que la migración vive en el admin.

@@ -33,8 +33,7 @@ VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/READ
 
 - [Node.js](https://nodejs.org/) 18+
 - A Twitch application (Client ID + Secret) registered at [dev.twitch.tv/console/apps](https://dev.twitch.tv/console/apps); see [Setup](#setup)
-- [Claude CLI](https://github.com/anthropics/claude-code) (`npm install -g @anthropic-ai/claude-code`), [Grok CLI](https://x.ai/), or [AGY CLI](https://antigravity.google/docs/cli) (`agy`)
-- For ChatGPT: an OpenAI API key in the `OPENAI_API_KEY` environment variable (a ChatGPT subscription does not include API usage)
+- [Claude CLI](https://github.com/anthropics/claude-code) (`npm install -g @anthropic-ai/claude-code`), [Grok CLI](https://x.ai/), [AGY CLI](https://antigravity.google/docs/cli) (`agy`), or [OpenCode](https://opencode.ai) (`npm install -g opencode-ai`) for OpenCode Zen models
 - A Chromium-based browser for mic transcription (Web Speech API)
 - (Optional) A YouTube Data API v3 key (`YOUTUBE_API_KEY`) for song-request search/playlist support
 
@@ -119,8 +118,8 @@ All settings are available in the in-app Settings panel:
 | `CLAUDE_PATH` | WinGet install path | Path to the `claude` binary |
 | `GROK_PATH` | `C:\Users\<you>\.grok\bin\grok.exe` | Path to the `grok` binary |
 | `AGY_PATH` | `C:\Users\<you>\AppData\Local\agy\bin\agy.exe` | Path to the Google Antigravity `agy` binary |
-| `OPENAI_API_KEY` | — | API key for the ChatGPT/OpenAI provider |
-| `OPENAI_MODEL` | `gpt-4.1-mini` | Optional OpenAI model override |
+| `OPENCODE_PATH` | `opencode` (its `.exe` on Windows) | Path to the OpenCode binary |
+| `OPENCODE_API_KEY` | — | API key for OpenCode Zen (the model can be any `opencode models` id, set in the admin panel) |
 | `YOUTUBE_API_KEY` | — | Optional; enables YouTube search/playlist lookup for song requests (direct URLs/IDs work without it) |
 | `TWITCH_SITE_BOT_USERNAME` / `TWITCH_SITE_BOT_TOKEN` | — | Shared site-wide bot account, used when a user hasn't linked their own bot |
 | `UMAMI_WEBSITE_ID` / `UMAMI_ENDPOINT` | project's shared Umami instance | Optional overrides for usage analytics |
@@ -135,7 +134,8 @@ VTAmigo/
 │   ├── app.js         # The app itself: routes, WebSocket server, middleware — exported, not started
 │   ├── index.js       # Process entry point: background timers, listen(), fatal-error handling
 │   ├── db.js          # Central SQLite connection (per-environment DB file; see backend/data/db/)
-│   ├── claude.js      # AI provider (Claude / Grok / AGY CLI / OpenAI) integration
+│   ├── ai/            # AI provider layer (provider registry, prompt framing, per-user sessions)
+│   │   ├── providers/ #   one descriptor per CLI provider (Claude / Grok / AGY / OpenCode)
 │   ├── auth.js        # Twitch OAuth login + bot-account linking
 │   ├── adminAuth.js   # Admin session auth + user tier management
 │   ├── usage.js       # Per-user AI usage tracking (responses, estimated tokens)
@@ -143,6 +143,8 @@ VTAmigo/
 │   ├── errorLog.js    # Frontend error log storage, surfaced in the admin panel
 │   ├── memoryExport.js       # Memory export manager across CLI models
 │   ├── memoryExportWorker.js # Background worker for exporting/importing session memory
+│   ├── aiTransfer.js  # Shared dump→inject memory transfer between providers
+│   ├── aiMigration.js # Admin bulk migration of every account's memory to another provider
 │   ├── memoryDownload.js     # Session memory download with progress reporting
 │   ├── piper.js       # Piper TTS engine runner
 │   ├── twitch.js      # Twitch IRC client
