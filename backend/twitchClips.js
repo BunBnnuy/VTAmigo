@@ -112,11 +112,14 @@ function normalizeClip(clip) {
 }
 
 // GET /helix/clips?broadcaster_id=... — up to 100 of the channel's clips.
-async function fetchClips(broadcasterId, token) {
-  const res = await httpsGet(
-    `${HELIX}/clips?broadcaster_id=${encodeURIComponent(broadcasterId)}&first=100`,
-    authHeaders(token)
-  );
+// Helix has no sort parameter and its default page for a broadcaster is ordered
+// by view count, so `startedAt`/`endedAt` (RFC3339) are the only way to bias the
+// pool toward recent clips. `ended_at` is only honored alongside `started_at`.
+async function fetchClips(broadcasterId, token, { startedAt, endedAt } = {}) {
+  const params = new URLSearchParams({ broadcaster_id: broadcasterId, first: "100" });
+  if (startedAt) params.set("started_at", startedAt);
+  if (endedAt) params.set("ended_at", endedAt);
+  const res = await httpsGet(`${HELIX}/clips?${params.toString()}`, authHeaders(token));
   if (res.status === 401) throw new ShoutoutError("SHOUTOUT_TOKEN_INVALID", "Twitch rejected the access token");
   if (res.status !== 200) throw new ShoutoutError("SHOUTOUT_API_ERROR", `clips lookup HTTP ${res.status}`);
   return (res.data?.data || []).map(normalizeClip);
@@ -125,10 +128,10 @@ async function fetchClips(broadcasterId, token) {
 // Full lookup for one !so: resolve the channel, fetch its clips, return both.
 // The "no such channel" / "no clips" cases are distinct so the bot can say
 // something specific instead of a generic failure.
-async function lookupClips(login, token) {
+async function lookupClips(login, token, options = {}) {
   const user = await resolveUser(login, token);
   if (!user) throw new ShoutoutError("SHOUTOUT_USER_NOT_FOUND", `no Twitch channel named "${login}"`);
-  const clips = await fetchClips(user.id, token);
+  const clips = await fetchClips(user.id, token, options);
   return { user, clips };
 }
 

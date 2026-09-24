@@ -3,7 +3,7 @@
 // per-account config sanitizer, and the permission/error handling around the
 // command — without touching the network (twitchClips.lookupClips is stubbed,
 // the CJS way, before sessions.js is required).
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from "vitest";
 
 const twitchClips = require("../twitchClips");
 
@@ -13,11 +13,41 @@ const CLIPS = [
   { id: "oldest", slug: "oldest", title: "Oldest", duration: 30, views: 50, createdAt: 1000, url: "u3" },
 ];
 
-twitchClips.lookupClips = async (login) => {
+// Clips that only exist outside the 30-day window, used to exercise the
+// "nothing recent -> all-time top-random" fallback.
+const OLD_CLIPS = [
+  { id: "old_top", slug: "old_top", title: "Old Top", duration: 15, views: 999, createdAt: 1, url: "o1" },
+  { id: "old_low", slug: "old_low", title: "Old Low", duration: 15, views: 1, createdAt: 2, url: "o2" },
+];
+
+// Records the options each lookup/fetch was called with, so tests can assert
+// that the recent modes actually window the Helix query by date and that the
+// fallback re-fetches without a window.
+const lookupCalls = [];
+const fetchCalls = [];
+
+twitchClips.lookupClips = async (login, token, options = {}) => {
+  lookupCalls.push({ login, options });
   if (login === "ghost") throw new twitchClips.ShoutoutError("SHOUTOUT_USER_NOT_FOUND");
   if (login === "noclips") return { user: { id: "2", login, displayName: "NoClips" }, clips: [] };
-  return { user: { id: "1", login, displayName: "Target" }, clips: CLIPS };
+  if (login === "oldonly") {
+    return { user: { id: "3", login, displayName: "OldOnly" }, clips: options.startedAt ? [] : OLD_CLIPS };
+  }
+  return {
+    user: { id: "1", login, displayName: "Target", profileImageUrl: "https://cdn.example/pic.png" },
+    clips: CLIPS,
+  };
 };
+
+// Only reached by the "nothing recent" fallback, which re-fetches unwindowed.
+twitchClips.fetchClips = async (broadcasterId, token, options = {}) => {
+  fetchCalls.push({ broadcasterId, options });
+  return broadcasterId === "2" ? [] : OLD_CLIPS;
+};
+
+function lastLookup(login) {
+  return [...lookupCalls].reverse().find((c) => c.login === login);
+}
 // Keep the suite off Twitch's GraphQL: the real function is best-effort and
 // returns null on failure, which is exactly the fallback path.
 twitchClips.fetchPlaybackUrl = async (slug) => `https://cdn.example/${slug}.mp4?token=t&sig=s`;
@@ -106,6 +136,32 @@ describe("shoutout config", () => {
     expect(config.showBanner).toBe(false);
     expect(shoutout.bannerFor(config, "Someone")).toBe("Go Someone");
   });
+
+  it("accepts valid styling but rejects an invalid color/font/shape", () => {
+    shoutout.setConfig(TWITCH_ID, {
+      messageBg: "#ff0000",
+      messageColor: "#00ff00",
+      messageFont: "Bangers",
+      avatarShape: "square",
+      showAvatar: false,
+    });
+    let config = shoutout.getConfig(TWITCH_ID);
+    expect(config.messageBg).toBe("#ff0000");
+    expect(config.messageColor).toBe("#00ff00");
+    expect(config.messageFont).toBe("Bangers");
+    expect(config.avatarShape).toBe("square");
+    expect(config.showAvatar).toBe(false);
+
+    shoutout.setConfig(TWITCH_ID, {
+      messageBg: "red; } .x {",
+      messageFont: "Comic Sans",
+      avatarShape: "triangle",
+    });
+    config = shoutout.getConfig(TWITCH_ID);
+    expect(config.messageBg).toBe("#ff0000"); // unchanged
+    expect(config.messageFont).toBe("Bangers"); // unchanged
+    expect(config.avatarShape).toBe("square"); // unchanged
+  });
 });
 
 describe("clipVideoUrl", () => {
@@ -159,6 +215,22 @@ describe("clip playback url", () => {
   });
 });
 
+describe("recent window", () => {
+  it("covers exactly the last 30 days, end = now, at second precision", () => {
+    const now = Date.parse("2026-09-24T00:00:00Z");
+    const w = shoutout.recentWindow(now);
+    expect(w.endedAt).toBe("2026-09-24T00:00:00Z");
+    expect(w.startedAt).toBe("2026-08-25T00:00:00Z");
+    expect(w.startedAt).not.toMatch(/\.\d{3}Z/); // no milliseconds
+  });
+
+  it("applies to the recent modes only", () => {
+    expect(shoutout.usesRecentWindow("recent-random")).toBe(true);
+    expect(shoutout.usesRecentWindow("most-recent")).toBe(true);
+    expect(shoutout.usesRecentWindow("top-random")).toBe(false);
+  });
+});
+
 describe("pickClip", () => {
   it("returns null for an empty channel", () => {
     expect(shoutout.pickClip([], "recent-random")).toBeNull();
@@ -205,6 +277,10 @@ describe("isModOrBroadcaster", () => {
 });
 
 describe("!so handling", () => {
+  // The config describe above mutates this account's config; reset it so the
+  // payload/windowing assertions below always start from the defaults.
+  beforeEach(() => shoutout.setConfig(TWITCH_ID, { ...shoutout.DEFAULTS }));
+
   it("broadcasts a shoutout for a moderator", async () => {
     said.length = 0;
     shoutout.clearActive(TWITCH_ID);
@@ -217,8 +293,28 @@ describe("!so handling", () => {
     expect(active.clip.id).toBeDefined();
     // The GraphQL playback URL is attached so the overlay can avoid the embed.
     expect(active.clip.mp4Url).toContain("cdn.example");
+    // Styling + channel icon travel with the payload for the overlay layout.
+    expect(active.avatarUrl).toContain("cdn.example");
+    expect(active.showAvatar).toBe(true);
+    expect(active.avatarShape).toBe("circle");
+    expect(active.messageBg).toBe("#9147ff");
+    expect(active.messageColor).toBe("#ffffff");
+    expect(active.messageFont).toBe("Quicksand");
     expect(active.endsAt).toBeGreaterThan(Date.now());
     expect(said.some((s) => s.includes("Shoutout to Target"))).toBe(true);
+  });
+
+  it("windows the Helix query to the last 30 days for recent modes, but not top-random", async () => {
+    lookupCalls.length = 0;
+    await sessions.handleShoutout(TWITCH_ID, "shoutstreamer", "target", { announce: false });
+    const recent = lastLookup("target").options;
+    expect(recent.startedAt).toBeTruthy();
+    expect(recent.endedAt).toBeTruthy();
+
+    shoutout.setConfig(TWITCH_ID, { mode: "top-random" });
+    lookupCalls.length = 0;
+    await sessions.handleShoutout(TWITCH_ID, "shoutstreamer", "target", { announce: false });
+    expect(lastLookup("target").options.startedAt).toBeUndefined();
   });
 
   it("ignores !so from a regular viewer, silently", async () => {
@@ -240,13 +336,29 @@ describe("!so handling", () => {
     expect(shoutout.getActive(TWITCH_ID)).toBeNull();
   });
 
-  it("tells the mod when the channel has no clips", async () => {
+  it("reports no clips when the channel has none at all", async () => {
     said.length = 0;
     shoutout.clearActive(TWITCH_ID);
     chat("!so noclips", "moderator/1");
 
-    await waitFor(() => said.some((s) => s.includes("no clips")));
+    await waitFor(() => said.some((s) => s.includes("has no clips to shout out yet")));
     expect(shoutout.getActive(TWITCH_ID)).toBeNull();
+  });
+
+  it("falls back to top-random when nothing was clipped in the last 30 days", async () => {
+    said.length = 0;
+    shoutout.clearActive(TWITCH_ID);
+    lookupCalls.length = 0;
+    fetchCalls.length = 0;
+
+    chat("!so oldonly", "moderator/1");
+
+    const ran = await waitFor(() => shoutout.getActive(TWITCH_ID) !== null);
+    expect(ran).toBe(true);
+    // Windowed attempt first, then an unwindowed re-fetch for the fallback.
+    expect(lastLookup("oldonly").options.startedAt).toBeTruthy();
+    expect(fetchCalls.some((c) => c.broadcasterId === "3" && c.options.startedAt === undefined)).toBe(true);
+    expect(OLD_CLIPS.map((c) => c.id)).toContain(shoutout.getActive(TWITCH_ID).clip.id);
   });
 
   it("treats a malformed username as a usage error", async () => {

@@ -3,6 +3,12 @@
 <head>
 <meta charset="utf-8" />
 <title>Shoutout Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Bangers&family=Inter:wght@700&family=Luckiest+Guy&family=Montserrat:wght@700&family=Nunito:wght@700&family=Poppins:wght@700&family=Quicksand:wght@700&display=swap"
+  rel="stylesheet"
+/>
 <style>
   html, body {
     margin: 0;
@@ -32,25 +38,29 @@
   }
   #wrap.show { opacity: 1; }
 
-  #banner {
-    display: none;
+  /* Top row: channel icon on the left, clip on the right. */
+  #top {
+    display: grid;
+    grid-template-columns: auto 1fr;
     align-items: center;
-    gap: 12px;
-    padding: 14px 26px;
-    border-radius: 14px;
-    background: rgba(14, 14, 16, 0.82);
-    border: 2px solid #9147ff;
-    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
-    color: #efeff1;
-    font-size: clamp(22px, 3vw, 42px);
-    font-weight: 700;
-    text-align: center;
-    max-width: 90vw;
+    gap: 20px;
+    width: min(86vw, 1280px);
   }
-  #banner .star { color: #e11d76; flex-shrink: 0; }
+  #top.no-avatar { grid-template-columns: 1fr; }
+
+  #avatar {
+    width: min(20vw, 260px);
+    aspect-ratio: 1 / 1;
+    object-fit: cover;
+    border-radius: 50%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 3px solid rgba(255, 255, 255, 0.9);
+    box-shadow: 0 10px 32px rgba(0, 0, 0, 0.55);
+  }
+  #avatar.square { border-radius: 16px; }
 
   #clip-box {
-    width: min(72vw, 1100px);
+    width: 100%;
     aspect-ratio: 16 / 9;
     background: #000;
     border-radius: 12px;
@@ -68,12 +78,29 @@
     background: #000;
   }
   #clip-box video { object-fit: contain; }
+
+  /* Message block: full width, below the clip (the "< mensaje >" bar). */
+  #message {
+    width: min(86vw, 1280px);
+    box-sizing: border-box;
+    padding: 14px 28px;
+    border-radius: 12px;
+    text-align: center;
+    font-weight: 700;
+    font-size: clamp(20px, 2.6vw, 40px);
+    line-height: 1.2;
+    word-break: break-word;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+  }
 </style>
 </head>
 <body>
   <div id="wrap">
-    <div id="banner"><span class="star">★</span><span id="banner-text"></span></div>
-    <div id="clip-box"></div>
+    <div id="top">
+      <img id="avatar" alt="" hidden />
+      <div id="clip-box"></div>
+    </div>
+    <div id="message" hidden><span id="message-text"></span></div>
   </div>
 
 <script>
@@ -81,9 +108,18 @@
   const token = params.get("token") || "";
 
   const wrap = document.getElementById("wrap");
-  const banner = document.getElementById("banner");
-  const bannerText = document.getElementById("banner-text");
+  // NB: not named `top` — a top-level `const top` throws "Identifier 'top' has
+  // already been declared" in a classic script (window.top is a restricted
+  // global), which silently breaks the whole overlay.
+  const topRow = document.getElementById("top");
+  const avatar = document.getElementById("avatar");
   const clipBox = document.getElementById("clip-box");
+  const message = document.getElementById("message");
+  const messageText = document.getElementById("message-text");
+
+  const DEFAULT_BG = "#9147ff";
+  const DEFAULT_COLOR = "#ffffff";
+  const DEFAULT_FONT = "Quicksand";
 
   // Keep in sync with the #wrap transition in the stylesheet above.
   const FADE_MS = 500;
@@ -171,6 +207,30 @@
     clipBox.replaceChildren();
   }
 
+  function applyStyle(data) {
+    // Message block.
+    messageText.textContent = data.bannerText || "";
+    message.hidden = data.showBanner === false;
+    message.style.background = data.messageBg || DEFAULT_BG;
+    message.style.color = data.messageColor || DEFAULT_COLOR;
+    message.style.fontFamily = `"${data.messageFont || DEFAULT_FONT}", Quicksand, sans-serif`;
+    // Channel icon.
+    const showAvatar = data.showAvatar !== false && !!data.avatarUrl;
+    topRow.classList.toggle("no-avatar", !showAvatar);
+    avatar.hidden = !showAvatar;
+    avatar.classList.toggle("square", data.avatarShape === "square");
+    if (showAvatar) avatar.src = data.avatarUrl;
+    else avatar.removeAttribute("src");
+  }
+
+  function resetContent() {
+    clearMedia();
+    message.hidden = true;
+    messageText.textContent = "";
+    avatar.hidden = true;
+    avatar.removeAttribute("src");
+  }
+
   function fadeOut() {
     clearTimeout(hideTimer);
     hideTimer = null;
@@ -181,11 +241,7 @@
     wrap.classList.remove("show");
     clearTimeout(clearTimer);
     clearTimer = setTimeout(() => {
-      if (!wrap.classList.contains("show")) {
-        clearMedia();
-        banner.style.display = "none";
-        bannerText.textContent = "";
-      }
+      if (!wrap.classList.contains("show")) resetContent();
     }, FADE_MS + 60);
   }
 
@@ -198,8 +254,7 @@
     clearTimeout(hideTimer);
     clearTimeout(endTimer);
     clearTimeout(clearTimer);
-    bannerText.textContent = data.bannerText || "";
-    banner.style.display = data.showBanner === false ? "none" : "inline-flex";
+    applyStyle(data);
     clearMedia();
     const kind = buildMedia(data);
     // Re-run the fade-in even when replacing a clip that's already visible.

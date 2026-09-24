@@ -19,10 +19,23 @@ const MODES = ["recent-random", "top-random", "most-recent"];
 const TOP_SAMPLE = 25;
 const FETCH_LIMIT = 100;
 
+// Fonts offered for the message block. Kept to a small allowlist so the value
+// is safe to drop straight into CSS and the overlay can preload them.
+const FONTS = ["Quicksand", "Nunito", "Poppins", "Montserrat", "Inter", "Bangers", "Luckiest Guy"];
+const AVATAR_SHAPES = ["circle", "square"];
+const COLOR_RE = /^#[0-9a-fA-F]{3,8}$/;
+
 const DEFAULTS = {
   mode: "recent-random", // one of MODES
+  // Message block (the "< mensaje >" bar under the clip).
   showBanner: true,
   bannerText: "Shoutout to {username}!",
+  messageBg: "#9147ff",
+  messageColor: "#ffffff",
+  messageFont: "Quicksand",
+  // Channel icon shown left of the clip.
+  showAvatar: true,
+  avatarShape: "circle", // one of AVATAR_SHAPES
 };
 
 const getConfigStmt = db.prepare(`SELECT config FROM shoutout_config WHERE twitchId = ?`);
@@ -51,6 +64,12 @@ function sanitize(partial) {
   if ("mode" in partial && MODES.includes(partial.mode)) out.mode = partial.mode;
   if ("showBanner" in partial) out.showBanner = !!partial.showBanner;
   if ("bannerText" in partial) out.bannerText = String(partial.bannerText).slice(0, 120);
+  if ("showAvatar" in partial) out.showAvatar = !!partial.showAvatar;
+  if ("avatarShape" in partial && AVATAR_SHAPES.includes(partial.avatarShape)) out.avatarShape = partial.avatarShape;
+  if ("messageFont" in partial && FONTS.includes(partial.messageFont)) out.messageFont = partial.messageFont;
+  for (const key of ["messageBg", "messageColor"]) {
+    if (key in partial && COLOR_RE.test(String(partial[key]))) out[key] = String(partial[key]);
+  }
   return out;
 }
 
@@ -62,6 +81,30 @@ function setConfig(twitchId, partial) {
   const merged = { ...DEFAULTS, ...(readOne(twitchId) || {}), ...sanitize(partial) };
   writeOne(twitchId, merged);
   return merged;
+}
+
+// The two "recent" modes only consider clips created in this window. Helix has
+// no sort parameter — its default broadcaster page is view-count ordered, which
+// is why an unfiltered pool surfaces years-old clips — so the only lever is the
+// started_at/ended_at window at fetch time (see twitchClips.fetchClips).
+const RECENT_WINDOW_DAYS = 30;
+
+function usesRecentWindow(mode) {
+  return mode === "recent-random" || mode === "most-recent";
+}
+
+// Twitch's Get Clips examples use second-precision RFC3339
+// ("2019-10-21T00:00:00Z"); strip the milliseconds toISOString() adds so a
+// stricter parser can't reject the window.
+function rfc3339Seconds(ms) {
+  return new Date(ms).toISOString().replace(/\.\d{3}Z$/, "Z");
+}
+
+function recentWindow(now = Date.now()) {
+  return {
+    startedAt: rfc3339Seconds(now - RECENT_WINDOW_DAYS * 24 * 60 * 60 * 1000),
+    endedAt: rfc3339Seconds(now),
+  };
 }
 
 // Pure selection over an already-fetched clip list. Never relies on the order
@@ -112,10 +155,15 @@ function clearActive(twitchId) {
 
 module.exports = {
   MODES,
+  FONTS,
+  AVATAR_SHAPES,
   FETCH_LIMIT,
+  RECENT_WINDOW_DAYS,
   DEFAULTS,
   getConfig,
   setConfig,
+  usesRecentWindow,
+  recentWindow,
   pickClip,
   bannerFor,
   setActive,

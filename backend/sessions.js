@@ -219,13 +219,28 @@ async function handleShoutout(twitchId, requester, targetRaw, { announce = true 
   shoutoutInFlight.add(twitchId);
   try {
     const config = shoutout.getConfig(twitchId);
+    // The "recent" modes window the Helix query to the last 30 days; "top-random"
+    // deliberately keeps the all-time pool.
+    const recentOnly = shoutout.usesRecentWindow(config.mode);
     const token = await getValidTwitchToken(twitchId);
-    const { user, clips } = await twitchClips.lookupClips(target, token);
-    const clip = shoutout.pickClip(clips, config.mode);
-    if (!clip) {
+    const { user, clips } = await twitchClips.lookupClips(
+      target,
+      token,
+      recentOnly ? shoutout.recentWindow() : {}
+    );
+    // A "recent" mode with nothing in the window falls back to the channel's
+    // all-time most-viewed clips rather than refusing to shout the channel out.
+    let pool = clips;
+    let mode = config.mode;
+    if (recentOnly && pool.length === 0) {
+      pool = await twitchClips.fetchClips(user.id, token, {});
+      mode = "top-random";
+    }
+    if (pool.length === 0) {
       if (announce) session?.botClient?.say(`@${requester} ${user.displayName} has no clips to shout out yet.`);
       return { ok: false, error: "NO_CLIPS" };
     }
+    const clip = shoutout.pickClip(pool, mode);
     // Prefer a directly playable clip file so the overlay renders it in a
     // plain <video> with no Twitch player UI (and a real `ended` event). Twitch
     // only exposes one through GraphQL; if that ever fails, `clip.mp4Url` is
@@ -244,8 +259,14 @@ async function handleShoutout(twitchId, requester, targetRaw, { announce = true 
       login: user.login,
       requester: requester || null,
       clip,
+      avatarUrl: user.profileImageUrl || null,
+      showAvatar: config.showAvatar,
+      avatarShape: config.avatarShape,
       showBanner: config.showBanner,
       bannerText: shoutout.bannerFor(config, user.displayName),
+      messageBg: config.messageBg,
+      messageColor: config.messageColor,
+      messageFont: config.messageFont,
       startedAt,
       // A little slack past the clip's own duration: the embed takes a moment
       // to load and autoplay, and cutting it off exactly on `duration` would
