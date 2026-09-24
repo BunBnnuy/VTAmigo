@@ -1,7 +1,7 @@
 // !sr is handled by the video queue, so it must never reach the AI buffer —
 // the co-host answering "!sr <song>" out loud is the bug this guards.
 import { describe, expect, it } from "vitest";
-import { isSongRequest } from "../src/chatCommands.js";
+import { isSongRequest, isShoutout, isAppCommand } from "../src/chatCommands.js";
 
 describe("isSongRequest", () => {
   it("matches a normal song request", () => {
@@ -42,5 +42,36 @@ describe("isSongRequest", () => {
     expect(isSongRequest(null)).toBe(false);
     expect(isSongRequest("")).toBe(false);
     expect(isSongRequest(42)).toBe(false);
+  });
+});
+
+describe("isShoutout", () => {
+  it("matches a shoutout with a username", () => {
+    expect(isShoutout("!so somechannel")).toBe(true);
+    expect(isShoutout("!so @somechannel")).toBe(true);
+    expect(isShoutout("!SO SomeChannel")).toBe(true);
+  });
+
+  it("matches a bare !so, which is noise for the AI even though the command ignores it", () => {
+    expect(isShoutout("!so")).toBe(true);
+  });
+
+  it("leaves words that merely start the same way alone", () => {
+    expect(isShoutout("!sosomething")).toBe(false);
+    expect(isShoutout("!source")).toBe(false);
+  });
+
+  it("does not treat other commands as shoutouts", () => {
+    expect(isShoutout("!sr una cancion")).toBe(false);
+    expect(isShoutout("hola")).toBe(false);
+    expect(isShoutout(undefined)).toBe(false);
+  });
+});
+
+describe("isAppCommand", () => {
+  it("covers both the song request and the shoutout", () => {
+    expect(isAppCommand("!sr una cancion")).toBe(true);
+    expect(isAppCommand("!so somechannel")).toBe(true);
+    expect(isAppCommand("hola chat")).toBe(false);
   });
 });

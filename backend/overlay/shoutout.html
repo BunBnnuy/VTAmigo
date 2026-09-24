@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Shoutout Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+    font-family: Quicksand, Nunito, sans-serif;
+  }
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 4vh 4vw;
+    box-sizing: border-box;
+  }
+  #wrap.show { display: flex; }
+
+  #banner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 26px;
+    border-radius: 14px;
+    background: rgba(14, 14, 16, 0.82);
+    border: 2px solid #9147ff;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    color: #efeff1;
+    font-size: clamp(22px, 3vw, 42px);
+    font-weight: 700;
+    text-align: center;
+    max-width: 90vw;
+  }
+  #banner.show { display: inline-flex; }
+  #banner .star { color: #e11d76; flex-shrink: 0; }
+
+  #clip-box {
+    width: min(72vw, 1100px);
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+    animation: pop 0.35s ease-out;
+  }
+  #clip-box iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+
+  @keyframes pop {
+    from { opacity: 0; transform: scale(0.94); }
+    to   { opacity: 1; transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="banner"><span class="star">★</span><span id="banner-text"></span></div>
+    <div id="clip-box"></div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+
+  const wrap = document.getElementById("wrap");
+  const banner = document.getElementById("banner");
+  const bannerText = document.getElementById("banner-text");
+  const clipBox = document.getElementById("clip-box");
+
+  let hideTimer = null;
+
+  // Twitch's clip embed requires the embedding host in `parent`; OBS loads
+  // this page from our own backend, so location.hostname is the right value.
+  function embedUrl(slug) {
+    const parent = encodeURIComponent(location.hostname || "localhost");
+    return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(slug)}&parent=${parent}&autoplay=true&muted=false`;
+  }
+
+  function clear() {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+    wrap.classList.remove("show");
+    banner.classList.remove("show");
+    clipBox.innerHTML = "";
+    bannerText.textContent = "";
+  }
+
+  function show(data) {
+    const remainingMs = data.endsAt - Date.now();
+    if (!data.clip || !data.clip.slug || remainingMs <= 0) {
+      clear();
+      return;
+    }
+    clearTimeout(hideTimer);
+    bannerText.textContent = data.bannerText || "";
+    banner.classList.toggle("show", data.showBanner !== false);
+    const frame = document.createElement("iframe");
+    frame.setAttribute("allowfullscreen", "true");
+    frame.setAttribute("allow", "autoplay; fullscreen");
+    frame.src = embedUrl(data.clip.slug);
+    clipBox.replaceChildren(frame);
+    wrap.classList.add("show");
+    // The embed gives no reliable "clip finished" event, so the backend sends
+    // an endsAt (clip duration + load slack) and we trust it here.
+    hideTimer = setTimeout(clear, remainingMs);
+  }
+
+  // Resume if OBS reloads the source while a clip is still playing.
+  fetch(`/shoutout/state?token=${encodeURIComponent(token)}`)
+    .then((r) => r.json())
+    .then((data) => { if (data && data.shoutout) show(data.shoutout); })
+    .catch(() => {});
+
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "shoutout") show(data);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

@@ -42,6 +42,7 @@ const videoRouter = require("./routes/video");
 const overlayBuilderRouter = require("./routes/overlayBuilder");
 const ttsRouter = require("./routes/tts");
 const avatarRouter = require("./routes/avatar");
+const shoutoutRouter = require("./routes/shoutout");
 
 const PORT = process.env.PORT || 3001;
 const app = express();
@@ -291,6 +292,7 @@ app.use(videoRouter);         // /video/*, /overlay/video
 app.use(overlayBuilderRouter); // /overlay-builder/*, /overlay/custom/*
 app.use(avatarRouter);         // /avatar/reactive/*
 app.use(ttsRouter);           // /avatar/speaking/*, /tts/piper*
+app.use(shoutoutRouter);       // /overlay/shoutout, /shoutout/*
 
 // GET /health
 app.get("/health", (req, res) => res.json({ ok: true }));
