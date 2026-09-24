@@ -12,7 +12,7 @@ import Pending from "./Pending.jsx";
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { mergeTitleWithDelimiter, parseVoiceCommand } from "./voiceCommands.js";
-import { isSongRequest } from "./chatCommands.js";
+import { isSongRequest, isShoutout } from "./chatCommands.js";
 import { chatTts, extractChatTTSMessage, formatChatTTSMessage, DEFAULT_CHAT_TTS_TEMPLATE } from "./ChatTTSController.js";
 import {
   CURRENT_ANNOUNCEMENT,
@@ -355,6 +355,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [micError, setMicError] = useState(null);
   const [micSpeaking, setMicSpeaking] = useState(false);
   const [videoState, setVideoState] = useState({ queue: [], defaultPlaylistId: null, nowPlaying: null });
+  const [lastShoutout, setLastShoutout] = useState(null);
   const [botStatus, setBotStatus] = useState("disconnected");
   const [activeBotUsername, setActiveBotUsername] = useState(null);
   const [usingSiteBot, setUsingSiteBot] = useState(false);
@@ -852,11 +853,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             seenMsgIds.current.delete(first);
           }
           setMessages((prev) => [...prev.slice(-199), msg]);
-          // A song request is an instruction to the video queue, not something
-          // said to the co-host: it stays in the chat feed but never reaches
-          // the AI buffer, so the bot doesn't reply to "!sr <song>".
-          const songRequest = isSongRequest(msg.text);
-          if (!songRequest) {
+          // App commands (a song request for the video queue, or a mod's
+          // shoutout) are instructions to the app, not something said to the
+          // co-host: they stay in the chat feed but never reach the AI buffer,
+          // so the bot doesn't reply to "!sr <song>" or "!so <user>".
+          const appCommand = isSongRequest(msg.text) || isShoutout(msg.text);
+          if (!appCommand) {
             pushToBuffer({
               username: msg.username,
               text: msg.text,
@@ -876,10 +878,10 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           }
 
           // Burst detection: lots of hype → wait for silence then fire.
-          // Excluded for song requests too — a title that happens to contain
+          // Excluded for app commands too — a title that happens to contain
           // "pog" or "let's go" shouldn't schedule a response the buffer never
           // received the message for.
-          const isHype = !songRequest && HYPE_KEYWORDS.some((kw) => msg.text.toLowerCase().includes(kw));
+          const isHype = !appCommand && HYPE_KEYWORDS.some((kw) => msg.text.toLowerCase().includes(kw));
           if (isHype) {
             clearTimeout(burstTimerRef.current);
             burstTimerRef.current = setTimeout(() => {
@@ -891,6 +893,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         } else if (data.type === "video_state") {
           const { type, ...state } = data;
           setVideoState(state);
+        } else if (data.type === "shoutout") {
+          const { type, ...shoutoutData } = data;
+          setLastShoutout(shoutoutData);
         } else if (data.type === "bot_status") {
           setBotStatus(data.status.type);
           if (data.botUsername) setActiveBotUsername(data.botUsername);
@@ -1244,6 +1249,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         }}
         avatarPanelProps={{ ttsSpeaking }}
         videoQueueProps={{ videoState }}
+        shoutoutProps={{ lastShoutout }}
         activityPanelProps={{ events: activityEvents, lang: settings.language }}
         achievementsPanelProps={{
           achievements: achievementsState.achievements,

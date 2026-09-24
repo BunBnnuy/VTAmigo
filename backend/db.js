@@ -69,6 +69,14 @@ db.exec(`
     config TEXT NOT NULL
   );
 
+  -- Per-account settings for the !so shoutout overlay (backend/shoutout.js):
+  -- which clip to pick and how the banner reads. Single row per account, same
+  -- shape as chat_overlay_config.
+  CREATE TABLE IF NOT EXISTS shoutout_config (
+    twitchId TEXT PRIMARY KEY,
+    config TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS site_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     config TEXT NOT NULL

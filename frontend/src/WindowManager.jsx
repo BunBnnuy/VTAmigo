@@ -8,6 +8,7 @@ import StreamSettingsPanel from "./StreamSettingsPanel.jsx";
 import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
 import ChatOverlayPreview from "./ChatOverlayPreview.jsx";
 import AvatarPanel from "./AvatarPanel.jsx";
+import ShoutoutPanel from "./ShoutoutPanel.jsx";
 import ActivityPanel from "./ActivityPanel.jsx";
 import AchievementsPanel from "./AchievementsPanel.jsx";
 import ChatTTSPPanel from "./ChatTTSPPanel.jsx";
@@ -29,6 +30,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     chatTts:            { x: 1300, y: 860, w: 260, h: 300, z: 11, collapsed: false, closed: false },
     reactiveAvatar:    { x: 1020, y: 940, w: 260, h: 260, z: 12, collapsed: false, closed: false },
     chatRanking:        { x: 1580, y: 960, w: 320, h: 360, z: 13, collapsed: false, closed: false },
+    shoutout:          { x: 520,  y: 960, w: 480, h: 340, z: 14, collapsed: false, closed: false },
   },
 };
 
@@ -49,6 +51,7 @@ export const PANEL_META = [
   { id: "chatTts", titleKey: "chatTtsPanel.title", dataTour: null },
   { id: "reactiveAvatar", titleKey: "reactiveAvatarPanel.title", dataTour: null },
   { id: "chatRanking", titleKey: "chatRankingPanel.title", dataTour: null },
+  { id: "shoutout", titleKey: "shoutoutPanel.title", dataTour: null },
 ];
 
 // Fills in any window key missing from a saved layout (new panel added in a
@@ -66,7 +69,8 @@ export function mergePanelLayout(saved) {
 export default function WindowManager({
   panelLayout, onUpdateWindow, onFocusWindow, t,
   chatFeedProps, responsePanelProps, quickControlsProps, videoQueueProps,
-  avatarPanelProps, activityPanelProps, achievementsPanelProps, chatTtsPanelProps, lang,
+  avatarPanelProps, activityPanelProps, achievementsPanelProps, chatTtsPanelProps,
+  shoutoutProps, lang,
 }) {
   // `layout` is handed to panels that need to know whether they're actually on
   // screen — <Window> keeps collapsed children mounted (hidden with CSS) so
@@ -99,6 +103,7 @@ export default function WindowManager({
       case "chatTts": return <ChatTTSPPanel {...chatTtsPanelProps} lang={lang} />;
       case "reactiveAvatar": return <ReactiveAvatarPanel lang={lang} />;
       case "chatRanking": return <ChatRankingPanel lang={lang} />;
+      case "shoutout": return <ShoutoutPanel {...shoutoutProps} lang={lang} />;
       default: return null;
     }
   };

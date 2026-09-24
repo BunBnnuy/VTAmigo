@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Shoutout Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+    font-family: Quicksand, Nunito, sans-serif;
+  }
+  /* Fade in/out via opacity — a display:none toggle can't transition. Content
+     is emptied only after the fade-out finishes, so the last frame holds. */
+  #wrap {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 18px;
+    padding: 4vh 4vw;
+    box-sizing: border-box;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.5s ease;
+  }
+  #wrap.show { opacity: 1; }
+
+  #banner {
+    display: none;
+    align-items: center;
+    gap: 12px;
+    padding: 14px 26px;
+    border-radius: 14px;
+    background: rgba(14, 14, 16, 0.82);
+    border: 2px solid #9147ff;
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.5);
+    color: #efeff1;
+    font-size: clamp(22px, 3vw, 42px);
+    font-weight: 700;
+    text-align: center;
+    max-width: 90vw;
+  }
+  #banner .star { color: #e11d76; flex-shrink: 0; }
+
+  #clip-box {
+    width: min(72vw, 1100px);
+    aspect-ratio: 16 / 9;
+    background: #000;
+    border-radius: 12px;
+    overflow: hidden;
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  }
+  /* Native clip video (preferred) or the Twitch iframe fallback. Neither gets
+     the Twitch player chrome: the video element is ours, and if it fails to
+     load we only fall back to the iframe rather than showing nothing. */
+  #clip-box video, #clip-box iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: #000;
+  }
+  #clip-box video { object-fit: contain; }
+</style>
+</head>
+<body>
+  <div id="wrap">
+    <div id="banner"><span class="star">★</span><span id="banner-text"></span></div>
+    <div id="clip-box"></div>
+  </div>
+
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+
+  const wrap = document.getElementById("wrap");
+  const banner = document.getElementById("banner");
+  const bannerText = document.getElementById("banner-text");
+  const clipBox = document.getElementById("clip-box");
+
+  // Keep in sync with the #wrap transition in the stylesheet above.
+  const FADE_MS = 500;
+  // How long to hold on the clip's final frame after it ends, before the fade
+  // starts — so the last moment is actually seen instead of being faded away.
+  const END_HOLD_MS = 250;
+  // The iframe fallback has no "finished" event at all, so its only exit is a
+  // duration-based timer. Give it a generous buffer so it can never cut the
+  // clip short; a little end-card linger is preferable to losing the ending.
+  const IFRAME_SLACK_MS = 3000;
+
+  let hideTimer = null;   // fail-safe that force-fades if no end is detected
+  let endTimer = null;    // the short hold between `ended` and the fade
+  let clearTimer = null;  // empties the DOM after the fade completes
+
+  // Twitch's clip iframe is non-interactive (no JS API, un-hideable chrome),
+  // so it's only a fallback: the signed MP4 Twitch serves plays in a plain
+  // <video> we fully control.
+  function iframeFallback(clip) {
+    const parent = encodeURIComponent(location.hostname || "localhost");
+    const frame = document.createElement("iframe");
+    frame.setAttribute("allowfullscreen", "true");
+    frame.setAttribute("allow", "autoplay; fullscreen");
+    frame.src = `https://clips.twitch.tv/embed?clip=${encodeURIComponent(clip.slug)}&parent=${parent}&autoplay=true&muted=false`;
+    clipBox.replaceChildren(frame);
+  }
+
+  function armFailSafe(ms) {
+    clearTimeout(hideTimer);
+    hideTimer = setTimeout(fadeOut, Math.max(0, ms));
+  }
+
+  function buildMedia(data) {
+    const clip = data.clip;
+    if (clip.mp4Url) {
+      const video = document.createElement("video");
+      video.src = clip.mp4Url;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.volume = 1;
+      video.muted = false;
+      // The real signal: play the clip all the way to its final frame, hold a
+      // beat, then fade. No duration math involved.
+      video.addEventListener("ended", () => {
+        try { video.pause(); } catch {}
+        clearTimeout(endTimer);
+        endTimer = setTimeout(fadeOut, END_HOLD_MS);
+      }, { once: true });
+      // If the signed URL ever fails, fall back to the embed and switch the
+      // fail-safe to the iframe's (buffer-based) timing.
+      video.addEventListener("error", () => {
+        iframeFallback(clip);
+        armFailSafe(data.endsAt - Date.now() + IFRAME_SLACK_MS);
+      }, { once: true });
+      // Resume where a reloaded Browser Source left off, mid-clip.
+      const elapsed = Math.max(0, (Date.now() - (data.startedAt || Date.now())) / 1000);
+      video.addEventListener("loadedmetadata", () => {
+        const dur = video.duration || 0;
+        if (elapsed > 0.5 && (!dur || elapsed < dur - 0.5)) video.currentTime = elapsed;
+      }, { once: true });
+      clipBox.replaceChildren(video);
+      const started = video.play();
+      if (started && typeof started.catch === "function") {
+        started.catch(() => {
+          // Unmuted autoplay was blocked: start muted so the clip still plays,
+          // then unmute as soon as it's actually playing.
+          video.muted = true;
+          video.play().catch(() => {});
+          video.addEventListener("playing", () => { video.muted = false; }, { once: true });
+        });
+      }
+      return "video";
+    }
+    iframeFallback(clip);
+    return "iframe";
+  }
+
+  function clearMedia() {
+    clearTimeout(endTimer);
+    endTimer = null;
+    const video = clipBox.querySelector("video");
+    if (video) {
+      try { video.pause(); video.removeAttribute("src"); video.load(); } catch {}
+    }
+    clipBox.replaceChildren();
+  }
+
+  function fadeOut() {
+    clearTimeout(hideTimer);
+    hideTimer = null;
+    clearTimeout(endTimer);
+    endTimer = null;
+    const video = clipBox.querySelector("video");
+    if (video) { try { video.pause(); } catch {} } // stopped before it fades
+    wrap.classList.remove("show");
+    clearTimeout(clearTimer);
+    clearTimer = setTimeout(() => {
+      if (!wrap.classList.contains("show")) {
+        clearMedia();
+        banner.style.display = "none";
+        bannerText.textContent = "";
+      }
+    }, FADE_MS + 60);
+  }
+
+  function show(data) {
+    const remainingMs = data.endsAt - Date.now();
+    if (!data.clip || (!data.clip.mp4Url && !data.clip.slug) || remainingMs <= 0) {
+      fadeOut();
+      return;
+    }
+    clearTimeout(hideTimer);
+    clearTimeout(endTimer);
+    clearTimeout(clearTimer);
+    bannerText.textContent = data.bannerText || "";
+    banner.style.display = data.showBanner === false ? "none" : "inline-flex";
+    clearMedia();
+    const kind = buildMedia(data);
+    // Re-run the fade-in even when replacing a clip that's already visible.
+    wrap.classList.remove("show");
+    void wrap.offsetWidth;
+    wrap.classList.add("show");
+    // Fail-safe only, and deliberately never before the clip's own end: the
+    // native video's `ended` event is the real exit; the iframe has none.
+    armFailSafe(remainingMs + (kind === "video" ? 60000 : IFRAME_SLACK_MS));
+  }
+
+  // Resume if OBS reloads the source while a clip is still playing.
+  fetch(`/shoutout/state?token=${encodeURIComponent(token)}`)
+    .then((r) => r.json())
+    .then((data) => { if (data && data.shoutout) show(data.shoutout); })
+    .catch(() => {});
+
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "shoutout") show(data);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

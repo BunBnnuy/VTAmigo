@@ -47,6 +47,8 @@ const achievements = require("./achievements");
 const activity = require("./activity");
 const videoQueue = require("./videoQueue");
 const youtube = require("./youtube");
+const shoutout = require("./shoutout");
+const twitchClips = require("./twitchClips");
 
 // Set once by app.js via attach(), right after http.createServer(app) and
 // new WebSocketServer({ server }). Never reassigned afterwards.
@@ -135,6 +137,26 @@ function handleChat(twitchId, msg) {
   notifyAchievements(twitchId, achievements.checkAndUnlockThrottled(twitchId));
   const srMatch = msg.text && msg.text.match(/^!sr\s+(.+)/i);
   if (srMatch) handleSongRequest(twitchId, msg.username, srMatch[1].trim());
+
+  // !so <username> is mod/streamer-only and deliberately silent for everyone
+  // else — replying "you can't do that" to every viewer who tries would be
+  // noisier than just never broadcasting a clip. Not awaited, like !sr: the
+  // lookup hits Twitch's API and must not stall the chat feed.
+  const soMatch = msg.text && msg.text.match(/^!so\s+(\S+)/i);
+  if (soMatch && isModOrBroadcaster(msg.badgeTag)) handleShoutout(twitchId, msg.username, soMatch[1]);
+}
+
+// Raw IRC badge tag ("broadcaster/1,moderator/1,subscriber/12") or a resolved
+// badges array — true when the sender is the channel owner or one of their
+// mods. Kept tolerant of both shapes because handleChat sees the raw tag while
+// callers that already enriched the message may pass badges.
+function isModOrBroadcaster(badgeTag) {
+  if (!badgeTag) return false;
+  if (Array.isArray(badgeTag)) return badgeTag.some((b) => b && (b.type === "broadcaster" || b.type === "moderator"));
+  return String(badgeTag).split(",").some((entry) => {
+    const name = entry.split("/")[0].trim();
+    return name === "broadcaster" || name === "moderator";
+  });
 }
 
 function broadcastVideoState(twitchId) {
@@ -172,6 +194,82 @@ async function handleSongRequest(twitchId, username, input) {
     } else {
       session?.botClient?.say(`@${username} couldn't find that song — try a different link or title.`);
     }
+  }
+}
+
+// !so <username> (mod/streamer only) — looks up the named channel, picks one
+// of its clips according to the account's shoutout config (see shoutout.js),
+// and broadcasts it to that account's own overlay/sessions. The bot replies in
+// chat either way, which doubles as the only feedback path for a mod using the
+// command. announce=false suppresses the chat reply for the panel's Test
+// button, whose whole point is to check the overlay without spamming chat.
+const shoutoutInFlight = new Set();
+
+async function handleShoutout(twitchId, requester, targetRaw, { announce = true } = {}) {
+  const session = twitchSessions.get(twitchId);
+  const target = String(targetRaw || "").replace(/^@/, "").trim();
+  if (!/^[a-zA-Z0-9_]{2,25}$/.test(target)) {
+    if (announce) session?.botClient?.say(`@${requester} usage: !so <twitch username>`);
+    return { ok: false, error: "BAD_USERNAME" };
+  }
+  // One lookup per account at a time: a burst of !so shouldn't fan out into
+  // several simultaneous Helix calls, and overlapping clips would just fight
+  // over the overlay.
+  if (shoutoutInFlight.has(twitchId)) return { ok: false, error: "IN_FLIGHT" };
+  shoutoutInFlight.add(twitchId);
+  try {
+    const config = shoutout.getConfig(twitchId);
+    const token = await getValidTwitchToken(twitchId);
+    const { user, clips } = await twitchClips.lookupClips(target, token);
+    const clip = shoutout.pickClip(clips, config.mode);
+    if (!clip) {
+      if (announce) session?.botClient?.say(`@${requester} ${user.displayName} has no clips to shout out yet.`);
+      return { ok: false, error: "NO_CLIPS" };
+    }
+    // Prefer a directly playable clip file so the overlay renders it in a
+    // plain <video> with no Twitch player UI (and a real `ended` event). Twitch
+    // only exposes one through GraphQL; if that ever fails, `clip.mp4Url` is
+    // still the legacy thumbnail-derived URL, and the overlay falls back to the
+    // embed if even that is unavailable.
+    try {
+      const playbackUrl = await twitchClips.fetchPlaybackUrl(clip.slug);
+      if (playbackUrl) clip.mp4Url = playbackUrl;
+    } catch {
+      // keep whatever normalizeClip already derived
+    }
+    const startedAt = Date.now();
+    const payload = {
+      type: "shoutout",
+      username: user.displayName,
+      login: user.login,
+      requester: requester || null,
+      clip,
+      showBanner: config.showBanner,
+      bannerText: shoutout.bannerFor(config, user.displayName),
+      startedAt,
+      // A little slack past the clip's own duration: the embed takes a moment
+      // to load and autoplay, and cutting it off exactly on `duration` would
+      // clip the last second.
+      endsAt: startedAt + Math.round(clip.duration * 1000) + 1500,
+    };
+    shoutout.setActive(twitchId, payload);
+    broadcastToAccount(twitchId, payload);
+    if (announce) session?.botClient?.say(`Shoutout to ${user.displayName}! Check them out: ${clip.url}`);
+    return { ok: true, shoutout: payload };
+  } catch (err) {
+    console.error("[shoutout]", err.code || err.message);
+    if (announce && session?.botClient) {
+      if (err.code === "SHOUTOUT_USER_NOT_FOUND") {
+        session.botClient.say(`@${requester} couldn't find a channel named "${target}".`);
+      } else if (err.code === "SHOUTOUT_TOKEN_INVALID" || err.message === "NO_TWITCH_TOKEN") {
+        session.botClient.say(`@${requester} this channel can't use shoutouts right now.`);
+      } else {
+        session.botClient.say(`@${requester} couldn't fetch a clip for "${target}" right now.`);
+      }
+    }
+    return { ok: false, error: err.code || err.message };
+  } finally {
+    shoutoutInFlight.delete(twitchId);
   }
 }
 
@@ -350,5 +448,7 @@ module.exports = {
   handleChat,
   broadcastVideoState,
   handleSongRequest,
+  isModOrBroadcaster,
+  handleShoutout,
   connectTwitchForUser,
 };
