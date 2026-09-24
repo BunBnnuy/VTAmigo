@@ -14,18 +14,23 @@
     user-select: none;
     font-family: Quicksand, Nunito, sans-serif;
   }
+  /* Fades in/out via opacity (a display:none toggle can't transition). Content
+     is emptied ~260ms after the fade-out so nothing lingers or makes noise. */
   #wrap {
     position: fixed;
     inset: 0;
-    display: none;
+    display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 18px;
     padding: 4vh 4vw;
     box-sizing: border-box;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.25s ease;
   }
-  #wrap.show { display: flex; }
+  #wrap.show { opacity: 1; }
 
   #banner {
     display: none;
@@ -42,7 +47,6 @@
     text-align: center;
     max-width: 90vw;
   }
-  #banner.show { display: inline-flex; }
   #banner .star { color: #e11d76; flex-shrink: 0; }
 
   #clip-box {
@@ -52,14 +56,19 @@
     border-radius: 12px;
     overflow: hidden;
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
-    animation: pop 0.35s ease-out;
   }
-  #clip-box iframe {
+  /* Native clip video (preferred) or the Twitch iframe fallback. Neither gets
+     the Twitch player chrome: the video element is ours, and if it fails to
+     load we only fall back to the iframe rather than showing nothing. */
+  #clip-box video, #clip-box iframe {
     width: 100%;
     height: 100%;
     border: 0;
     display: block;
+    background: #000;
+    animation: pop 0.3s ease-out;
   }
+  #clip-box video { object-fit: contain; }
 
   @keyframes pop {
     from { opacity: 0; transform: scale(0.94); }
@@ -83,41 +92,96 @@
   const clipBox = document.getElementById("clip-box");
 
   let hideTimer = null;
+  let clearTimer = null;
 
-  // Twitch's clip embed requires the embedding host in `parent`; OBS loads
-  // this page from our own backend, so location.hostname is the right value.
-  function embedUrl(slug) {
+  // Twitch's clip iframe is non-interactive (no JS API, un-hideable chrome),
+  // so it's only a fallback: the MP4 Twitch serves for the clip plays in a
+  // plain <video> we fully control.
+  function iframeFallback(clip) {
     const parent = encodeURIComponent(location.hostname || "localhost");
-    return `https://clips.twitch.tv/embed?clip=${encodeURIComponent(slug)}&parent=${parent}&autoplay=true&muted=false`;
+    const frame = document.createElement("iframe");
+    frame.setAttribute("allowfullscreen", "true");
+    frame.setAttribute("allow", "autoplay; fullscreen");
+    frame.src = `https://clips.twitch.tv/embed?clip=${encodeURIComponent(clip.slug)}&parent=${parent}&autoplay=true&muted=false`;
+    clipBox.replaceChildren(frame);
   }
 
-  function clear() {
+  // Returns "video" or "iframe" so show() knows whether to trust the element's
+  // own `ended` event or lean on the endsAt timer.
+  function buildMedia(data) {
+    const clip = data.clip;
+    if (clip.mp4Url) {
+      const video = document.createElement("video");
+      video.src = clip.mp4Url;
+      video.autoplay = true;
+      video.playsInline = true;
+      video.preload = "auto";
+      video.volume = 1;
+      video.muted = false;
+      video.addEventListener("ended", hide, { once: true });
+      video.addEventListener("error", () => iframeFallback(clip), { once: true });
+      // Resume where a reloaded Browser Source left off, mid-clip.
+      const elapsed = Math.max(0, (Date.now() - (data.startedAt || Date.now())) / 1000);
+      video.addEventListener("loadedmetadata", () => {
+        const dur = video.duration || 0;
+        if (elapsed > 0.5 && (!dur || elapsed < dur - 0.5)) video.currentTime = elapsed;
+      }, { once: true });
+      clipBox.replaceChildren(video);
+      const started = video.play();
+      if (started && typeof started.catch === "function") {
+        started.catch(() => {
+          // Unmuted autoplay was blocked: start muted so the clip still plays,
+          // then unmute as soon as it's actually playing.
+          video.muted = true;
+          video.play().catch(() => {});
+          video.addEventListener("playing", () => { video.muted = false; }, { once: true });
+        });
+      }
+      return "video";
+    }
+    iframeFallback(clip);
+    return "iframe";
+  }
+
+  function clearMedia() {
+    const video = clipBox.querySelector("video");
+    if (video) {
+      try { video.pause(); video.removeAttribute("src"); video.load(); } catch {}
+    }
+    clipBox.replaceChildren();
+  }
+
+  function hide() {
     clearTimeout(hideTimer);
     hideTimer = null;
     wrap.classList.remove("show");
-    banner.classList.remove("show");
-    clipBox.innerHTML = "";
-    bannerText.textContent = "";
+    clearTimeout(clearTimer);
+    clearTimer = setTimeout(() => {
+      if (!wrap.classList.contains("show")) {
+        clearMedia();
+        banner.style.display = "none";
+        bannerText.textContent = "";
+      }
+    }, 260);
   }
 
   function show(data) {
     const remainingMs = data.endsAt - Date.now();
-    if (!data.clip || !data.clip.slug || remainingMs <= 0) {
-      clear();
+    if (!data.clip || (!data.clip.mp4Url && !data.clip.slug) || remainingMs <= 0) {
+      hide();
       return;
     }
     clearTimeout(hideTimer);
+    clearTimeout(clearTimer);
     bannerText.textContent = data.bannerText || "";
-    banner.classList.toggle("show", data.showBanner !== false);
-    const frame = document.createElement("iframe");
-    frame.setAttribute("allowfullscreen", "true");
-    frame.setAttribute("allow", "autoplay; fullscreen");
-    frame.src = embedUrl(data.clip.slug);
-    clipBox.replaceChildren(frame);
+    banner.style.display = data.showBanner === false ? "none" : "inline-flex";
+    clearMedia();
+    const kind = buildMedia(data);
     wrap.classList.add("show");
-    // The embed gives no reliable "clip finished" event, so the backend sends
-    // an endsAt (clip duration + load slack) and we trust it here.
-    hideTimer = setTimeout(clear, remainingMs);
+    // The native <video> fires `ended` at the exact moment (that's the fast
+    // fade-out), so its timer is only a coarse safety net. The iframe fallback
+    // has no ended event at all, so for it the endsAt timer is the real one.
+    hideTimer = setTimeout(hide, kind === "video" ? remainingMs + 20000 : remainingMs);
   }
 
   // Resume if OBS reloads the source while a clip is still playing.

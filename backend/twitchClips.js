@@ -52,6 +52,21 @@ async function resolveUser(login, token) {
   };
 }
 
+// Twitch's clip iframe embed is non-interactive: no JS API, no way to hide
+// the player chrome, and its autoplay/mute state is out of our hands (see the
+// Video & Clips embed docs). The underlying clip file, however, is a plain
+// public MP4 on clips-media-assets2.twitch.tv, and Helix's thumbnail_url
+// points at its preview frame — swapping the "-preview-<WxH>.jpg" suffix for
+// ".mp4" yields the video itself. The overlay plays that in a native <video>
+// (no chrome, real `ended` event, and we control volume), falling back to the
+// iframe only if the derived URL won't load, so a Twitch-side change degrades
+// to "works but with the player UI" instead of showing nothing.
+function clipVideoUrl(thumbnailUrl) {
+  if (typeof thumbnailUrl !== "string") return null;
+  const match = thumbnailUrl.match(/^(.*)-preview-\d+x\d+\.jpg$/);
+  return match ? `${match[1]}.mp4` : null;
+}
+
 function normalizeClip(clip) {
   return {
     id: clip.id,
@@ -60,6 +75,7 @@ function normalizeClip(clip) {
     title: clip.title,
     duration: Number(clip.duration) || 0, // seconds (float)
     thumbnailUrl: clip.thumbnail_url,
+    mp4Url: clipVideoUrl(clip.thumbnail_url),
     views: clip.view_count || 0,
     creatorName: clip.creator_name || null,
     broadcasterName: clip.broadcaster_name || null,
@@ -90,4 +106,4 @@ async function lookupClips(login, token) {
   return { user, clips };
 }
 
-module.exports = { ShoutoutError, resolveUser, fetchClips, lookupClips, normalizeClip };
+module.exports = { ShoutoutError, resolveUser, fetchClips, lookupClips, normalizeClip, clipVideoUrl };

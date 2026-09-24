@@ -105,6 +105,32 @@ describe("shoutout config", () => {
   });
 });
 
+describe("clipVideoUrl", () => {
+  it("derives the public mp4 from a Helix clip thumbnail", () => {
+    expect(
+      twitchClips.clipVideoUrl("https://clips-media-assets2.twitch.tv/AT-cm%7Cabc-preview-480x272.jpg")
+    ).toBe("https://clips-media-assets2.twitch.tv/AT-cm%7Cabc.mp4");
+  });
+
+  it("returns null for anything that isn't a clip preview frame", () => {
+    expect(twitchClips.clipVideoUrl("https://example.com/thumb.jpg")).toBeNull();
+    expect(twitchClips.clipVideoUrl(undefined)).toBeNull();
+  });
+
+  it("normalizeClip attaches the mp4Url alongside the metadata", () => {
+    const clip = twitchClips.normalizeClip({
+      id: "Slug123",
+      thumbnail_url: "https://clips-media-assets2.twitch.tv/abc-preview-480x272.jpg",
+      duration: "12.5",
+      view_count: 3,
+      created_at: "2024-01-01T00:00:00Z",
+    });
+    expect(clip.mp4Url).toBe("https://clips-media-assets2.twitch.tv/abc.mp4");
+    expect(clip.slug).toBe("Slug123");
+    expect(clip.duration).toBe(12.5);
+  });
+});
+
 describe("pickClip", () => {
   it("returns null for an empty channel", () => {
     expect(shoutout.pickClip([], "recent-random")).toBeNull();
