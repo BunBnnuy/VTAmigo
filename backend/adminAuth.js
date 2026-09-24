@@ -213,15 +213,16 @@ router.get("/admin/ai/migrate/status", requireAdmin, (req, res) => {
   }
 });
 
-// POST /admin/ai/migrate { to } — move every account's memory from the
-// current site provider to `to`. This does NOT switch the site provider; the
-// admin runs the migration first, then changes the provider above.
+// POST /admin/ai/migrate { from, to } — move every account's memory between
+// two providers, independent of the currently selected site provider. This
+// does NOT switch the provider; the admin runs the migration first, then
+// changes the provider above. `from` defaults to the current provider.
 router.post("/admin/ai/migrate", requireAdmin, (req, res) => {
-  const { to } = req.body || {};
-  const from = siteConfig.getProvider();
+  const { from, to } = req.body || {};
+  const source = from || siteConfig.getProvider();
   try {
-    aiMigration.startMigration(from, to);
-    res.json({ ok: true, from, to });
+    aiMigration.startMigration(source, to);
+    res.json({ ok: true, from: source, to });
   } catch (err) {
     if (err.message === "ALREADY_RUNNING") return res.status(409).json({ error: err.message });
     res.status(400).json({ error: err.message });

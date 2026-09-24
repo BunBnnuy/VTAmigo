@@ -19,7 +19,8 @@ export default function Admin() {
   const [savingProvider, setSavingProvider] = useState(false);
   const [modelInput, setModelInput] = useState("");
   const [configError, setConfigError] = useState("");
-  const [migrationTarget, setMigrationTarget] = useState("");
+  const [migrationFrom, setMigrationFrom] = useState("");
+  const [migrationTo, setMigrationTo] = useState("");
   const [migrationStatus, setMigrationStatus] = useState(null);
   const [migrationStarted, setMigrationStarted] = useState(false);
   const [migrationError, setMigrationError] = useState("");
@@ -88,21 +89,30 @@ export default function Admin() {
     if (siteConfig) setModelInput(siteConfig.aiModel || "");
   }, [siteConfig]);
 
-  // Default the migration target to some provider other than the current one.
+  // Default the migration pair to (current provider → some other one). Once
+  // the admin picks a value it sticks; the pair is independent of the AI
+  // agent's provider selector above.
   useEffect(() => {
     if (!siteConfig) return;
-    setMigrationTarget((prev) =>
-      prev && prev !== siteConfig.aiProvider ? prev : PROVIDER_IDS.find((p) => p !== siteConfig.aiProvider) || ""
-    );
+    setMigrationFrom((prev) => prev || siteConfig.aiProvider);
+    setMigrationTo((prev) => prev || PROVIDER_IDS.find((p) => p !== siteConfig.aiProvider) || "");
   }, [siteConfig]);
 
-  // Poll migration progress while a run is active (and once when the target
+  // A different pair means different progress: don't show the previous pair's
+  // counts, and forget whether a run was started from this panel.
+  useEffect(() => {
+    setMigrationStatus(null);
+    setMigrationStarted(false);
+    setMigrationError("");
+  }, [migrationFrom, migrationTo]);
+
+  // Poll migration progress while a run is active (and once when the pair
   // changes, so a reload during a long run picks it back up).
   useEffect(() => {
-    if (!siteConfig || !migrationTarget || migrationTarget === siteConfig.aiProvider) return;
+    if (!migrationFrom || !migrationTo || migrationFrom === migrationTo) return;
     let cancelled = false;
     let timer;
-    const url = `/admin/ai/migrate/status?from=${siteConfig.aiProvider}&to=${migrationTarget}`;
+    const url = `/admin/ai/migrate/status?from=${migrationFrom}&to=${migrationTo}`;
     const poll = async () => {
       try {
         const res = await apiFetch(url);
@@ -117,7 +127,7 @@ export default function Admin() {
     };
     poll();
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [siteConfig, migrationTarget, migrationPollKey]);
+  }, [migrationFrom, migrationTo, migrationPollKey]);
 
   const startMigration = async () => {
     setMigrationError("");
@@ -125,7 +135,7 @@ export default function Admin() {
       const res = await apiFetch("/admin/ai/migrate", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ to: migrationTarget }),
+        body: JSON.stringify({ from: migrationFrom, to: migrationTo }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -387,7 +397,7 @@ export default function Admin() {
                     value={modelInput}
                     onChange={(e) => setModelInput(e.target.value)}
                     onKeyDown={(e) => { if (e.key === "Enter") setAiModel(); }}
-                    placeholder="Model (e.g. opencode/claude-haiku-4-5)"
+                    placeholder="Model (e.g. opencode/space-bunny-free)"
                     disabled={savingProvider}
                   />
                   <button style={styles.btn} onClick={setAiModel} disabled={savingProvider}>
@@ -405,25 +415,46 @@ export default function Admin() {
 
                 <div style={{ marginTop: 16, paddingTop: 14, borderTop: "1px solid var(--border)" }}>
                   <p style={{ ...styles.muted, marginBottom: 8 }}>
-                    Move every account's saved memory to another provider. This does not switch the
-                    provider — migrate first, then change it above. Finished accounts are skipped and
+                    Move every account's saved memory from one provider to another, independently of
+                    the provider selected above. Migrating does not switch the active provider:
+                    migrate, then set it above to the destination. Finished accounts are skipped and
                     failed ones are retried the next time you run it.
                   </p>
                   <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                    <span style={styles.muted}>From</span>
                     <select
-                      value={migrationTarget}
-                      onChange={(e) => setMigrationTarget(e.target.value)}
+                      value={migrationFrom}
+                      onChange={(e) => {
+                        const from = e.target.value;
+                        setMigrationFrom(from);
+                        if (migrationTo === from) setMigrationTo(PROVIDER_IDS.find((p) => p !== from) || "");
+                      }}
                       disabled={migrationStatus?.running}
-                      style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 220 }}
+                      style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 200 }}
                     >
-                      {PROVIDER_IDS.filter((p) => p !== siteConfig.aiProvider).map((p) => (
-                        <option key={p} value={p}>{PROVIDER_LABELS[p]}</option>
+                      {PROVIDER_IDS.map((p) => (
+                        <option key={p} value={p}>
+                          {PROVIDER_LABELS[p]}{p === siteConfig.aiProvider ? " (current)" : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <span style={styles.muted}>To</span>
+                    <select
+                      value={migrationTo}
+                      onChange={(e) => setMigrationTo(e.target.value)}
+                      disabled={migrationStatus?.running}
+                      style={{ ...styles.tierSelect, fontSize: 14, padding: "8px 12px", maxWidth: 200 }}
+                    >
+                      {PROVIDER_IDS.filter((p) => p !== migrationFrom).map((p) => (
+                        <option key={p} value={p}>
+                          {PROVIDER_LABELS[p]}{p === siteConfig.aiProvider ? " (current)" : ""}
+                        </option>
                       ))}
                     </select>
                     <button
                       style={{ ...styles.btn, justifyContent: "center", opacity: migrationStatus?.running ? 0.5 : 1 }}
                       onClick={startMigration}
-                      disabled={migrationStatus?.running || !migrationTarget}
+                      disabled={migrationStatus?.running || !migrationFrom || !migrationTo || migrationFrom === migrationTo}
                     >
                       <ArrowRightLeft size={14} color="var(--on-accent)" />
                       {migrationStatus?.running ? "Migrating…" : migrationStarted ? "Migrate again" : "Migrate sessions"}
@@ -452,7 +483,7 @@ export default function Admin() {
                       </div>
                       <span style={{ ...styles.muted, display: "block", marginTop: 6 }}>
                         {migrationStatus.total === 0
-                          ? "No accounts have memory on the current provider yet."
+                          ? "No accounts have memory on the source provider yet."
                           : `${migrationStatus.done} of ${migrationStatus.total} migrated${migrationStatus.failed ? ` · ${migrationStatus.failed} failed` : ""}`}
                         {migrationStatus.running && migrationStatus.current ? ` · now: ${migrationStatus.current}` : ""}
                         {migrationStatus.running && migrationStatus.stage ? ` · ${migrationStatus.stage}` : ""}

@@ -119,4 +119,28 @@ describe("admin migration routes", () => {
     const get = await request(app).get(`/admin/ai/migrate/status?from=${FROM}&to=${TO}`);
     expect(get.status).toBe(401);
   });
+
+  it("validates an explicit from/to pair before starting anything", async () => {
+    const prev = process.env.ADMIN_PASSWORD;
+    process.env.ADMIN_PASSWORD = "ai-migration-test-admin";
+    try {
+      const login = await request(app).post("/admin/login").send({ password: "ai-migration-test-admin" });
+      expect(login.status).toBe(200);
+      const cookie = (login.headers["set-cookie"] || [])
+        .find((h) => h.startsWith("admin_session="))
+        .split(";")[0];
+
+      const same = await request(app).post("/admin/ai/migrate").set("Cookie", cookie).send({ from: FROM, to: FROM });
+      expect(same.status).toBe(400);
+
+      const unknown = await request(app)
+        .post("/admin/ai/migrate")
+        .set("Cookie", cookie)
+        .send({ from: FROM, to: "chatgpt" });
+      expect(unknown.status).toBe(400);
+    } finally {
+      if (prev === undefined) delete process.env.ADMIN_PASSWORD;
+      else process.env.ADMIN_PASSWORD = prev;
+    }
+  });
 });
