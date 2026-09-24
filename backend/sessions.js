@@ -226,6 +226,17 @@ async function handleShoutout(twitchId, requester, targetRaw, { announce = true 
       if (announce) session?.botClient?.say(`@${requester} ${user.displayName} has no clips to shout out yet.`);
       return { ok: false, error: "NO_CLIPS" };
     }
+    // Prefer a directly playable clip file so the overlay renders it in a
+    // plain <video> with no Twitch player UI (and a real `ended` event). Twitch
+    // only exposes one through GraphQL; if that ever fails, `clip.mp4Url` is
+    // still the legacy thumbnail-derived URL, and the overlay falls back to the
+    // embed if even that is unavailable.
+    try {
+      const playbackUrl = await twitchClips.fetchPlaybackUrl(clip.slug);
+      if (playbackUrl) clip.mp4Url = playbackUrl;
+    } catch {
+      // keep whatever normalizeClip already derived
+    }
     const startedAt = Date.now();
     const payload = {
       type: "shoutout",

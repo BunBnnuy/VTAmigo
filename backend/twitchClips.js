@@ -24,6 +24,32 @@ function httpsGet(url, headers) {
   });
 }
 
+function httpsPostJson(url, headers, body) {
+  return new Promise((resolve, reject) => {
+    const payload = JSON.stringify(body);
+    const u = new URL(url);
+    const req = https.request(
+      {
+        hostname: u.hostname,
+        path: u.pathname + u.search,
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Content-Length": Buffer.byteLength(payload), ...headers },
+      },
+      (res) => {
+        let raw = "";
+        res.on("data", (c) => (raw += c));
+        res.on("end", () => {
+          try { resolve({ status: res.statusCode, data: JSON.parse(raw) }); }
+          catch { resolve({ status: res.statusCode, data: raw }); }
+        });
+      }
+    );
+    req.on("error", reject);
+    req.write(payload);
+    req.end();
+  });
+}
+
 // Error codes the caller (sessions.js handleShoutout) turns into chat replies.
 class ShoutoutError extends Error {
   constructor(code, message) {
@@ -106,4 +132,85 @@ async function lookupClips(login, token) {
   return { user, clips };
 }
 
-module.exports = { ShoutoutError, resolveUser, fetchClips, lookupClips, normalizeClip, clipVideoUrl };
+// ── Directly playable clip file ──────────────────────────────────────────────
+// The whole reason this module reaches past the official API: the clips embed
+// iframe is non-interactive (Twitch's docs) so its player chrome can't be
+// hidden or its volume/end behaviour controlled, and Get Clips returns no video
+// URL at all. Twitch's own web player streams clips from a signed CloudFront
+// MP4 whose `token`/`sig` come from the GraphQL `clip.playbackAccessToken`
+// field — the only source of a file we can put in a native <video>.
+//
+// This uses Twitch's public web Client-Id and an undocumented query, so it is
+// best-effort: callers treat a null return as "fall back to the embed". The
+// token is a short-lived signed URL, cached only briefly.
+const GQL_URL = "https://gql.twitch.tv/gql";
+const TWITCH_WEB_CLIENT_ID = "kimne78kx3ncx6brgo4mv6wki5h1ko";
+const CLIP_PLAYBACK_QUERY =
+  'query($slug:ID!){clip(slug:$slug){videoQualities{quality sourceURL}' +
+  'playbackAccessToken(params:{platform:"web",playerBackend:"mediaplayer",playerType:"site"}){value signature}}}';
+
+const playbackCache = new Map(); // slug -> { url, expiresAt }
+
+// Highest numeric quality wins ("720" over "480"/"360"/"audio_only").
+function bestQualityUrl(qualities) {
+  if (!Array.isArray(qualities) || qualities.length === 0) return null;
+  let best = null;
+  let bestScore = -1;
+  for (const q of qualities) {
+    if (!q || !q.sourceURL) continue;
+    const score = parseInt(q.quality, 10);
+    const numeric = Number.isFinite(score) ? score : 0;
+    if (numeric > bestScore) {
+      bestScore = numeric;
+      best = q.sourceURL;
+    }
+  }
+  return best;
+}
+
+function buildPlaybackUrl(sourceURL, value, signature) {
+  if (!sourceURL || !value || !signature) return null;
+  return `${sourceURL}?token=${encodeURIComponent(value)}&sig=${signature}`;
+}
+
+async function fetchPlaybackUrl(slug) {
+  const cached = playbackCache.get(slug);
+  if (cached && cached.expiresAt > Date.now() + 5000) return cached.url;
+  try {
+    const res = await httpsPostJson(
+      GQL_URL,
+      { "Client-ID": TWITCH_WEB_CLIENT_ID },
+      { query: CLIP_PLAYBACK_QUERY, variables: { slug } }
+    );
+    if (res.status !== 200) return null;
+    const clip = res.data && res.data.data && res.data.data.clip;
+    if (!clip) return null;
+    const token = clip.playbackAccessToken || {};
+    const url = buildPlaybackUrl(bestQualityUrl(clip.videoQualities), token.value, token.signature);
+    if (!url) return null;
+    let expiresAt = Date.now() + 60000;
+    try {
+      const parsed = JSON.parse(token.value);
+      if (parsed && parsed.expires) expiresAt = parsed.expires * 1000 - 10000;
+    } catch {
+      // token wasn't JSON — the short default TTL still keeps the cache honest
+    }
+    playbackCache.set(slug, { url, expiresAt });
+    return url;
+  } catch (err) {
+    console.error("[shoutout] playback lookup failed:", err.message);
+    return null;
+  }
+}
+
+module.exports = {
+  ShoutoutError,
+  resolveUser,
+  fetchClips,
+  lookupClips,
+  normalizeClip,
+  clipVideoUrl,
+  bestQualityUrl,
+  buildPlaybackUrl,
+  fetchPlaybackUrl,
+};

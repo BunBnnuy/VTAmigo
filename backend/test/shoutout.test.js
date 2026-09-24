@@ -18,6 +18,9 @@ twitchClips.lookupClips = async (login) => {
   if (login === "noclips") return { user: { id: "2", login, displayName: "NoClips" }, clips: [] };
   return { user: { id: "1", login, displayName: "Target" }, clips: CLIPS };
 };
+// Keep the suite off Twitch's GraphQL: the real function is best-effort and
+// returns null on failure, which is exactly the fallback path.
+twitchClips.fetchPlaybackUrl = async (slug) => `https://cdn.example/${slug}.mp4?token=t&sig=s`;
 
 const sessions = require("../sessions");
 const shoutout = require("../shoutout");
@@ -131,6 +134,31 @@ describe("clipVideoUrl", () => {
   });
 });
 
+describe("clip playback url", () => {
+  it("picks the highest numeric quality", () => {
+    expect(
+      twitchClips.bestQualityUrl([
+        { quality: "360", sourceURL: "u360" },
+        { quality: "720", sourceURL: "u720" },
+        { quality: "480", sourceURL: "u480" },
+      ])
+    ).toBe("u720");
+  });
+
+  it("ignores audio-only and empty entries", () => {
+    expect(twitchClips.bestQualityUrl([{ quality: "audio_only", sourceURL: "a" }, { quality: "480", sourceURL: "u" }])).toBe("u");
+    expect(twitchClips.bestQualityUrl([])).toBeNull();
+    expect(twitchClips.bestQualityUrl(null)).toBeNull();
+  });
+
+  it("builds the signed URL Twitch's own player uses", () => {
+    expect(twitchClips.buildPlaybackUrl("https://cdn/x.mp4", '{"a":1}', "sig")).toBe(
+      `https://cdn/x.mp4?token=${encodeURIComponent('{"a":1}')}&sig=sig`
+    );
+    expect(twitchClips.buildPlaybackUrl("https://cdn/x.mp4", null, "sig")).toBeNull();
+  });
+});
+
 describe("pickClip", () => {
   it("returns null for an empty channel", () => {
     expect(shoutout.pickClip([], "recent-random")).toBeNull();
@@ -187,6 +215,8 @@ describe("!so handling", () => {
     const active = shoutout.getActive(TWITCH_ID);
     expect(active.username).toBe("Target");
     expect(active.clip.id).toBeDefined();
+    // The GraphQL playback URL is attached so the overlay can avoid the embed.
+    expect(active.clip.mp4Url).toContain("cdn.example");
     expect(active.endsAt).toBeGreaterThan(Date.now());
     expect(said.some((s) => s.includes("Shoutout to Target"))).toBe(true);
   });
