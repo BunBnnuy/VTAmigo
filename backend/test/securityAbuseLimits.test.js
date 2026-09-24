@@ -11,7 +11,6 @@ import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 const { app, getAllowedOrigins } = require("../app");
 const auth = require("../auth");
 const piper = require("../piper");
-const claude = require("../claude");
 
 const TTS_USER = "security-limits-tts-user";
 let sessionCookie;
@@ -175,40 +174,6 @@ describe("AI rate limits + Piper concurrency (Issue 2)", () => {
     await expect(piper.generateSpeech({ text: "x".repeat(piper.MAX_TEXT_CHARS + 1) })).rejects.toThrow(
       "PIPER_TEXT_TOO_LONG"
     );
-  });
-});
-
-describe("OpenAI cost caps (Issue 2)", () => {
-  it("rejects an over-long prompt without a key or network", async () => {
-    await expect(claude.runOpenAI("x".repeat(claude.OPENAI_MAX_PROMPT_CHARS + 1))).rejects.toThrow(
-      "OPENAI_PROMPT_TOO_LONG"
-    );
-  });
-
-  it("sends a bounded max_output_tokens", async () => {
-    const savedKey = process.env.OPENAI_API_KEY;
-    const savedFetch = globalThis.fetch;
-    let sentBody;
-    process.env.OPENAI_API_KEY = "test-key";
-    globalThis.fetch = async () => ({
-      ok: true,
-      json: async () => ({ output_text: "hola" }),
-    });
-    try {
-      const out = await claude.runOpenAI("hola", { twitchId: "openai-cap-test-nobody" });
-      expect(out).toBe("hola");
-      // Re-run capturing the body to assert the budget param.
-      globalThis.fetch = async (_url, opts) => {
-        sentBody = JSON.parse(opts.body);
-        return { ok: true, json: async () => ({ output_text: "hola" }) };
-      };
-      await claude.runOpenAI("hola", { twitchId: "openai-cap-test-nobody" });
-      expect(sentBody.max_output_tokens).toBe(claude.OPENAI_MAX_OUTPUT_TOKENS);
-    } finally {
-      if (savedKey === undefined) delete process.env.OPENAI_API_KEY;
-      else process.env.OPENAI_API_KEY = savedKey;
-      globalThis.fetch = savedFetch;
-    }
   });
 });
 

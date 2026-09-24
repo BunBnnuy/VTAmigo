@@ -6,31 +6,36 @@ const { spawn } = require("child_process");
 const fs = require("fs");
 const path = require("path");
 const { parentPort, workerData } = require("worker_threads");
-// Same process-boundary hardening as the main-thread spawnCLI in claude.js:
-// per-provider tool-surface flags, isolated scratch cwd, minimal allowlist
-// env. This worker spawns the same agent CLIs, so it must not spawn them any
-// less locked down. See agentHardening.js.
+// Same process-boundary hardening as the main-thread spawnCLI in
+// ai/runner.js, and the same provider descriptors (registry.js is pure, so
+// this worker can load it without opening its own SQLite connection). This
+// worker spawns the same agent CLIs, so it must not spawn them any less
+// locked down. See agentHardening.js.
 const hardening = require("./agentHardening");
+const registry = require("./ai/registry");
 
-const { from, to, exes, source, target, memoriesDir, timeoutMs } = workerData;
+const { from, to, models, source, target, memoriesDir, timeoutMs } = workerData;
 
 function progress(pct, stage) {
   parentPort.postMessage({ type: "progress", pct, stage });
 }
 
-function runCLI(exe, args, provider) {
+function runCLI(provider, args) {
   return new Promise((resolve, reject) => {
     let stdout = "";
     let stderr = "";
     let timedOut = false;
 
-    const proc = spawn(exe, args, {
+    const proc = spawn(registry.get(provider).exe(), args, {
       shell: false,
       windowsHide: true,
-      // Isolated scratch cwd + minimal allowlist env — never the backend
-      // repo dir, never the backend's environment (see agentHardening.js).
+      // stdin closed (see ai/runner.js: `opencode run` hangs on an open
+      // stdin pipe), isolated scratch cwd + minimal allowlist env, plus the
+      // provider's own switches — never the backend repo dir, never the
+      // backend's environment (see agentHardening.js).
+      stdio: ["ignore", "pipe", "pipe"],
       cwd: hardening.resolveAgentCwd(null),
-      env: hardening.buildRestrictedEnv(process.env, provider),
+      env: { ...hardening.buildRestrictedEnv(process.env, provider), ...registry.envFor(provider) },
     });
 
     const timer = setTimeout(() => {
@@ -47,19 +52,8 @@ function runCLI(exe, args, provider) {
       if (timedOut) return;
       if (code !== 0) return reject(new Error(stderr.trim() || `CLI exited with code ${code}`));
 
-      if (provider === "agy") {
-        try {
-          const parsed = JSON.parse(stdout.trim());
-          return resolve({
-            text: (parsed.response || "").trim(),
-            conversationId: parsed.conversation_id || null,
-          });
-        } catch {
-          // Fall back to raw stdout
-        }
-      }
-
-      resolve({ text: stdout.trim(), conversationId: null });
+      const { text, sessionId } = registry.get(provider).parse(stdout);
+      resolve({ text, conversationId: sessionId });
     });
 
     proc.on("error", (err) => {
@@ -69,20 +63,17 @@ function runCLI(exe, args, provider) {
   });
 }
 
-function buildArgs(provider, prompt, session, isTarget = false) {
-  // Session flags keep their exact shapes; the per-provider hardening flags
-  // (tool/plugin/skill/MCP lockdown) are appended after them.
-  if (provider === "agy") {
-    const args = ["-p", prompt, "--output-format", "json"];
-    if (session && session.started && session.id) {
-      args.push("--conversation", session.id);
-    }
-    return [...args, ...hardening.getHardeningArgs(provider)];
-  }
-  const sessionFlags = isTarget
-    ? (session.started ? ["--resume", session.id] : ["--session-id", session.id])
-    : ["--resume", session.id];
-  return ["-p", prompt, ...sessionFlags, ...hardening.getHardeningArgs(provider)];
+function buildArgs(provider, prompt, session, isTarget = false, model = null) {
+  // Session flags keep their exact shapes (see the provider descriptors);
+  // the per-provider hardening flags (tool/plugin/skill/MCP lockdown) are
+  // appended after them.
+  const desc = registry.get(provider);
+  const sessionArgs = session && session.started
+    ? desc.session.resumeArgs(session)
+    : isTarget
+    ? desc.session.startArgs(session)
+    : [];
+  return [...desc.buildArgs({ prompt, sessionArgs, model }), ...desc.hardeningArgs];
 }
 
 const DUMP_PROMPT = `Necesito exportar tu memoria a otro asistente que va a ocupar tu lugar como co-presentador del stream.
@@ -102,8 +93,8 @@ ${memory}`;
 (async () => {
   try {
     progress(10, `Leyendo la memoria de ${from}…`);
-    const sourceArgs = buildArgs(from, DUMP_PROMPT, source, false);
-    const sourceResult = await runCLI(exes[from], sourceArgs, from);
+    const sourceArgs = buildArgs(from, DUMP_PROMPT, source, false, models?.[from] || null);
+    const sourceResult = await runCLI(from, sourceArgs);
     const memory = sourceResult.text;
     if (!memory) throw new Error(`${from} devolvió una memoria vacía`);
 
@@ -115,8 +106,8 @@ ${memory}`;
     fs.writeFileSync(mdPath, header + memory + "\n", "utf8");
 
     progress(65, `Importando la memoria en ${to}…`);
-    const targetArgs = buildArgs(to, injectPrompt(memory), target, true);
-    const targetResult = await runCLI(exes[to], targetArgs, to);
+    const targetArgs = buildArgs(to, injectPrompt(memory), target, true, models?.[to] || null);
+    const targetResult = await runCLI(to, targetArgs);
 
     progress(100, "Exportación completada");
     parentPort.postMessage({

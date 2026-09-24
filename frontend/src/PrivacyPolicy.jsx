@@ -1,5 +1,5 @@
 // The contents below were written by reading what the code actually does
-// (backend/auth.js, db.js, claude.js, analytics.js).
+// (backend/auth.js, db.js, backend/ai/, analytics.js).
 // If you add a new third-party service or start storing a new field, this page
 // needs updating too — nothing here is generated automatically.
 import React from "react";
@@ -113,9 +113,12 @@ export default function PrivacyPolicy() {
               relevant chat messages, your base prompt, and related stream
               context to the AI provider configured for your account. Depending
               on that configuration this may be{" "}
-              <strong>Anthropic (Claude)</strong>, <strong>OpenAI</strong>, or{" "}
-              <strong>xAI (Grok)</strong>. Chat text from your viewers is
-              included in what is sent.
+              <strong>Anthropic (Claude)</strong>, <strong>xAI (Grok)</strong>, or{" "}
+              <strong>OpenCode Zen</strong> (including its free tier). Chat text
+              from your viewers is included in what is sent. When a free-tier
+              model is configured, its provider may use prompts and completions
+              to improve or train its models; the site's admin selects the
+              model.
             </li>
             <li style={styles.li}>
               <strong>Twitch</strong> — we call Twitch's API to read chat and

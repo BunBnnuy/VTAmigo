@@ -13,7 +13,7 @@
 // in app.js, which is registered before this router is mounted.
 const express = require("express");
 const { sendEvent } = require("../analytics");
-const { queryClaudeCLI, containsPromptLeak } = require("../claude");
+const { queryAI, containsPromptLeak } = require("../ai");
 const siteConfig = require("../siteConfig");
 const { TikTokChatClient } = require("../tiktok");
 const sessions = require("../sessions");
@@ -185,12 +185,11 @@ router.post("/event-response", async (req, res) => {
   if (!event) return res.status(400).json({ error: "event is required" });
   const provider = siteConfig.getProvider();
   try {
-    const response = await queryClaudeCLI([], "auto", basePrompt || "", event, provider, req.user?.twitchId);
+    const response = await queryAI([], "auto", basePrompt || "", event, provider, req.user?.twitchId, {
+      model: siteConfig.getModel(provider),
+    });
     res.json({ response });
   } catch (err) {
-    if (err.message === "OPENAI_API_KEY_MISSING") {
-      return res.status(503).json({ error: "ChatGPT requires OPENAI_API_KEY in the backend environment" });
-    }
     if (err.message === "CLI_NOT_FOUND") {
       const name = provider.charAt(0).toUpperCase() + provider.slice(1);
       return res.status(503).json({ error: `${name} CLI not found — make sure it is installed and on your PATH` });

@@ -2,7 +2,7 @@
 // staging/prod never share data. Every module that used to hand-roll its own
 // flat-JSON-file read/write (auth.js, chatOverlayConfig.js, siteConfig.js,
 // usage.js, errorLog.js, memoryDownload.js, videoQueue.js, xp.js,
-// claude.js's agent sessions) now goes through here instead.
+// ai/sessions.js's agent sessions) now goes through here instead.
 const fs = require("fs");
 const path = require("path");
 const Database = require("better-sqlite3");
@@ -173,6 +173,22 @@ db.exec(`
     sessionId TEXT NOT NULL,
     started INTEGER NOT NULL DEFAULT 0,
     PRIMARY KEY (provider, twitchId)
+  );
+
+  -- One row per account in an admin bulk provider migration (aiMigration.js).
+  -- Memory transfers are two slow CLI calls per account, so a migration can
+  -- run for hours: these rows make it resumable and idempotent — "done" rows
+  -- are skipped, "error" rows are retried on the next run, and a run
+  -- interrupted by a restart leaves "running" rows that the next start resets
+  -- to pending.
+  CREATE TABLE IF NOT EXISTS agent_migrations (
+    twitchId TEXT NOT NULL,
+    fromProvider TEXT NOT NULL,
+    toProvider TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'pending',
+    error TEXT,
+    updatedAt TEXT NOT NULL,
+    PRIMARY KEY (twitchId, fromProvider, toProvider)
   );
 
   -- Streamer achievements (backend/achievements.js): one row per unlocked

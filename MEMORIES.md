@@ -27,7 +27,7 @@ still implies a desktop build exists, it is stale; fix it.
 |---|---|
 | `backend/app.js` | Builds the Express app and wires every route, but never listens. Exports `{ app, server, wss, startBackgroundJobs, PORT }`. |
 | `backend/index.js` | Process entry point only: starts background timers, calls `listen()`, handles fatal errors. The split is what lets tests drive the app with supertest without binding a port. |
-| `backend/` | One module per feature (`eventsub.js`, `claude.js`, `piper.js`, `overlayLayouts.js`, `activity.js`, …). Port from `process.env.PORT`. |
+| `backend/` | One module per feature (`eventsub.js`, `piper.js`, `overlayLayouts.js`, `activity.js`, …); the AI provider layer lives under `backend/ai/`. Port from `process.env.PORT`. |
 | `backend/db.js` | SQLite persistence, per-environment file (`vtamigo.<env>.sqlite3`). Users, tiers, usage, overlay layouts/assets, chat-overlay config, Activity Panel history, XP. |
 | `backend/test/`, `frontend/test/` | Vitest suites. Backend uses supertest and runs against `APP_ENV=test`; frontend uses jsdom + Testing Library. |
 | `frontend/` | Vite + React. Flat `src/` — one file per panel/page, no deep component tree. |
@@ -95,9 +95,9 @@ Cautions in `/opt/vtamigo-dev`:
 Twitch app credentials (OAuth + EventSub), and env vars in
 `/etc/vtamigo.env` / `/etc/vtamigo-dev.env` — `TWITCH_CLIENT_ID`,
 `TWITCH_CLIENT_SECRET`, `TWITCH_REDIRECT_URI`, `SESSION_SECRET`,
-`ADMIN_PASSWORD`, optional `YOUTUBE_API_KEY` and `OPENAI_API_KEY`.
-AI responses go through a provider CLI as a child process — Claude, Grok or AGY —
-or the OpenAI HTTP API for ChatGPT; all four are selectable. TTS is the
+`ADMIN_PASSWORD`, optional `YOUTUBE_API_KEY`.
+AI responses go through a provider CLI as a child process — Claude, Grok, AGY or
+OpenCode, selectable from the admin panel (see `backend/ai/`). TTS is the
 browser's own `speechSynthesis` (labelled "Windows TTS") or local Piper.
 
 `SESSION_SECRET` deserves care: the user session JWTs, the admin JWTs, the

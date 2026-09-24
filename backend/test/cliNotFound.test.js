@@ -37,24 +37,32 @@ function seedSession(sessionId, started) {
   ).run(twitchId, sessionId, started ? 1 : 0);
 }
 
-// Seeds the session first on purpose: claude.js snapshots the table into
-// memory at import time, so seeding afterwards would leave the module opening
-// a brand-new session with --session-id and never exercise the --resume path
-// this file is about.
+const AI_DIR = path.resolve(__dirname, "..", "ai");
+
+// Seeds the session first on purpose: the AI session store snapshots the
+// table into memory at import time, so seeding afterwards would leave the
+// module opening a brand-new session with --session-id and never exercise the
+// --resume path this file is about. Clearing only ../ai would leave the store
+// cached, hence the whole ai/ subtree.
 function loadWithSession(grokPath, sessionId, started) {
   seedSession(sessionId, started);
   process.env.GROK_PATH = grokPath;
-  // CLI paths are read into module-level constants too, so the module has to
-  // be re-required after pointing GROK_PATH at the shim for this case.
-  const id = require.resolve("../claude");
-  delete require.cache[id];
-  return require("../claude");
+  for (const id of Object.keys(require.cache)) {
+    if (id.startsWith(AI_DIR)) delete require.cache[id];
+  }
+  return require("../ai");
 }
 
-const ask = (claude) => claude.queryClaudeCLI([{ text: "hola" }], "auto", "", null, "grok", twitchId);
+const ask = (ai) => ai.queryAI([{ text: "hola" }], "auto", "", null, "grok", twitchId);
+
+// The shims below are extensionless scripts with a `#!/usr/bin/env node`
+// shebang: POSIX-kernel execution only. Windows CreateProcess can't run them
+// (it appends .exe and finds nothing), so the cases that must actually
+// execute a shim skip there; the ENOENT and missing-binary cases still run.
+const posixOnly = it.skipIf(process.platform === "win32");
 
 describe("a failing CLI is only 'not found' when it really is missing", () => {
-  it("treats grok's dead-session error as a session problem and retries on a fresh one", async () => {
+  posixOnly("treats grok's dead-session error as a session problem and retries on a fresh one", async () => {
     const shim = writeShim(
       "grok-stale-session",
       `const args = process.argv.slice(2);
@@ -72,7 +80,7 @@ process.stdout.write("respuesta del co-host");`
     await expect(ask(claude)).resolves.toContain("respuesta del co-host");
   });
 
-  it("resets the stale session instead of resuming it forever", async () => {
+  posixOnly("resets the stale session instead of resuming it forever", async () => {
     const shim = writeShim(
       "grok-stale-session-2",
       `const args = process.argv.slice(2);
@@ -89,7 +97,7 @@ process.stdout.write("ok");`
     expect(row.sessionId).not.toBe("dead-session-id-2");
   });
 
-  it("surfaces an unrelated failure as itself, not as a missing CLI", async () => {
+  posixOnly("surfaces an unrelated failure as itself, not as a missing CLI", async () => {
     const shim = writeShim(
       "grok-rate-limited",
       `process.stderr.write("Error: rate limited, try again later\\n"); process.exit(1);`
@@ -107,7 +115,7 @@ process.stdout.write("ok");`
     await expect(ask(claude)).rejects.toThrow("CLI_NOT_FOUND");
   });
 
-  it("still recognises a shell that could not resolve the command", async () => {
+  posixOnly("still recognises a shell that could not resolve the command", async () => {
     const shim = writeShim(
       "grok-shell-miss",
       `process.stderr.write("'grok' is not recognized as an internal or external command\\n"); process.exit(1);`

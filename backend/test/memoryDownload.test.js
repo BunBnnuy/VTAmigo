@@ -12,12 +12,12 @@ describe("memory download", () => {
     const dumpMemory = vi.fn()
       .mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve; }))
       .mockResolvedValueOnce("second memory");
-    memoryDownload.startDownload("claude", "memory-download-test", dumpMemory);
+    memoryDownload.startDownload("claude", "memory-download-test", null, dumpMemory);
     resolveFirst("first memory");
     await vi.waitFor(() => expect(memoryDownload.getStatus("memory-download-test").running).toBe(false));
 
     expect(memoryDownload.getStatus("memory-download-test")).not.toHaveProperty("availableAt");
-    expect(() => memoryDownload.startDownload("claude", "memory-download-test", dumpMemory)).not.toThrow();
+    expect(() => memoryDownload.startDownload("claude", "memory-download-test", null, dumpMemory)).not.toThrow();
     await vi.waitFor(() => expect(memoryDownload.getStatus("memory-download-test").running).toBe(false));
     expect(dumpMemory).toHaveBeenCalledTimes(2);
   });
@@ -26,8 +26,8 @@ describe("memory download", () => {
     vi.useFakeTimers();
     try {
       const dumpMemory = vi.fn(() => new Promise(() => {}));
-      memoryDownload.startDownload("claude", "memory-download-running-test", dumpMemory);
-      expect(() => memoryDownload.startDownload("claude", "memory-download-running-test", dumpMemory)).toThrow("ALREADY_RUNNING");
+      memoryDownload.startDownload("claude", "memory-download-running-test", null, dumpMemory);
+      expect(() => memoryDownload.startDownload("claude", "memory-download-running-test", null, dumpMemory)).toThrow("ALREADY_RUNNING");
     } finally {
       vi.useRealTimers();
     }
