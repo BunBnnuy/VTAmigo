@@ -4,6 +4,9 @@ import { apiFetch } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
 const MODES = ["recent-random", "top-random", "most-recent"];
+// Fallbacks until /shoutout/config returns the server's allowlists.
+const DEFAULT_FONTS = ["Quicksand", "Nunito", "Poppins", "Montserrat", "Inter", "Bangers", "Luckiest Guy"];
+const DEFAULT_SHAPES = ["circle", "square"];
 
 function Toggle({ checked, onChange }) {
   return (
@@ -37,6 +40,10 @@ export default function ShoutoutPanel({ lastShoutout, lang }) {
   const [overlayCopied, setOverlayCopied] = useState(false);
   const [config, setConfig] = useState(null);
   const [bannerInput, setBannerInput] = useState("");
+  const [messageBgInput, setMessageBgInput] = useState("#9147ff");
+  const [messageColorInput, setMessageColorInput] = useState("#ffffff");
+  const [fonts, setFonts] = useState(DEFAULT_FONTS);
+  const [avatarShapes, setAvatarShapes] = useState(DEFAULT_SHAPES);
   const [loadError, setLoadError] = useState(false);
   const [testName, setTestName] = useState("");
   const [testing, setTesting] = useState(false);
@@ -54,6 +61,8 @@ export default function ShoutoutPanel({ lastShoutout, lang }) {
       .then((data) => {
         setConfig(data.config || null);
         setBannerInput((data.config && data.config.bannerText) || "");
+        if (Array.isArray(data.fonts) && data.fonts.length) setFonts(data.fonts);
+        if (Array.isArray(data.avatarShapes) && data.avatarShapes.length) setAvatarShapes(data.avatarShapes);
       })
       .catch(() => setLoadError(true));
 
@@ -62,6 +71,13 @@ export default function ShoutoutPanel({ lastShoutout, lang }) {
       .then((data) => setInitial(data.shoutout || null))
       .catch(() => {});
   }, []);
+
+  // Reflect the persisted (and sanitized) colors back into the pickers.
+  useEffect(() => {
+    if (!config) return;
+    if (config.messageBg) setMessageBgInput(config.messageBg);
+    if (config.messageColor) setMessageColorInput(config.messageColor);
+  }, [config?.messageBg, config?.messageColor]);
 
   const copyOverlayUrl = async () => {
     try {
@@ -91,6 +107,11 @@ export default function ShoutoutPanel({ lastShoutout, lang }) {
       setConfig(previous);
       setLoadError(true);
     }
+  };
+
+  // Color pickers fire continuously while dragging; commit once on blur.
+  const commitColor = (key, value) => {
+    if (config && value && value !== config[key]) updateConfig({ [key]: value });
   };
 
   const runTest = async (e) => {
@@ -175,6 +196,67 @@ export default function ShoutoutPanel({ lastShoutout, lang }) {
           style={styles.input}
           disabled={!config}
         />
+
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>{t("shoutoutPanel.messageBg")}</span>
+          <input
+            type="color"
+            value={messageBgInput}
+            onChange={(e) => setMessageBgInput(e.target.value)}
+            onBlur={() => commitColor("messageBg", messageBgInput)}
+            style={styles.colorInput}
+            disabled={!config}
+          />
+        </div>
+
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>{t("shoutoutPanel.messageColor")}</span>
+          <input
+            type="color"
+            value={messageColorInput}
+            onChange={(e) => setMessageColorInput(e.target.value)}
+            onBlur={() => commitColor("messageColor", messageColorInput)}
+            style={styles.colorInput}
+            disabled={!config}
+          />
+        </div>
+
+        <div style={styles.sectionLabel}>{t("shoutoutPanel.messageFont")}</div>
+        <select
+          value={config?.messageFont || "Quicksand"}
+          onChange={(e) => updateConfig({ messageFont: e.target.value })}
+          style={styles.select}
+          disabled={!config}
+        >
+          {fonts.map((font) => (
+            <option key={font} value={font}>{font}</option>
+          ))}
+        </select>
+
+        <div style={styles.divider} />
+
+        <div style={styles.sectionLabel}>{t("shoutoutPanel.avatarSection")}</div>
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>{t("shoutoutPanel.showAvatar")}</span>
+          <Toggle
+            checked={config?.showAvatar !== false}
+            onChange={() => updateConfig({ showAvatar: !(config?.showAvatar !== false) })}
+          />
+        </div>
+
+        <div style={styles.sectionLabel}>{t("shoutoutPanel.avatarShape")}</div>
+        <select
+          value={config?.avatarShape || "circle"}
+          onChange={(e) => updateConfig({ avatarShape: e.target.value })}
+          style={styles.select}
+          disabled={!config || config?.showAvatar === false}
+        >
+          {avatarShapes.map((shape) => (
+            <option key={shape} value={shape}>
+              {shape === "square" ? t("shoutoutPanel.avatarShapeSquare") : t("shoutoutPanel.avatarShapeCircle")}
+            </option>
+          ))}
+        </select>
 
         <div style={styles.divider} />
 
@@ -273,6 +355,16 @@ const styles = {
     fontSize: 12,
     padding: "6px 8px",
     borderRadius: 4,
+  },
+  colorInput: {
+    width: 44,
+    height: 26,
+    padding: 0,
+    border: "1px solid var(--border)",
+    borderRadius: 4,
+    background: "var(--surface2)",
+    cursor: "pointer",
+    flexShrink: 0,
   },
   toggle: {
     width: 38,

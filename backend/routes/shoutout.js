@@ -44,7 +44,13 @@ function resolveOverlayUser(req) {
 router.get("/shoutout/config", (req, res) => {
   const user = resolveOverlayUser(req);
   if (!user) return res.status(401).json({ error: "Not authorized" });
-  res.json({ config: shoutout.getConfig(user.twitchId) });
+  // The font/shape allowlists travel with the config so the panel's pickers stay
+  // in sync with what the backend will actually accept.
+  res.json({
+    config: shoutout.getConfig(user.twitchId),
+    fonts: shoutout.FONTS,
+    avatarShapes: shoutout.AVATAR_SHAPES,
+  });
 });
 
 // POST /shoutout/config — the streamer editing their own panel. Persists and
