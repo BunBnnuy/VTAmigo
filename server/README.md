@@ -1,6 +1,8 @@
 # Headless backend deployment (Linux)
 
-Scripts for running the VTAmigo backend on a headless Linux VPS (tested target: Ubuntu 22.04). This is how VTAmigo runs — there is no desktop build; the VPS serves both the API and the built frontend.
+Scripts for running the VTAmigo backend on a headless Linux VPS (tested targets: Ubuntu 22.04 and 26.04). This is how VTAmigo runs — there is no desktop build; the VPS serves both the API and the built frontend.
+
+Since 2026-09-24 production runs on a 6 vCPU / 11 GB OVH VPS (Ubuntu 26.04), migrated from the original 1 vCPU / 2 GB Vultr box. The `MemoryMax` caps in the units below were sized for the old box and are kept as safety valves.
 
 Two things still run in the viewer's/streamer's browser rather than on the server: mic transcription (Web Speech API, Chromium-based browsers only) and the default "Windows TTS" voice, which is really the browser's `speechSynthesis`. Piper TTS runs server-side, installed by `setup.sh`.
 
@@ -78,7 +80,7 @@ MemoryMax=500M
 WantedBy=multi-user.target
 ```
 
-The frontend watcher runs as root (matching the ownership of `frontend/`); its default umask leaves `dist` world-readable, which is all the `vtamigo` service user needs — so the `chmod -R o+rX` that `deploy-frontend.sh` does isn't required here. `MemoryMax=500M` is a safety valve: the box is 2GB and shared with prod, so a runaway build gets killed instead of letting the kernel OOM-pick the live site. For the same reason there's a 1GB `/swapfile` (in `/etc/fstab`).
+The frontend watcher runs as root (matching the ownership of `frontend/`); its default umask leaves `dist` world-readable, which is all the `vtamigo` service user needs — so the `chmod -R o+rX` that `deploy-frontend.sh` does isn't required here. `MemoryMax=500M` is a safety valve: the box is shared with prod, so a runaway build gets killed instead of letting the kernel OOM-pick the live site. (The old 2 GB box also carried a 1 GB `/swapfile` in `/etc/fstab` for the same reason; the current host doesn't need one.)
 
 Backend's `PORT` is read from `process.env.PORT` (`backend/index.js`) and the SQLite file is per-environment (`backend/db.js`, `vtamigo.<env>.sqlite3`), so the two instances coexist on the same box without sharing state.
 
@@ -91,4 +93,4 @@ Two cautions when working in `/opt/vtamigo-dev`:
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`. OpenCode installs with `npm install -g opencode-ai` (lands on the service PATH at `/usr/local/bin/opencode`; override with `OPENCODE_PATH` if you install it elsewhere).
 - `PIPER_DIR`, `PIPER_EXE`, `PIPER_VOICES_DIR`, and `PIPER_DEFAULT_VOICE` are all overridable via env — see `backend/piper.js`.
-- The systemd unit caps memory at 800M (`MemoryMax`) to leave headroom for the OS on a 1GB box; adjust in `vtamigo-backend.service` before running `install-service.sh` if needed.
+- The systemd unit caps memory at 800M (`MemoryMax`) to leave headroom for the OS — a cap sized for the old 1 GB box; raise it in `vtamigo-backend.service` if a bigger host allows.
