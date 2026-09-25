@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# VTAmigo headless backend setup — Ubuntu 22.04
+# VTAmigo headless backend setup — Ubuntu 22.04 / 26.04
 #
 # Installs Node.js, backend deps, Piper TTS, and the Spanish voices from
 # https://huggingface.co/AIHeaven/piper_unofficial_voices (es/ folder).
