@@ -89,6 +89,19 @@ Two cautions when working in `/opt/vtamigo-dev`:
 - Don't run `git clean` there — `.claude/worktrees/` is untracked and would be deleted.
 - The checkout is on `dev`. Keep it that way; the deploy fast-forwards this working tree with `git pull`, so leaving a different branch checked out here would advance the wrong branch.
 
+## Fast instance (fast.vtamigo.top), edit-in-place
+
+A third instance of the same `dev` branch, on the same box, set up exactly like the dev one but isolated in its own env:
+
+- **Repo**: `/opt/vtamigo-fast`, checked out on `dev`, port `3003` (`/etc/vtamigo-fast.env`)
+- **Service**: `vtamigo-backend-fast` (systemd), with the same `node --watch` drop-in as dev, plus `vtamigo-fast-frontend-watch` rewriting `frontend/dist` on save
+- **nginx/TLS**: `/etc/nginx/sites-available/vtamigo-fast` → `127.0.0.1:3003`, cert via certbot for `fast.vtamigo.top` (renews with the others)
+- **Env**: `/etc/vtamigo-fast.env` is a copy of the dev one with `PORT=3003`, `APP_ENV=fast`, the redirect URIs pointed at `fast.vtamigo.top`, and `PIPER_DIR` at its own checkout. `APP_ENV=fast` matters: without it the instance falls back to `development` and would open dev's `vtamigo.development.sqlite3` from a second process.
+- **Piper voices**: `backend/piper` is a symlink to prod's 1.1G `backend/piper` instead of a third copy; all three instances read the same `.onnx` files. It's in `.git/info/exclude` on the box, because `.gitignore`'s `backend/piper/` doesn't match a symlink.
+- **Twitch app**: `https://fast.vtamigo.top/auth/twitch/callback` and `.../bot-callback` must be registered as redirect URIs on the Twitch app, or login fails at Twitch with a `redirect_uri` mismatch.
+
+Same rules as dev: no auto-deploy, `cd /opt/vtamigo-fast && git pull` *is* the deploy, `npm ci` by hand after a `package.json` change. Three backends plus two frontend watchers now share the box (~3GB of headroom left), so the `MemoryMax` caps matter more than before.
+
 ## Notes
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`. OpenCode installs with `npm install -g opencode-ai` (lands on the service PATH at `/usr/local/bin/opencode`; override with `OPENCODE_PATH` if you install it elsewhere).
