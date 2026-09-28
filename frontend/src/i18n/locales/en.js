@@ -289,6 +289,16 @@ export default {
       fixed: "Fixed",
       removed: "Going away",
     },
+    v20260928: {
+      new: {
+        appOverlays: "The Overlay Studio can now place VTAmigo's own overlays — chat, XP bar and ranking, video queue, shoutouts and avatars — inside a custom layout, alongside your images, text and videos.",
+        videoOverlayVisibility: "The video queue overlay can show just the video, just the progress bar, or both. Set each with the new Show video / Show progress bar toggles in the Video Queue panel.",
+        chatOverlay: "The chat overlay has been rebuilt with a full set of options: layout modes, per-role styling for the streamer, mods, VIPs, sub tiers and custom roles, separate name and message boxes, role tags, arrival animations, custom event wording and more.",
+      },
+      action: {
+        chatOverlayReset: "If you had customized the old chat overlay, open the Chat Overlay panel and set it up again — the options were rebuilt, so your previous customizations no longer apply.",
+      },
+    },
     "v20260903-achievements": {
       new: {
         streamerAchievements: "Earn achievements when you connect your stream, use AI, grow your chat, receive Twitch events, and set up streaming tools. Open the Achievements panel to see your progress and points.",
@@ -587,6 +597,9 @@ export default {
     copyOverlay: "Copy overlay",
     viewerRequests: "Viewer requests (!sr)",
     skipDefaultOnRequest: "Skip default song on request",
+    overlaySection: "Overlay",
+    showVideo: "Show video",
+    showProgressBar: "Show progress bar",
     nowPlayingSection: "Now Playing",
     nothingPlaying: "Nothing playing",
     previousTitle: "Previous video",

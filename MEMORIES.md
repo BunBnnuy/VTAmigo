@@ -57,7 +57,7 @@ The frontend UI is a canvas of draggable/resizable windows (`Window.jsx`,
 
 ## Environments and how work flows
 
-Two instances share one ~2GB VPS, so memory discipline matters.
+Two instances share one 6 vCPU / 11 GB VPS, so memory discipline still matters.
 
 - **prod** — `master`, `https://vtamigo.top`. Deployed by GitHub Actions
   (`.github/workflows/deploy.yml`) on push to `master`.

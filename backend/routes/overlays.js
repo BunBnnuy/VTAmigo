@@ -18,6 +18,7 @@ const { requireApprovedUser, getApprovedUserFromCookieHeader, getOverlayToken, f
 const emotes = require("../emotes");
 const avatarOverlay = require("../avatarOverlay");
 const chatOverlayConfig = require("../chatOverlayConfig");
+const chatOverlaySchema = require("../chatOverlaySchema");
 const chatOverlayBg = require("../chatOverlayBg");
 const { broadcastToAccount, notifyAchievements } = require("../sessions");
 const achievements = require("../achievements");
@@ -92,6 +93,15 @@ router.get("/overlay/chat", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "overlay", "chat.html"));
 });
 
+// GET /overlay/preview-note.js — shared placeholder for the Overlay Builder's
+// canvas. It only renders when a page is opened with ?preview=1 (which the
+// builder adds); the live OBS output never does, so idle overlays stay blank
+// on stream. Served for every /overlay/* page from here.
+router.get("/overlay/preview-note.js", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.type("application/javascript").sendFile(path.join(__dirname, "..", "overlay", "preview-note.js"));
+});
+
 // GET /chat-overlay/overlay-url — the logged-in user's own chat overlay URL,
 // for Settings to display with a copy button.
 router.get("/chat-overlay/overlay-url", requireApprovedUser, (req, res) => {
@@ -108,6 +118,18 @@ router.get("/chat-overlay/config", (req, res) => {
   if (!user) return res.status(401).json({ error: "Not authorized" });
   const config = chatOverlayConfig.getConfig(user.twitchId);
   res.json({ config: { ...config, hasBgImage: chatOverlayBg.hasImage(user.twitchId) } });
+});
+
+// GET /chat-overlay/schema — the option definitions that drive both the
+// backend validator and the ChatOverlayPanel form, so the two can never
+// drift. Logged-in only; the overlay itself doesn't need it (it reads
+// resolved values from /chat-overlay/config).
+router.get("/chat-overlay/schema", requireApprovedUser, (req, res) => {
+  res.json({
+    fields: chatOverlaySchema.FIELDS,
+    groups: chatOverlaySchema.GROUPS,
+    defaults: chatOverlaySchema.DEFAULTS,
+  });
 });
 
 // POST /chat-overlay/config — logged-in only (the streamer editing their own

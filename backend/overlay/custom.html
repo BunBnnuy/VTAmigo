@@ -30,6 +30,14 @@
     object-fit: contain;
     display: block;
   }
+  .layer iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+    background: transparent;
+    pointer-events: none;
+  }
   .layer.sound {
     display: none;
   }
@@ -95,7 +103,7 @@
   const layerEls = new Map(); // id -> { el, layer, mediaEl, sig }
 
   function signature(layer) {
-    return layer.type + "|" + (layer.assetId || "");
+    return layer.type + "|" + (layer.assetId || layer.sourceId || "");
   }
 
   // Random on-canvas position for a video's "random position on each play" —
@@ -181,6 +189,12 @@
       });
       entry.mediaEl = audio;
       el.appendChild(audio);
+    } else if (layer.type === "overlay") {
+      const frame = document.createElement("iframe");
+      frame.src = layer.overlayUrl;
+      frame.title = layer.sourceId;
+      frame.tabIndex = -1;
+      el.appendChild(frame);
     } else if (layer.type === "text") {
       const text = document.createElement("div");
       text.className = "text-content";
@@ -232,12 +246,14 @@
 
   function render() {
     const seen = new Set();
-    currentLayers.forEach((layer) => {
+    currentLayers.forEach((layer, index) => {
       seen.add(layer.id);
       const existing = layerEls.get(layer.id);
       if (existing && existing.sig === signature(layer)) {
         updateEntryInPlace(existing, layer);
-        stage.appendChild(existing.el); // reorders for z-index; preserves playback state
+        // Re-appending an iframe can reload its page and interrupt a live
+        // overlay. z-index changes stacking without moving its DOM node.
+        existing.el.style.zIndex = index;
       } else {
         if (existing) {
           if (existing.mediaEl) existing.mediaEl.pause();
@@ -246,6 +262,7 @@
         }
         const entry = buildMediaEntry(layer);
         entry.sig = signature(layer);
+        entry.el.style.zIndex = index;
         layerEls.set(layer.id, entry);
         stage.appendChild(entry.el);
       }

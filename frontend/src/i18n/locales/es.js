@@ -289,6 +289,16 @@ export default {
       fixed: "Arreglado",
       removed: "Lo que se va",
     },
+    v20260928: {
+      new: {
+        appOverlays: "El Estudio de superposiciones ahora puede colocar las propias superposiciones de VTAmigo —chat, barra y ranking de XP, cola de video, shoutouts y avatares— dentro de un diseño personalizado, junto a tus imágenes, textos y videos.",
+        videoOverlayVisibility: "La superposición de la cola de video puede mostrar solo el video, solo la barra de progreso o ambos. Configúralo con los nuevos interruptores Mostrar video / Mostrar barra de progreso en el panel Cola de video.",
+        chatOverlay: "La superposición de chat se ha rehecho con un conjunto completo de opciones: modos de diseño, estilos por rol para el streamer, mods, VIP, niveles de suscripción y roles personalizados, cajas de nombre y mensaje separadas, etiquetas de rol, animaciones de entrada, textos de eventos personalizados y más.",
+      },
+      action: {
+        chatOverlayReset: "Si habías personalizado la superposición de chat anterior, abre el panel Superposición de chat y configúrala de nuevo: las opciones se rehicieron, así que tus personalizaciones anteriores ya no se aplican.",
+      },
+    },
     "v20260903-achievements": {
       new: {
         streamerAchievements: "Consigue logros al conectar tu stream, usar la IA, hacer crecer tu chat, recibir eventos de Twitch y configurar herramientas para el stream. Abre el panel Logros para ver tu progreso y tus puntos.",
@@ -580,6 +590,9 @@ export default {
     copyOverlay: "Copiar overlay",
     viewerRequests: "Peticiones de espectadores (!sr)",
     skipDefaultOnRequest: "Saltar canción por defecto al pedir",
+    overlaySection: "Superposición",
+    showVideo: "Mostrar video",
+    showProgressBar: "Mostrar barra de progreso",
     nowPlayingSection: "Reproduciendo ahora",
     nothingPlaying: "Nada en reproducción",
     previousTitle: "Video anterior",

@@ -8,6 +8,7 @@
 // to keep in sync when reordering.
 const { randomUUID } = require("crypto");
 const { db } = require("./db");
+const { getSource } = require("./overlaySources");
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
@@ -37,7 +38,7 @@ const TRIGGER_ROLES = ["everyone", "vip", "moderator", "broadcaster"];
 function sanitizeLayer(raw) {
   if (!raw || typeof raw !== "object") return null;
   const type = raw.type;
-  if (type !== "image" && type !== "text" && type !== "video" && type !== "sound") return null;
+  if (type !== "image" && type !== "text" && type !== "video" && type !== "sound" && type !== "overlay") return null;
 
   const layer = {
     id: typeof raw.id === "string" && raw.id ? raw.id.slice(0, 64) : randomUUID(),
@@ -51,6 +52,10 @@ function sanitizeLayer(raw) {
   if (type === "image" || type === "video" || type === "sound") {
     if (typeof raw.assetId !== "string" || !raw.assetId) return null;
     layer.assetId = raw.assetId.slice(0, 64);
+  }
+  if (type === "overlay") {
+    if (!getSource(raw.sourceId)) return null;
+    layer.sourceId = raw.sourceId;
   }
   if (type === "image") {
     // CSS filter() HSB adjustment (see OverlayCanvas.jsx/overlay/custom.html)

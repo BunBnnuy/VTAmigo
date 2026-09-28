@@ -1,6 +1,8 @@
 # Headless backend deployment (Linux)
 
-Scripts for running the VTAmigo backend on a headless Linux VPS (tested target: Ubuntu 22.04). This is how VTAmigo runs — there is no desktop build; the VPS serves both the API and the built frontend.
+Scripts for running the VTAmigo backend on a headless Linux VPS (tested targets: Ubuntu 22.04 and 26.04). This is how VTAmigo runs — there is no desktop build; the VPS serves both the API and the built frontend.
+
+Production runs on a 6 vCPU / 11 GB OVH VPS with Ubuntu 26.04. The `MemoryMax` caps in the units below are safety valves and can be raised if a workload needs more.
 
 Two things still run in the viewer's/streamer's browser rather than on the server: mic transcription (Web Speech API, Chromium-based browsers only) and the default "Windows TTS" voice, which is really the browser's `speechSynthesis`. Piper TTS runs server-side, installed by `setup.sh`.
 
@@ -32,9 +34,9 @@ bash server/deploy-frontend.sh   # builds frontend/dist and restarts the service
 
 Once deployed, visiting the site directly (e.g. `https://vtamigo.top`) serves the full app, with no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
 
-## Dev instance (dev.vtamigo.top), edit-in-place
+## Dev instance (dev.vtamigo.top), testing tier
 
-There's a second instance of the app running from the `dev` branch, alongside prod on the same VPS. It exists to test changes on `dev` before merging to `master` without touching the live site. Unlike prod, it's set up to be **edited directly on the box** — you change a file under `/opt/vtamigo-dev` and it's live within seconds, no commit, push, or build step:
+There's a second instance of the app running from the `dev` branch, alongside prod on the same VPS. It exists to test a change set as a whole on `dev` before merging to `master`, without touching the live site. Under the promotion workflow (Fast → Dev → Master) it is not the primary edit box — Fast is — but it is still wired for instant feedback: its watchers mean anything that lands here, whether from a `git pull` or the CI deploy, is live within seconds with no build step:
 
 - **Repo**: `/opt/vtamigo-dev`, checked out on `dev`, port `3002` (`/etc/vtamigo-dev.env`)
 - **Service**: `vtamigo-backend-dev` (systemd), enabled at boot
@@ -42,13 +44,13 @@ There's a second instance of the app running from the `dev` branch, alongside pr
 - **Backend reload**: the unit is started with `node --watch` via the drop-in `/etc/systemd/system/vtamigo-backend-dev.service.d/watch.conf`, so editing anything under `backend/` restarts the process in ~1s. Open `/chat` WebSockets drop and the frontend reconnects on its own.
 - **Frontend rebuild**: `vtamigo-dev-frontend-watch` (systemd) runs `vite build --watch` in `frontend/`, rewriting `frontend/dist` ~1-3s after any `frontend/src` change. The backend serves `dist` statically and re-reads per request, so a browser refresh is all that's needed — no backend restart.
 
-There is deliberately **no auto-deploy from `origin/dev`**. An earlier `vtamigo-dev-push.timer` polled every 2 min and ran `git reset --hard`, which silently destroyed uncommitted edits on the box — incompatible with editing in place. To pick up work someone else pushed, just:
+Updates arrive through CI rather than a box-local timer: pushing to `origin/dev` runs `.github/workflows/deploy-dev.yml`, which SSHes in and fast-forwards this checkout with `git pull` — never `reset --hard`, so uncommitted files are never destroyed. (An earlier `vtamigo-dev-push.timer` that polled every 2 min *did* run `git reset --hard` and silently destroyed uncommitted edits, so it was dropped.) To pick up work by hand:
 
 ```bash
 cd /opt/vtamigo-dev && git pull
 ```
 
-Both watchers notice the changed files on their own, so `git pull` *is* the deploy. The one thing that no longer happens automatically is dependency installation — after a `package.json` change, run `npm ci` in `backend/` and/or `frontend/` by hand.
+Both watchers notice the changed files on their own, so `git pull` *is* the deploy. After a `package.json` change run `npm ci` in `backend/` and/or `frontend/` by hand when pulling manually; the CI deploy already does it for pushes.
 
 Reproducing the two watchers on a fresh box:
 
@@ -78,17 +80,71 @@ MemoryMax=500M
 WantedBy=multi-user.target
 ```
 
-The frontend watcher runs as root (matching the ownership of `frontend/`); its default umask leaves `dist` world-readable, which is all the `vtamigo` service user needs — so the `chmod -R o+rX` that `deploy-frontend.sh` does isn't required here. `MemoryMax=500M` is a safety valve: the box is 2GB and shared with prod, so a runaway build gets killed instead of letting the kernel OOM-pick the live site. For the same reason there's a 1GB `/swapfile` (in `/etc/fstab`).
+The frontend watcher runs as root (matching the ownership of `frontend/`); its default umask leaves `dist` world-readable, which is all the `vtamigo` service user needs — so the `chmod -R o+rX` that `deploy-frontend.sh` does isn't required here. `MemoryMax=500M` is a safety valve: the box is shared with prod, so a runaway build gets killed instead of letting the kernel OOM-pick the live site.
 
 Backend's `PORT` is read from `process.env.PORT` (`backend/index.js`) and the SQLite file is per-environment (`backend/db.js`, `vtamigo.<env>.sqlite3`), so the two instances coexist on the same box without sharing state.
 
 Two cautions when working in `/opt/vtamigo-dev`:
 
 - Don't run `git clean` there — `.claude/worktrees/` is untracked and would be deleted.
-- The checkout is on `dev`. Keep it that way; the old auto-deploy used to `reset --hard origin/dev` regardless of the checked-out branch, which had quietly dragged the local `master` onto dev commits.
+- The checkout is on `dev`. Keep it that way; the deploy fast-forwards this working tree with `git pull`, so leaving a different branch checked out here would advance the wrong branch.
+
+## Fast instance (fast.vtamigo.top), edit-in-place
+
+A third instance of the same `dev` branch, on the same box, set up exactly like the dev one but isolated in its own env:
+
+- **Repo**: `/opt/vtamigo-fast`, checked out on `dev`, port `3003` (`/etc/vtamigo-fast.env`)
+- **Service**: `vtamigo-backend-fast` (systemd), with the same `node --watch` drop-in as dev, plus `vtamigo-fast-frontend-watch` rewriting `frontend/dist` on save
+- **nginx/TLS**: `/etc/nginx/sites-available/vtamigo-fast` → `127.0.0.1:3003`, cert via certbot for `fast.vtamigo.top` (renews with the others)
+- **Env**: `/etc/vtamigo-fast.env` is a copy of the dev one with `PORT=3003`, `APP_ENV=fast`, the redirect URIs pointed at `fast.vtamigo.top`, and `PIPER_DIR` at its own checkout. `APP_ENV=fast` matters: without it the instance falls back to `development` and would open dev's `vtamigo.development.sqlite3` from a second process.
+- **Piper voices**: `backend/piper` is a symlink to prod's 1.1G `backend/piper` instead of a third copy; all three instances read the same `.onnx` files. It's in `.git/info/exclude` on the box, because `.gitignore`'s `backend/piper/` doesn't match a symlink.
+- **Twitch app**: `https://fast.vtamigo.top/auth/twitch/callback` and `.../bot-callback` must be registered as redirect URIs on the Twitch app, or login fails at Twitch with a `redirect_uri` mismatch.
+
+Per the promotion workflow below, Fast is the edit-in-place sandbox: edit freely and don't commit while iterating; commit only when promoting a finished change set to `origin/dev`, and stay current first with `git pull --ff-only origin dev`. `npm ci` by hand after a `package.json` change. Three backends plus two frontend watchers now share the box (~3GB of headroom left), so the `MemoryMax` caps matter more than before.
+
+## Promotion workflow: Fast → Dev → Master
+
+Three instances of this repo run on one VPS. The point is to iterate freely on
+Fast, integrate on Dev, and only then release to production — without leaving a
+trail of dozens of tiny commits.
+
+| Tier | Checkout | Branch | URL | Job |
+|---|---|---|---|---|
+| **Fast** | `/opt/vtamigo-fast` (`:3003`) | `dev` | https://fast.vtamigo.top | Edit files and see them live. **Never commit here** — it absorbs the dozens of tiny edits so history stays clean. |
+| **Dev** | `/opt/vtamigo-dev` (`:3002`) | `dev` | https://dev.vtamigo.top | Test a change set as a whole. Push the finished work to `origin/dev`; CI runs, then `deploy-dev.yml` pulls and builds it here. |
+| **Master** | `/opt/vtamigo` (`:3001`) | `master` | https://vtamigo.top | Production. Once Dev confirms the change, squash `dev` into `master` and push; `deploy.yml` ships it. |
+
+```bash
+# Fast: edit /opt/vtamigo-fast in place; nothing to commit while iterating.
+
+# Dev: promote the whole change set once it's ready.
+cd /opt/vtamigo-fast
+git add -A && git commit -m "<summary>"
+git fetch origin && git merge --ff-only origin/dev   # stay current before pushing
+git push origin dev                                  # CI -> deploy-dev.yml -> dev.vtamigo.top
+
+# Master: release after Dev is confirmed. Use a scratch worktree so the Fast
+# checkout stays on dev.
+git worktree add /tmp/vtamigo-release origin/master
+cd /tmp/vtamigo-release
+git merge --squash origin/dev
+git commit -m "Release: <summary>"
+git push origin HEAD:master                          # deploy.yml -> vtamigo.top
+cd /opt/vtamigo-fast && git worktree remove /tmp/vtamigo-release
+```
+
+Notes:
+
+- There is no `main` branch; `master` is production.
+- On this box `ubuntu` holds the read/write deploy key at
+  `~/.ssh/vtamigo_deploy_key_rw` (SSH alias `github-vtamigo`) and commits as
+  `BunBnnuy <saratoga.yuu@gmail.com>`.
+- Fast's code is owned by `ubuntu` (so it can be edited in place); its runtime
+  state (`backend/data`, `backend/memories`) stays owned by the `vtamigo`
+  service user.
 
 ## Notes
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`. OpenCode installs with `npm install -g opencode-ai` (lands on the service PATH at `/usr/local/bin/opencode`; override with `OPENCODE_PATH` if you install it elsewhere).
 - `PIPER_DIR`, `PIPER_EXE`, `PIPER_VOICES_DIR`, and `PIPER_DEFAULT_VOICE` are all overridable via env — see `backend/piper.js`.
-- The systemd unit caps memory at 800M (`MemoryMax`) to leave headroom for the OS on a 1GB box; adjust in `vtamigo-backend.service` before running `install-service.sh` if needed.
+- The systemd unit caps memory at 800M (`MemoryMax`) as a conservative default to leave headroom for the OS; raise it in `vtamigo-backend.service` if needed.

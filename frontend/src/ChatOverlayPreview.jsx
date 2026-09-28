@@ -3,25 +3,22 @@ import { RefreshCw, MessageCircle, Gift, PartyPopper } from "lucide-react";
 import { apiFetch } from "./api.js";
 import { useTranslation } from "./i18n/index.js";
 
-// Matches the width/maxHeight fields in ChatOverlayPanel.jsx's DEFAULTS —
-// used only until the real config loads.
+// Matches the schema defaults — used only until the real config loads.
 const DEFAULT_SIZE = { width: 420, maxHeight: 600 };
 
-// The overlay is built to sit inside a canvas much bigger than the feed
-// itself (a real OBS browser source) — #feed is anchored with a 1.2vw/1.2vh
-// offset from the edges, adds its own padding (30/20px for the bubble
-// theme), and the bubble theme's flowers/badge tag deliberately overflow the
-// bubble's own box by up to ~20px. If the iframe viewport were exactly
-// width×maxHeight, that extra footprint gets clipped by the page's
-// `overflow: hidden` — losing the border, flowers and badge entirely. These
-// margins give the feed the same kind of breathing room a real OBS canvas
-// would, at every size the Appearance panel allows (width 200–1200,
-// maxHeight 100–3000): X_MARGIN covers the 1.2vw offset + padding + overflow;
-// Y_MARGIN is large enough that `min(maxHeight, 96vh)` never clamps below
-// the configured maxHeight (96% of maxHeight+160 always exceeds maxHeight),
-// plus the same offset/decoration room vertically.
-const STAGE_MARGIN_X = 120;
-const STAGE_MARGIN_Y = 160;
+// The overlay anchors #feed to its viewport at 1.2vw/1.2vh and clamps the feed
+// to `min(maxHeight, 96vh)`, so the preview iframe has to be marginally larger
+// than the configured feed on every side or the feed gets clipped. Keep the
+// padding as small as those two constraints allow: the old fixed 120/160px
+// margins made the feed look tiny and pushed it into a corner of the stage.
+//   • 1.2% of the iframe width must fall outside the feed on each side.
+//   • 96% of the iframe height must be >= the feed's maxHeight, or the clamp
+//     would shrink it below what the user configured.
+function stageMargins(contentW, contentH) {
+  const x = Math.ceil(contentW * 0.0123) + 8;
+  const y = Math.max(Math.ceil(contentH * 0.0209), x) + 8;
+  return { x, y };
+}
 
 // Content only — outer window chrome (drag/resize/collapse) is provided by
 // WindowManager.jsx's shared <Window>.
@@ -44,17 +41,17 @@ export default function ChatOverlayPreview({ lang, visible }) {
 
   const contentW = size.width || DEFAULT_SIZE.width;
   const contentH = size.maxHeight || DEFAULT_SIZE.maxHeight;
-  // The iframe itself is padded out by the stage margins above; the feed
-  // content box inside it still comes out to exactly contentW × contentH,
-  // which is what gets shown in the size caption below.
-  const stage = { w: contentW + STAGE_MARGIN_X, h: contentH + STAGE_MARGIN_Y };
+  // The iframe is padded out by the minimum the overlay's edge anchors and
+  // 96vh clamp require; the feed content box inside it still comes out to
+  // exactly contentW × contentH, which is what the size caption shows.
+  const margins = stageMargins(contentW, contentH);
+  const stage = { w: contentW + margins.x * 2, h: contentH + margins.y * 2 };
 
   // Deferred until the panel is actually shown, so a dashboard that starts
   // with this window collapsed never even asks for anything. The overlay URL
-  // only needs fetching once, but the width/maxHeight config is re-fetched
-  // every time the panel opens (and on Reload) so a size change made in the
-  // Chat Overlay panel — possibly minutes ago, possibly in another tab — is
-  // picked up without needing a live subscription.
+  // only needs fetching once; the width/maxHeight config is re-fetched on open,
+  // on Reload, and on an interval while visible, so a size change made in the
+  // Chat Overlay panel is reflected here without reopening the window.
   useEffect(() => {
     if (!visible) return;
     let cancelled = false;
@@ -66,15 +63,21 @@ export default function ChatOverlayPreview({ lang, visible }) {
         })
         .catch(() => {});
     }
-    apiFetch("/chat-overlay/config")
-      .then((res) => res.json())
-      .then((data) => {
-        if (cancelled) return;
-        const cfg = data.config || {};
-        setSize({ width: cfg.width || DEFAULT_SIZE.width, maxHeight: cfg.maxHeight || DEFAULT_SIZE.maxHeight });
-      })
-      .catch(() => {});
-    return () => { cancelled = true; };
+    const loadSize = () =>
+      apiFetch("/chat-overlay/config")
+        .then((res) => res.json())
+        .then((data) => {
+          if (cancelled) return;
+          const cfg = data.config || {};
+          setSize((prev) => {
+            const next = { width: cfg.width || DEFAULT_SIZE.width, maxHeight: cfg.maxHeight || DEFAULT_SIZE.maxHeight };
+            return prev.width === next.width && prev.maxHeight === next.maxHeight ? prev : next;
+          });
+        })
+        .catch(() => {});
+    loadSize();
+    const id = setInterval(loadSize, 2000);
+    return () => { cancelled = true; clearInterval(id); };
   }, [visible, overlayUrl, reloadKey]);
 
   // Fit the fixed-size stage into whatever width the window has been dragged
@@ -131,7 +134,7 @@ export default function ChatOverlayPreview({ lang, visible }) {
         {/* Checkerboard stands in for the transparent overlay background, the
             way OBS shows it before anything is composited underneath. */}
         <div ref={stageWrapRef} style={styles.stageWrap}>
-          <div style={{ ...styles.stage, height: scale ? stage.h * scale : 0 }}>
+          <div style={{ ...styles.stage, width: scale ? stage.w * scale : 0, height: scale ? stage.h * scale : 0 }}>
             {overlayUrl && scale > 0 && (
               <iframe
                 key={`${overlayUrl}-${stage.w}x${stage.h}-${reloadKey}`}
@@ -199,10 +202,11 @@ const styles = {
   },
   stageWrap: {
     width: "100%",
+    display: "flex",
+    justifyContent: "center",
   },
   stage: {
     position: "relative",
-    width: "100%",
     overflow: "hidden",
     borderRadius: 6,
     border: "1px solid var(--border)",

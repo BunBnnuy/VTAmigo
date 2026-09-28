@@ -289,6 +289,16 @@ export default {
       fixed: "수정된 사항",
       removed: "사라지는 기능",
     },
+    v20260928: {
+      new: {
+        appOverlays: "오버레이 스튜디오에서 VTAmigo 자체 오버레이(채팅, XP 바와 랭킹, 영상 대기열, 샤우트아웃, 아바타)를 이미지·텍스트·영상과 함께 사용자 레이아웃 안에 배치할 수 있습니다.",
+        videoOverlayVisibility: "영상 대기열 오버레이에서 영상만, 진행률 표시줄만, 또는 둘 다 표시할 수 있습니다. 영상 대기열 패널의 새로운 '영상 표시' / '진행률 표시줄 표시' 스위치로 설정하세요.",
+        chatOverlay: "채팅 오버레이를 새로 만들고 다양한 옵션을 추가했습니다. 레이아웃 모드, 스트리머·모더레이터·VIP·구독 등급·사용자 지정 역할별 스타일, 이름과 메시지 박스 분리, 역할 태그, 등장 애니메이션, 이벤트 문구 사용자 지정 등이 포함됩니다.",
+      },
+      action: {
+        chatOverlayReset: "이전 채팅 오버레이를 사용자 지정했다면 채팅 오버레이 패널을 열어 다시 설정하세요. 옵션이 새로 만들어져 이전 사용자 지정은 적용되지 않습니다.",
+      },
+    },
     "v20260903-achievements": {
       new: {
         streamerAchievements: "방송 연결, AI 사용, 채팅 성장, Twitch 이벤트 수신, 방송 도구 설정으로 업적을 달성할 수 있습니다. 업적 패널에서 진행 상황과 포인트를 확인하세요.",
@@ -580,6 +590,9 @@ export default {
     copyOverlay: "오버레이 복사",
     viewerRequests: "시청자 요청 (!sr)",
     skipDefaultOnRequest: "요청 시 기본 곡 건너뛰기",
+    overlaySection: "오버레이",
+    showVideo: "영상 표시",
+    showProgressBar: "진행률 표시줄 표시",
     nowPlayingSection: "현재 재생 중",
     nothingPlaying: "재생 중인 항목 없음",
     previousTitle: "이전 동영상",
