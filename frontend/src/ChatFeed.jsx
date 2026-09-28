@@ -18,6 +18,32 @@ const EVENT_ICONS = {
   cheer: Gem,
 };
 
+// Renders a message as text with its resolved emotes spliced in as images.
+// `emotes` comes from backend/emotes.js and carries INCLUSIVE code point
+// indices (start/end), so the text is walked as code points too — slicing the
+// raw string would misplace any emote that follows an astral character.
+function ChatText({ text, emotes }) {
+  const chars = Array.from(text || "");
+  const list = (emotes || []).slice().sort((a, b) => a.start - b.start);
+  const out = [];
+  let i = 0;
+  list.forEach((em, idx) => {
+    if (em.start < i || em.end >= chars.length) return;
+    if (em.start > i) out.push(chars.slice(i, em.start).join(""));
+    const url = em.urls?.[2] || em.urls?.[1] || em.urls?.[4];
+    if (url) {
+      out.push(
+        <img key={`emote-${idx}`} src={url} alt={em.name} title={em.name} style={styles.emote} />
+      );
+    } else {
+      out.push(em.name);
+    }
+    i = em.end + 1;
+  });
+  if (i < chars.length) out.push(chars.slice(i).join(""));
+  return <>{out}</>;
+}
+
 export default function ChatFeed({
   messages, onSend,
   micSupported, micChromeAllowed, micMode, micActive, micError, micSpeaking, micLastText, onMicModeChange,
@@ -70,7 +96,7 @@ export default function ChatFeed({
                 <span style={styles.voiceIcon}>{m.isTyped ? <Keyboard size={14} /> : <Mic size={14} />}</span>
                 <span style={{ ...styles.user, color: "#00d4ff" }}>{m.username}</span>
                 <span style={styles.colon}>: </span>
-                <span style={{ ...styles.text, fontStyle: "italic" }}>{m.text}</span>
+                <span style={{ ...styles.text, fontStyle: "italic" }}><ChatText text={m.text} emotes={m.emotes} /></span>
               </div>
             );
           }
@@ -96,7 +122,7 @@ export default function ChatFeed({
               )}
               <span style={{ ...styles.user, color: m.color }}>{m.username}</span>
               <span style={styles.colon}>: </span>
-              <span style={styles.text}>{m.text || m.rewardTitle}</span>
+              <span style={styles.text}><ChatText text={m.text || m.rewardTitle} emotes={m.emotes} /></span>
               {m.isHype && <span style={styles.hype}><Zap size={14} /></span>}
             </div>
           );
@@ -315,6 +341,11 @@ const styles = {
     color: "var(--text)",
     fontSize: 13,
     wordBreak: "break-word",
+  },
+  emote: {
+    height: "1.4em",
+    verticalAlign: "middle",
+    margin: "0 1px",
   },
   hype: {
     fontSize: 11,

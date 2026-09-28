@@ -27,6 +27,13 @@ const FETCH_TIMEOUT_MS = 5000;
 const caches = {
   globalEmotes: null,
   channelEmotes: new Map(), // roomId -> entry
+  // Twitch's own emote set, looked up by NAME. The IRC `emotes` tag already
+  // gives authoritative positions for anything Twitch parsed, but messages
+  // we synthesize ourselves (the bot's /say, /say-as-streamer, the overlay's
+  // test-message preview) carry no tag at all — without this they'd render
+  // Kappa and friends as plain text. Channel set wins over the global set.
+  nativeGlobalEmotes: null,
+  nativeChannelEmotes: new Map(), // roomId -> entry
   globalBadges: null,
   channelBadges: new Map(), // roomId -> entry
 };
@@ -84,7 +91,15 @@ async function fetch7tvGlobal() {
 
 async function fetch7tvChannel(roomId) {
   const data = await getJson(`https://7tv.io/v3/users/twitch/${encodeURIComponent(roomId)}`);
-  return sevenTvEmotes(data?.emote_set?.emotes);
+  // Accounts whose active-set pointer is null still expose their sets under
+  // `emote_sets`; fall back to the first one rather than loading nothing.
+  const set = data?.emote_set || (data?.emote_sets && data.emote_sets[0]) || null;
+  if (!set) return new Map();
+  if (!set.emotes && set.id) {
+    const full = await getJson(`https://7tv.io/v3/emote-sets/${encodeURIComponent(set.id)}`);
+    return sevenTvEmotes(full?.emotes);
+  }
+  return sevenTvEmotes(set.emotes);
 }
 
 function bttvEmotes(list) {
@@ -177,6 +192,67 @@ async function fetchBadges(twitchId, roomId) {
   return badgeMap(await getJson(url, headers));
 }
 
+// Twitch's own emotes (global + channel), keyed by name. Positions aren't
+// needed here: name matches are resolved to the same inclusive codepoint
+// range the IRC path uses, in resolveEmotes.
+function nativeEmoteMap(data) {
+  const out = new Map();
+  for (const e of data?.data || []) {
+    if (!e?.name || !e?.id) continue;
+    out.set(e.name, {
+      type: "twitch",
+      id: e.id,
+      animated: false,
+      urls: twitchEmoteUrls(e.id),
+    });
+  }
+  return out;
+}
+
+async function fetchNativeEmotes(twitchId, roomId) {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  if (!clientId) return EMPTY;
+  // Emotes and badges are public, so prefer the app token: it needs no user
+  // session and works before anyone has connected. Fall back to the user's
+  // token when no client secret is configured.
+  const token = (await getAppAccessToken()) || (twitchId ? await getValidTwitchToken(twitchId) : null);
+  if (!token) return EMPTY;
+  const headers = { "Client-ID": clientId, Authorization: `Bearer ${token}` };
+  const url = roomId
+    ? `https://api.twitch.tv/helix/chat/emotes?broadcaster_id=${encodeURIComponent(roomId)}`
+    : "https://api.twitch.tv/helix/chat/emotes/global";
+  return nativeEmoteMap(await getJson(url, headers));
+}
+
+// App access token (client credentials), cached until shortly before expiry.
+// Only used for public Helix reads; returns null when no secret is configured.
+let appTokenCache = { token: null, expiresAt: 0 };
+async function getAppAccessToken() {
+  const clientId = process.env.TWITCH_CLIENT_ID;
+  const clientSecret = process.env.TWITCH_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return null;
+  if (appTokenCache.token && Date.now() < appTokenCache.expiresAt) return appTokenCache.token;
+  try {
+    const res = await fetch("https://id.twitch.tv/oauth2/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ client_id: clientId, client_secret: clientSecret, grant_type: "client_credentials" }),
+      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    if (!data.access_token) throw new Error("no access_token");
+    appTokenCache = {
+      token: data.access_token,
+      expiresAt: Date.now() + Math.max(60, Number(data.expires_in || 3600) - 60) * 1000,
+    };
+    return appTokenCache.token;
+  } catch (err) {
+    console.warn("[emotes] app token failed:", err.message);
+    return null;
+  }
+}
+
 // ── Cache plumbing ──────────────────────────────────────────────────────────
 
 // Refresh `entry` if it's missing or stale. Never throws, never awaited by the
@@ -233,6 +309,9 @@ function prime(roomId, twitchId) {
   if (!caches.globalBadges) caches.globalBadges = newEntry();
   refresh(caches.globalBadges, () => fetchBadges(twitchId, null));
 
+  if (!caches.nativeGlobalEmotes) caches.nativeGlobalEmotes = newEntry();
+  refresh(caches.nativeGlobalEmotes, () => fetchNativeEmotes(twitchId, null));
+
   if (!roomId) return;
   refresh(entryFor(caches.channelEmotes, roomId), () =>
     mergeSettled([
@@ -241,10 +320,18 @@ function prime(roomId, twitchId) {
       () => fetch7tvChannel(roomId),
     ])
   );
+  refresh(entryFor(caches.nativeChannelEmotes, roomId), () => fetchNativeEmotes(twitchId, roomId));
   refresh(entryFor(caches.channelBadges, roomId), () => fetchBadges(twitchId, roomId));
 }
 
 function lookupEmote(name, roomId) {
+  // Twitch's own set first: a channel's native emote should win a name
+  // collision with a third-party emote, matching Twitch's own client.
+  const nativeChannel = roomId && caches.nativeChannelEmotes.get(roomId);
+  if (nativeChannel && nativeChannel.map.has(name)) return nativeChannel.map.get(name);
+  if (caches.nativeGlobalEmotes && caches.nativeGlobalEmotes.map.has(name)) {
+    return caches.nativeGlobalEmotes.map.get(name);
+  }
   const channel = roomId && caches.channelEmotes.get(roomId);
   if (channel && channel.map.has(name)) return channel.map.get(name);
   if (caches.globalEmotes && caches.globalEmotes.map.has(name)) {
