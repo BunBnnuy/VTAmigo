@@ -93,6 +93,15 @@ router.get("/overlay/chat", (req, res) => {
   res.sendFile(path.join(__dirname, "..", "overlay", "chat.html"));
 });
 
+// GET /overlay/preview-note.js — shared placeholder for the Overlay Builder's
+// canvas. It only renders when a page is opened with ?preview=1 (which the
+// builder adds); the live OBS output never does, so idle overlays stay blank
+// on stream. Served for every /overlay/* page from here.
+router.get("/overlay/preview-note.js", (req, res) => {
+  res.set("Cache-Control", "no-store");
+  res.type("application/javascript").sendFile(path.join(__dirname, "..", "overlay", "preview-note.js"));
+});
+
 // GET /chat-overlay/overlay-url — the logged-in user's own chat overlay URL,
 // for Settings to display with a copy button.
 router.get("/chat-overlay/overlay-url", requireApprovedUser, (req, res) => {

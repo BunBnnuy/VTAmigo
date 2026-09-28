@@ -24,6 +24,7 @@ const activity = require("../activity");
 const achievements = require("../achievements");
 const overlayAssets = require("../overlayAssets");
 const overlayLayouts = require("../overlayLayouts");
+const overlaySources = require("../overlaySources");
 const { broadcastToAccount, notifyAchievements } = require("../sessions");
 
 const router = express.Router();
@@ -39,10 +40,22 @@ const overlayAudioUpload = multer({
   limits: { fileSize: overlayAssets.MAX_AUDIO_BYTES },
 });
 
+function resolveLayers(layers, token) {
+  return layers.map((layer) => {
+    if (layer.assetId) return { ...layer, assetUrl: `/overlay/custom/asset/${layer.assetId}?token=${encodeURIComponent(token)}` };
+    if (layer.type === "overlay") return { ...layer, overlayUrl: overlaySources.sourceUrl(layer.sourceId, token) };
+    return layer;
+  });
+}
+
 // ── Authed builder API (requireApprovedUser via PROTECTED_PREFIXES) ─────────
 
 router.get("/overlay-builder/layouts", (req, res) => {
   res.json({ layouts: overlayLayouts.listLayouts(req.user.twitchId) });
+});
+
+router.get("/overlay-builder/sources", (req, res) => {
+  res.json({ sources: overlaySources.SOURCES });
 });
 
 router.post("/overlay-builder/layouts", (req, res) => {
@@ -64,9 +77,7 @@ router.put("/overlay-builder/layouts/:id", (req, res) => {
   const layout = overlayLayouts.updateLayout(req.user.twitchId, req.params.id, req.body || {});
   if (!layout) return res.status(404).json({ error: "Not found" });
   const liveToken = getOverlayToken(req.user.twitchId);
-  const resolvedLayers = layout.layers.map((l) => (
-    l.assetId ? { ...l, assetUrl: `/overlay/custom/asset/${l.assetId}?token=${liveToken}` } : l
-  ));
+  const resolvedLayers = resolveLayers(layout.layers, liveToken);
   broadcastToAccount(req.user.twitchId, { type: "custom_overlay_update", layoutId: layout.id, layers: resolvedLayers });
   res.json({ layout });
 });
@@ -205,9 +216,7 @@ router.get("/overlay/custom/:layoutId/data", (req, res) => {
   res.json({
     name: layout.name,
     canvas: { w: overlayLayouts.CANVAS_W, h: overlayLayouts.CANVAS_H },
-    layers: layout.layers.map((l) => (
-      l.assetId ? { ...l, assetUrl: `/overlay/custom/asset/${l.assetId}?token=${req.query.token || ""}` } : l
-    )),
+    layers: resolveLayers(layout.layers, getOverlayToken(user.twitchId)),
     // For text layers using {follower.username}-style tokens (see
     // overlay/custom.html's fillTemplate) — the initial snapshot; live
     // updates arrive over the /chat WS as new events happen.

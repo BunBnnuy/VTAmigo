@@ -73,13 +73,26 @@
     <div id="rows" class="rows" aria-live="polite"></div>
     <div id="empty" class="empty hidden">Aún no hay experiencia registrada.</div>
   </section>
+<script src="/overlay/preview-note.js?v=2"></script>
 <script>
   const token = new URLSearchParams(location.search).get("token") || "";
   const rowsEl = document.getElementById("rows");
   const emptyEl = document.getElementById("empty");
 
+  // Builder preview: mock rows so the canvas shows the real panel instead of
+  // the "no experience yet" line. Real data replaces them on the next poll.
+  const SAMPLE_ROWS = [
+    { username: "PixelPanda", color: "#4fa8ff", level: 7, xp: 420 },
+    { username: "NightOwl99", color: "#c04fff", level: 5, xp: 280 },
+    { username: "CoffeeCat", color: "#4fff8f", level: 3, xp: 150 },
+  ];
+
   function render(ranking) {
     rowsEl.replaceChildren();
+    if (window.OverlayPreviewNote && OverlayPreviewNote.badge && ranking.length === 0) {
+      OverlayPreviewNote.badge();
+      ranking = SAMPLE_ROWS;
+    }
     emptyEl.classList.toggle("hidden", ranking.length !== 0);
     ranking.forEach((user, index) => {
       const row = document.createElement("div");

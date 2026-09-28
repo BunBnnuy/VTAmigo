@@ -183,6 +183,24 @@ export default function VideoQueue({ videoState, lang }) {
 
         <div style={styles.divider} />
 
+        <div style={styles.sectionLabel}>{t("videoQueue.overlaySection")}</div>
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>{t("videoQueue.showVideo")}</span>
+          <Toggle
+            checked={videoState?.showVideo !== false}
+            onChange={() => updateSetting("showVideo", !(videoState?.showVideo !== false))}
+          />
+        </div>
+        <div style={styles.row}>
+          <span style={styles.rowLabel}>{t("videoQueue.showProgressBar")}</span>
+          <Toggle
+            checked={videoState?.showProgressBar !== false}
+            onChange={() => updateSetting("showProgressBar", !(videoState?.showProgressBar !== false))}
+          />
+        </div>
+
+        <div style={styles.divider} />
+
         <div style={styles.sectionLabel}>{t("videoQueue.nowPlayingSection")}</div>
         {nowPlaying ? (
           <div style={styles.nowPlaying}>

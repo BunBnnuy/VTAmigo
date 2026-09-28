@@ -149,6 +149,7 @@
     <div class="bar-foot" id="bar-foot"></div>
   </div>
 
+<script src="/overlay/preview-note.js?v=2"></script>
 <script>
   const params = new URLSearchParams(location.search);
   const showRanking = params.get("ranking") !== "0";
@@ -270,6 +271,23 @@
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }
+  // Builder preview: a static, populated bar so the canvas shows the real
+  // layout before anyone earns XP. A real gain replaces it via playEvent.
+  function showXpSample() {
+    if (!window.OverlayPreviewNote || !OverlayPreviewNote.badge) return;
+    OverlayPreviewNote.badge();
+    nameEl.textContent = "PixelPanda";
+    nameEl.style.color = "#4fa8ff";
+    levelEl.textContent = "Lv 7";
+    gainEl.textContent = "+15 XP";
+    footEl.textContent = "45 / 120 XP";
+    fill.style.transition = "none";
+    fill.style.width = "62%";
+    void fill.offsetWidth;
+    fill.style.transition = "";
+    bar.classList.add("show");
+  }
+  showXpSample();
   connect();
 </script>
 </body>

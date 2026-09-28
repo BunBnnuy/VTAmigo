@@ -19,6 +19,9 @@
     inset: 0;
     display: none;
     flex-direction: column;
+    /* End-anchored so the bar sits at the bottom whether or not the video
+       (which flexes to fill the rest) is visible. */
+    justify-content: flex-end;
   }
   #wrap.show { display: flex; }
   #player-box {
@@ -29,6 +32,9 @@
     width: 100%;
     height: 100%;
   }
+  /* Builder-only mock frame drawn over the (empty) player. */
+  #video-sample { position: absolute; inset: 0; z-index: 2; }
+  #video-sample img { width: 100%; height: 100%; object-fit: cover; display: block; }
   #bar-track {
     position: relative;
     height: 64px;
@@ -76,6 +82,7 @@
   <div id="wrap">
     <div id="player-box">
       <div id="yt-player"></div>
+      <div id="video-sample" hidden></div>
     </div>
     <div id="bar-track">
       <div id="bar-fill"></div>
@@ -86,6 +93,7 @@
     </div>
   </div>
 
+<script src="/overlay/preview-note.js?v=2"></script>
 <script src="https://www.youtube.com/iframe_api"></script>
 <script>
   const params = new URLSearchParams(location.search);
@@ -95,6 +103,23 @@
   const barFill = document.getElementById("bar-fill");
   const barTitle = document.getElementById("bar-title");
   const barTime = document.getElementById("bar-time");
+  const sampleEl = document.getElementById("video-sample");
+
+  // Builder preview: mock poster + a populated title bar, drawn over the blank
+  // YouTube player. Cleared when a real video loads.
+  function showVideoSample() {
+    if (!window.OverlayPreviewNote || !OverlayPreviewNote.badge || !OverlayPreviewNote.posterDataUrl) return;
+    OverlayPreviewNote.badge();
+    const img = document.createElement("img");
+    img.src = OverlayPreviewNote.posterDataUrl("Sample song");
+    img.alt = "";
+    sampleEl.replaceChildren(img);
+    sampleEl.hidden = false;
+    barTitle.textContent = "Sample Song — Sample Artist";
+    barTime.textContent = "3:24";
+    barFill.style.width = "38%";
+    wrap.classList.add("show");
+  }
 
   let player = null;
   let playerReady = false;
@@ -169,6 +194,7 @@
       return;
     }
     wrap.classList.add("show");
+    sampleEl.hidden = true;
     player.loadVideoById({ videoId, startSeconds: offsetSec || 0 });
     if (paused) setTimeout(() => player.pauseVideo(), 400);
   }
@@ -180,10 +206,19 @@
     barTitle.textContent = "";
     barTime.textContent = "";
     wrap.classList.remove("show");
+    if (window.OverlayPreviewNote) showVideoSample();
     if (playerReady) player.stopVideo();
   }
 
+  // Video and progress bar can each be hidden independently (Video Queue
+  // panel toggles). Both default on when a state predates the settings.
+  function applyVisibility(state) {
+    document.getElementById("player-box").hidden = state.showVideo === false;
+    document.getElementById("bar-track").hidden = state.showProgressBar === false;
+  }
+
   function applyState(state) {
+    applyVisibility(state);
     const nowPlaying = state.nowPlaying;
     if (!nowPlaying) {
       clearVideo();
@@ -202,6 +237,7 @@
   fetch(`/video/state?token=${encodeURIComponent(token)}`)
     .then((r) => r.json())
     .then((state) => {
+      applyVisibility(state);
       const nowPlaying = state.nowPlaying;
       if (nowPlaying) {
         const offset = Math.max(0, Math.floor((Date.now() - nowPlaying.startedAt) / 1000));
@@ -220,6 +256,7 @@
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }
+  showVideoSample();
   connect();
 </script>
 </body>

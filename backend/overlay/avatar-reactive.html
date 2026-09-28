@@ -12,6 +12,7 @@
 <body>
   <img id="img-silent" alt="" />
   <img id="img-speaking" alt="" />
+<script src="/overlay/preview-note.js?v=2"></script>
 <script>
   const params = new URLSearchParams(location.search);
   const token = params.get("token") || "";
@@ -19,6 +20,15 @@
   const imgSilent = document.getElementById("img-silent");
   imgSpeaking.src = "/overlay/avatar-reactive/image?slot=speaking&token=" + encodeURIComponent(token);
   imgSilent.src = "/overlay/avatar-reactive/image?slot=silent&token=" + encodeURIComponent(token);
+
+  if (window.OverlayPreviewNote && OverlayPreviewNote.badge) {
+    OverlayPreviewNote.badge();
+    const mock = () => OverlayPreviewNote.avatarDataUrl();
+    if (OverlayPreviewNote.avatarDataUrl) {
+      imgSilent.addEventListener("error", () => { imgSilent.src = mock(); });
+      imgSpeaking.addEventListener("error", () => { imgSpeaking.src = mock(); });
+    }
+  }
 
   function setSpeaking(speaking) {
     imgSpeaking.classList.toggle("show", speaking);

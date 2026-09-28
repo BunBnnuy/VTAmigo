@@ -28,6 +28,7 @@
   <img id="img-silent" alt="" />
   <img id="img-speaking" alt="" />
 
+<script src="/overlay/preview-note.js?v=2"></script>
 <script>
   const params = new URLSearchParams(location.search);
   const token = params.get("token") || "";
@@ -36,6 +37,17 @@
   const imgSilent = document.getElementById("img-silent");
   imgSpeaking.src = "/overlay/avatar/image?slot=speaking&token=" + encodeURIComponent(token);
   imgSilent.src = "/overlay/avatar/image?slot=silent&token=" + encodeURIComponent(token);
+
+  // Builder preview: fall back to a mock avatar when no image is uploaded, so
+  // the canvas shows the overlay's real framing instead of a blank box.
+  if (window.OverlayPreviewNote && OverlayPreviewNote.badge) {
+    OverlayPreviewNote.badge();
+    const mock = () => OverlayPreviewNote.avatarDataUrl();
+    if (OverlayPreviewNote.avatarDataUrl) {
+      imgSilent.addEventListener("error", () => { imgSilent.src = mock(); });
+      imgSpeaking.addEventListener("error", () => { imgSpeaking.src = mock(); });
+    }
+  }
 
   let ttsPlaying = false;
   let reactiveSpeaking = false;

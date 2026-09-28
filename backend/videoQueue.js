@@ -38,6 +38,10 @@ function emptyAccount() {
     history: [], // previously-played nowPlaying entries, oldest first
     viewerRequestsEnabled: true, // !sr chat requests — the streamer's own site controls are never gated by this
     skipDefaultOnRequest: false, // a viewer !sr request skips a currently-playing default-playlist song
+    // Overlay visibility (backend/overlay/video.html). Both default on; the
+    // progress bar can stand alone, or the video can run with no bar.
+    showVideo: true,
+    showProgressBar: true,
   };
 }
 
@@ -47,14 +51,18 @@ function getState(twitchId) {
   if (!account.history) account.history = [];
   if (account.viewerRequestsEnabled === undefined) account.viewerRequestsEnabled = true;
   if (account.skipDefaultOnRequest === undefined) account.skipDefaultOnRequest = false;
+  if (account.showVideo === undefined) account.showVideo = true;
+  if (account.showProgressBar === undefined) account.showProgressBar = true;
   if (account.defaultPlaylistTitle === undefined) account.defaultPlaylistTitle = null;
   return account;
 }
 
-function setSettings(twitchId, { viewerRequestsEnabled, skipDefaultOnRequest } = {}) {
+function setSettings(twitchId, { viewerRequestsEnabled, skipDefaultOnRequest, showVideo, showProgressBar } = {}) {
   const account = getState(twitchId);
   if (viewerRequestsEnabled !== undefined) account.viewerRequestsEnabled = !!viewerRequestsEnabled;
   if (skipDefaultOnRequest !== undefined) account.skipDefaultOnRequest = !!skipDefaultOnRequest;
+  if (showVideo !== undefined) account.showVideo = !!showVideo;
+  if (showProgressBar !== undefined) account.showProgressBar = !!showProgressBar;
   return saveAccount(twitchId, account);
 }
 

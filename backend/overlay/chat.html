@@ -118,6 +118,7 @@
 <body>
   <div id="feed"></div>
 
+<script src="/overlay/preview-note.js?v=2"></script>
 <script>
   const params = new URLSearchParams(location.search);
   const token = params.get("token") || "";
@@ -187,6 +188,12 @@
     trim();
   }
 
+  // Inline style objects are the same for every message of a role until the
+  // config changes, so they're cached and invalidated wholesale on apply.
+  // Declared before loadConfig() so the preview sample feed (which runs as
+  // soon as config lands) can never touch it before initialization.
+  let styleCache = new Map();
+
   async function loadConfig() {
     try {
       const res = await fetch("/chat-overlay/config?token=" + encodeURIComponent(token));
@@ -195,6 +202,8 @@
     } catch {
       applyConfig({ layout: "vertical", vAlign: "bottom", hAlign: "left", width: 420, maxHeight: 600, gap: 8, max: 25, animate: true });
     }
+    // Rendered after the config lands so the mock feed uses the real styling.
+    renderSampleMessages();
   }
   loadConfig();
 
@@ -255,7 +264,6 @@
 
   // Inline style objects are the same for every message of a role until the
   // config changes, so they're cached and invalidated wholesale on apply.
-  let styleCache = new Map();
   function resetCaches() { styleCache = new Map(); }
 
   // ── Message rendering ──────────────────────────────────────────────────────
@@ -474,7 +482,17 @@
     }
   }
 
-  function renderMessage(msg, isEvent) {
+  // Nodes created for the builder-only sample feed (see renderSampleMessages).
+  // Removed wholesale the moment a real message or event arrives.
+  let sampleNodes = [];
+  function clearSamples() {
+    if (!sampleNodes.length) return;
+    for (const node of sampleNodes) node.remove();
+    sampleNodes = [];
+    trim();
+  }
+
+  function renderMessage(msg, isEvent, sample) {
     const roleId = isEvent ? "normal" : roleForMessage(msg);
     let style = styleCache.get(roleId);
     if (!style) { style = styleFor(roleId); styleCache.set(roleId, style); }
@@ -482,6 +500,7 @@
     const node = document.createElement("div");
     node.className = "cg-msg" + (msg.isAction ? " action" : "") + (isEvent ? " cg-event" : "");
     if (msg.id) node.dataset.id = msg.id;
+    if (sample) { node.classList.add("cg-sample"); sampleNodes.push(node); }
 
     const text = msg.isRedeem ? (msg.rewardTitle || "") + (msg.text ? ` — "${msg.text}"` : "") : (msg.text || "");
     const emoteList = msg.isRedeem ? [] : msg.emotes;
@@ -509,7 +528,7 @@
     scheduleRemoval(node);
   }
 
-  function renderEvent(kind, ev) {
+  function renderEvent(kind, ev, sample) {
     const key = "event_" + kind + "_";
     if (cfg[key + "enable"] === false) return;
     const min = Number(cfg[key + "min"] || 0);
@@ -518,6 +537,7 @@
 
     const node = document.createElement("div");
     node.className = "cg-msg cg-event";
+    if (sample) { node.classList.add("cg-sample"); sampleNodes.push(node); }
 
     if (cfg[key + "icon"]) {
       const icon = document.createElement("img");
@@ -544,6 +564,18 @@
     place(node);
     trim();
     scheduleRemoval(node);
+  }
+
+  // Builder-only: a short mock feed so the canvas shows the configured look
+  // before any real chat exists. Swapped out for the real feed on the first
+  // message (see clearSamples in the handlers below).
+  function renderSampleMessages() {
+    if (!window.OverlayPreviewNote || !OverlayPreviewNote.badge) return;
+    OverlayPreviewNote.badge();
+    const now = Date.now();
+    renderMessage({ username: "PixelPanda", login: "pixelpanda", color: "#4fa8ff", text: "Hello chat! o7", timestamp: now - 90000, emotes: [], badges: [] }, false, true);
+    renderEvent("follow", { username: "NightOwl99" }, true);
+    renderMessage({ username: "CoffeeCat", login: "coffeecat", color: "#c04fff", text: "This overlay looks great", timestamp: now - 30000, emotes: [], badges: [] }, false, true);
   }
 
   function fillTemplate(tpl, ev, amount) {
@@ -573,6 +605,7 @@
   function handleTwitchEvent(ev) {
     if (ev.kind === "redeem") return;
     if (!cfg.showEvents) return;
+    clearSamples();
     const kind = EVENT_KIND[ev.kind];
     if (kind) renderEvent(kind, ev);
   }
@@ -591,6 +624,7 @@
     if (isMuted(msg)) return;
     if (!msg.isRedeem && (cfg.hideCommands && isCommand(msg.text))) return;
     if (msg.isRedeem && !cfg.showRedeems) return;
+    clearSamples();
     const delay = Math.max(0, Number(cfg.showDelay) || 0);
     if (delay > 0) setTimeout(() => renderMessage(msg, false), delay * 1000);
     else renderMessage(msg, false);

@@ -34,9 +34,9 @@ bash server/deploy-frontend.sh   # builds frontend/dist and restarts the service
 
 Once deployed, visiting the site directly (e.g. `https://vtamigo.top`) serves the full app, with no `Backend URL` setting to configure: with it left empty, the client resolves everything (fetch + WebSocket) to whatever origin served the page, same-origin. Re-run `deploy-frontend.sh` after any `frontend/` change and `git pull`.
 
-## Dev instance (dev.vtamigo.top), edit-in-place
+## Dev instance (dev.vtamigo.top), testing tier
 
-There's a second instance of the app running from the `dev` branch, alongside prod on the same VPS. It exists to test changes on `dev` before merging to `master` without touching the live site. Unlike prod, it's set up to be **edited directly on the box** — you change a file under `/opt/vtamigo-dev` and it's live within seconds, no commit, push, or build step:
+There's a second instance of the app running from the `dev` branch, alongside prod on the same VPS. It exists to test a change set as a whole on `dev` before merging to `master`, without touching the live site. Under the promotion workflow (Fast → Dev → Master) it is not the primary edit box — Fast is — but it is still wired for instant feedback: its watchers mean anything that lands here, whether from a `git pull` or the CI deploy, is live within seconds with no build step:
 
 - **Repo**: `/opt/vtamigo-dev`, checked out on `dev`, port `3002` (`/etc/vtamigo-dev.env`)
 - **Service**: `vtamigo-backend-dev` (systemd), enabled at boot
@@ -44,13 +44,13 @@ There's a second instance of the app running from the `dev` branch, alongside pr
 - **Backend reload**: the unit is started with `node --watch` via the drop-in `/etc/systemd/system/vtamigo-backend-dev.service.d/watch.conf`, so editing anything under `backend/` restarts the process in ~1s. Open `/chat` WebSockets drop and the frontend reconnects on its own.
 - **Frontend rebuild**: `vtamigo-dev-frontend-watch` (systemd) runs `vite build --watch` in `frontend/`, rewriting `frontend/dist` ~1-3s after any `frontend/src` change. The backend serves `dist` statically and re-reads per request, so a browser refresh is all that's needed — no backend restart.
 
-There is deliberately **no auto-deploy from `origin/dev`**. An earlier `vtamigo-dev-push.timer` polled every 2 min and ran `git reset --hard`, which silently destroyed uncommitted edits on the box — incompatible with editing in place. To pick up work someone else pushed, just:
+Updates arrive through CI rather than a box-local timer: pushing to `origin/dev` runs `.github/workflows/deploy-dev.yml`, which SSHes in and fast-forwards this checkout with `git pull` — never `reset --hard`, so uncommitted files are never destroyed. (An earlier `vtamigo-dev-push.timer` that polled every 2 min *did* run `git reset --hard` and silently destroyed uncommitted edits, so it was dropped.) To pick up work by hand:
 
 ```bash
 cd /opt/vtamigo-dev && git pull
 ```
 
-Both watchers notice the changed files on their own, so `git pull` *is* the deploy. The one thing that no longer happens automatically is dependency installation — after a `package.json` change, run `npm ci` in `backend/` and/or `frontend/` by hand.
+Both watchers notice the changed files on their own, so `git pull` *is* the deploy. After a `package.json` change run `npm ci` in `backend/` and/or `frontend/` by hand when pulling manually; the CI deploy already does it for pushes.
 
 Reproducing the two watchers on a fresh box:
 
@@ -100,7 +100,48 @@ A third instance of the same `dev` branch, on the same box, set up exactly like 
 - **Piper voices**: `backend/piper` is a symlink to prod's 1.1G `backend/piper` instead of a third copy; all three instances read the same `.onnx` files. It's in `.git/info/exclude` on the box, because `.gitignore`'s `backend/piper/` doesn't match a symlink.
 - **Twitch app**: `https://fast.vtamigo.top/auth/twitch/callback` and `.../bot-callback` must be registered as redirect URIs on the Twitch app, or login fails at Twitch with a `redirect_uri` mismatch.
 
-Same rules as dev: no auto-deploy, `cd /opt/vtamigo-fast && git pull` *is* the deploy, `npm ci` by hand after a `package.json` change. Three backends plus two frontend watchers now share the box (~3GB of headroom left), so the `MemoryMax` caps matter more than before.
+Per the promotion workflow below, Fast is the edit-in-place sandbox: edit freely and don't commit while iterating; commit only when promoting a finished change set to `origin/dev`, and stay current first with `git pull --ff-only origin dev`. `npm ci` by hand after a `package.json` change. Three backends plus two frontend watchers now share the box (~3GB of headroom left), so the `MemoryMax` caps matter more than before.
+
+## Promotion workflow: Fast → Dev → Master
+
+Three instances of this repo run on one VPS. The point is to iterate freely on
+Fast, integrate on Dev, and only then release to production — without leaving a
+trail of dozens of tiny commits.
+
+| Tier | Checkout | Branch | URL | Job |
+|---|---|---|---|---|
+| **Fast** | `/opt/vtamigo-fast` (`:3003`) | `dev` | https://fast.vtamigo.top | Edit files and see them live. **Never commit here** — it absorbs the dozens of tiny edits so history stays clean. |
+| **Dev** | `/opt/vtamigo-dev` (`:3002`) | `dev` | https://dev.vtamigo.top | Test a change set as a whole. Push the finished work to `origin/dev`; CI runs, then `deploy-dev.yml` pulls and builds it here. |
+| **Master** | `/opt/vtamigo` (`:3001`) | `master` | https://vtamigo.top | Production. Once Dev confirms the change, squash `dev` into `master` and push; `deploy.yml` ships it. |
+
+```bash
+# Fast: edit /opt/vtamigo-fast in place; nothing to commit while iterating.
+
+# Dev: promote the whole change set once it's ready.
+cd /opt/vtamigo-fast
+git add -A && git commit -m "<summary>"
+git fetch origin && git merge --ff-only origin/dev   # stay current before pushing
+git push origin dev                                  # CI -> deploy-dev.yml -> dev.vtamigo.top
+
+# Master: release after Dev is confirmed. Use a scratch worktree so the Fast
+# checkout stays on dev.
+git worktree add /tmp/vtamigo-release origin/master
+cd /tmp/vtamigo-release
+git merge --squash origin/dev
+git commit -m "Release: <summary>"
+git push origin HEAD:master                          # deploy.yml -> vtamigo.top
+cd /opt/vtamigo-fast && git worktree remove /tmp/vtamigo-release
+```
+
+Notes:
+
+- There is no `main` branch; `master` is production.
+- On this box `ubuntu` holds the read/write deploy key at
+  `~/.ssh/vtamigo_deploy_key_rw` (SSH alias `github-vtamigo`) and commits as
+  `BunBnnuy <saratoga.yuu@gmail.com>`.
+- Fast's code is owned by `ubuntu` (so it can be edited in place); its runtime
+  state (`backend/data`, `backend/memories`) stays owned by the `vtamigo`
+  service user.
 
 ## Notes
 

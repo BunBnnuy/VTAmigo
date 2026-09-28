@@ -6,6 +6,7 @@ import {
   Image as ImageIcon,
   Film,
   Type,
+  PanelsTopLeft,
   ArrowDown,
   ArrowUp,
   Trash2,
@@ -79,6 +80,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   const [usageBytes, setUsageBytes] = useState(0);
   const [quotaBytes, setQuotaBytes] = useState(100 * 1024 * 1024);
   const [token, setToken] = useState("");
+  const [overlaySources, setOverlaySources] = useState([]);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [fitScale, setFitScale] = useState(0.25);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
@@ -108,6 +110,9 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   useEffect(() => {
     refreshLayout();
     refreshAssets();
+    apiFetch("/overlay-builder/sources")
+      .then((r) => r.json())
+      .then((data) => setOverlaySources(data.sources || []));
     apiFetch(`/overlay-builder/overlay-url/${layoutId}`)
       .then((r) => r.json())
       .then((data) => setToken(data.token || ""));
@@ -244,6 +249,12 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
     addLayer({ id: uid(), type: "text", text: "New Text", fontSize: 48, color: "#ffffff", bold: false, align: "left", x: 100, y: 100, w: 500, h: 100 });
   };
 
+  const addOverlay = (sourceId) => {
+    const source = overlaySources.find((item) => item.id === sourceId);
+    if (!source) return;
+    addLayer({ id: uid(), type: "overlay", sourceId, x: 100, y: 100, w: source.w, h: source.h });
+  };
+
   const deleteAsset = async (assetId) => {
     if (deleteArmedAssetId !== assetId) { setDeleteArmedAssetId(assetId); return; }
     setDeleteArmedAssetId(null);
@@ -253,6 +264,19 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   };
 
   const assetUrl = (assetId) => apiUrl(`/overlay/custom/asset/${assetId}?token=${token}`);
+  const overlayUrl = (sourceId) => {
+    const source = overlaySources.find((item) => item.id === sourceId);
+    if (!source || !token) return "";
+    // preview=1 turns on the page's mock placeholder (backend/overlay/
+    // preview-note.js) so an app overlay with no data yet reads as "waiting"
+    // instead of blank. Only the editor adds it; the OBS-facing
+    // /overlay/custom page never does, so live output stays transparent.
+    // v= is a cache-buster: the overlay HTML and its shared script change
+    // during development, and a browser/edge may otherwise serve the previous
+    // copy — which, with a changed helper API, would break the page.
+    const sep = source.path.includes("?") ? "&" : "?";
+    return apiUrl(`${source.path}${sep}token=${encodeURIComponent(token)}&preview=1&v=2`);
+  };
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
 
   return (
@@ -262,6 +286,8 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
         onAddVideo={uploadVideo}
         onAddAudio={uploadAudio}
         onAddText={addText}
+        onAddOverlay={addOverlay}
+        overlaySources={overlaySources}
         uploading={uploading}
         saveState={saveState}
       />
@@ -299,7 +325,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
                   onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
                   style={{ outline: layer.id === selectedLayerId ? "2px solid var(--accent, #e11d76)" : "1px dashed rgba(255,255,255,0.35)" }}
                 >
-                  <LayerContent layer={layer} assetUrl={assetUrl} latestByKind={latestByKind} />
+                  <LayerContent layer={layer} assetUrl={assetUrl} overlayUrl={overlayUrl} overlaySources={overlaySources} latestByKind={latestByKind} />
                 </Rnd>
               ))}
             </div>
@@ -310,6 +336,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
           <PropertyPanel
             layer={selectedLayer}
             assetUrl={assetUrl}
+            overlaySources={overlaySources}
             onChange={(patch) => selectedLayer && updateLayer(selectedLayer.id, patch)}
             onDelete={() => selectedLayer && removeLayer(selectedLayer.id)}
             onReorder={(dir) => selectedLayer && reorderLayer(selectedLayer.id, dir)}
@@ -328,7 +355,18 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   );
 }
 
-function LayerContent({ layer, assetUrl, latestByKind }) {
+function LayerContent({ layer, assetUrl, overlayUrl, overlaySources, latestByKind }) {
+  if (layer.type === "overlay") {
+    const src = overlayUrl(layer.sourceId);
+    return src ? (
+      <iframe
+        title={overlaySources.find((source) => source.id === layer.sourceId)?.name || "Overlay"}
+        src={src}
+        style={styles.layerFrame}
+        tabIndex={-1}
+      />
+    ) : <div style={styles.overlayPlaceholder}>Loading overlay…</div>;
+  }
   if (layer.type === "image") {
     return (
       <img
@@ -381,7 +419,7 @@ function LayerContent({ layer, assetUrl, latestByKind }) {
   );
 }
 
-function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, saveState }) {
+function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, onAddOverlay, overlaySources, uploading, saveState }) {
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const audioInputRef = useRef(null);
@@ -413,6 +451,13 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, uploading, sav
         onChange={(e) => { if (e.target.files[0]) onAddAudio(e.target.files[0]); e.target.value = ""; }}
       />
       <button style={styles.toolBtn} onClick={onAddText}><Type size={14} color="var(--accent)" /> Add Text</button>
+      <label style={styles.overlayPickerLabel}>
+        <PanelsTopLeft size={14} color="var(--accent)" /> Add app overlay
+        <select style={styles.overlayPicker} value="" onChange={(e) => { if (e.target.value) onAddOverlay(e.target.value); }}>
+          <option value="">Choose overlay…</option>
+          {overlaySources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+        </select>
+      </label>
       <div style={styles.saveIndicator}>
         {uploading ? "Uploading…" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
       </div>
@@ -469,7 +514,7 @@ function TriggerFields({ layer, onChange }) {
   );
 }
 
-function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
+function PropertyPanel({ layer, assetUrl, overlaySources, onChange, onDelete, onReorder }) {
   const textareaRef = useRef(null);
 
   if (!layer) {
@@ -499,6 +544,17 @@ function PropertyPanel({ layer, assetUrl, onChange, onDelete, onReorder }) {
   return (
     <div style={styles.panel}>
       <div style={styles.panelTitle}>Properties — {layer.type}</div>
+
+      {layer.type === "overlay" && (
+        <>
+          <label style={styles.label}>App overlay
+            <select style={styles.input} value={layer.sourceId} onChange={(e) => onChange({ sourceId: e.target.value })}>
+              {overlaySources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
+            </select>
+          </label>
+          <div style={styles.tokenHint}>Live preview. The overlay keeps its settings from its app panel.</div>
+        </>
+      )}
 
       {layer.type === "text" && (
         <>
@@ -707,6 +763,26 @@ const styles = {
     color: "var(--text)",
     border: "1px solid var(--border)",
   },
+  overlayPickerLabel: {
+    display: "inline-flex",
+    alignItems: "center",
+    gap: 6,
+    padding: "4px 8px",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    background: "var(--surface2)",
+    color: "var(--text)",
+    fontSize: 13,
+    fontFamily: "Quicksand, sans-serif",
+  },
+  overlayPicker: {
+    maxWidth: 155,
+    background: "var(--surface)",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    padding: "4px 6px",
+  },
   saveIndicator: {
     marginLeft: "auto",
     fontSize: 12,
@@ -738,6 +814,24 @@ const styles = {
     width: "100%",
     height: "100%",
     objectFit: "contain",
+    pointerEvents: "none",
+  },
+  layerFrame: {
+    display: "block",
+    width: "100%",
+    height: "100%",
+    border: 0,
+    background: "transparent",
+    pointerEvents: "none",
+  },
+  overlayPlaceholder: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    height: "100%",
+    color: "var(--text-muted)",
+    border: "1px dashed var(--border)",
     pointerEvents: "none",
   },
   soundPlaceholder: {

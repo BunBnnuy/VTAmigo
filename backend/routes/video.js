@@ -40,12 +40,13 @@ router.get("/video/overlay-url", requireApprovedUser, (req, res) => {
   res.json({ url: `${req.protocol}://${req.get("host")}/overlay/video?token=${token}` });
 });
 
-// POST /video/settings — { viewerRequestsEnabled?, skipDefaultOnRequest? } —
-// the two site toggles gating !sr chat requests (never the streamer's own
-// site controls, which always work regardless of these).
+// POST /video/settings — { viewerRequestsEnabled?, skipDefaultOnRequest?,
+// showVideo?, showProgressBar? } — the site toggles gating !sr requests (never
+// the streamer's own site controls, which always work regardless of these)
+// plus the overlay's two visibility toggles.
 router.post("/video/settings", requireApprovedUser, (req, res) => {
-  const { viewerRequestsEnabled, skipDefaultOnRequest } = req.body || {};
-  videoQueue.setSettings(req.user.twitchId, { viewerRequestsEnabled, skipDefaultOnRequest });
+  const { viewerRequestsEnabled, skipDefaultOnRequest, showVideo, showProgressBar } = req.body || {};
+  videoQueue.setSettings(req.user.twitchId, { viewerRequestsEnabled, skipDefaultOnRequest, showVideo, showProgressBar });
   broadcastVideoState(req.user.twitchId);
   res.json({ ok: true });
 });
