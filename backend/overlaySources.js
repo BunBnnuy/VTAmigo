@@ -2,6 +2,8 @@
 // a saved layout stores only a source id, never a user-supplied iframe URL.
 const SOURCES = Object.freeze([
   { id: "avatar", name: "Bot avatar", path: "/overlay/avatar", w: 360, h: 360 },
+  { id: "voice", name: "Bot voice (TTS)", path: "/overlay/voice", w: 360, h: 140 },
+  { id: "chat-tts", name: "Chat TTS", path: "/overlay/chat-tts", w: 360, h: 140 },
   { id: "reactive-avatar", name: "Reactive avatar", path: "/overlay/avatar-reactive", w: 360, h: 360 },
   { id: "chat", name: "Chat & events", path: "/overlay/chat", w: 500, h: 680 },
   { id: "xp", name: "XP bar", path: "/overlay/xp?ranking=0", w: 520, h: 220 },

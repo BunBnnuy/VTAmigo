@@ -14,6 +14,7 @@ import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { mergeTitleWithDelimiter, parseVoiceCommand } from "./voiceCommands.js";
 import { isSongRequest, isShoutout } from "./chatCommands.js";
 import { chatTts, extractChatTTSMessage, formatChatTTSMessage, DEFAULT_CHAT_TTS_TEMPLATE } from "./ChatTTSController.js";
+import { DEFAULT_MIXER, sanitizeMixer, channelGain } from "./mixer.js";
 import {
   CURRENT_ANNOUNCEMENT,
   shouldShowAnnouncement,
@@ -42,10 +43,17 @@ const DEFAULT_SETTINGS = {
   ttsVolume: 1,
   ttsProvider: "windows",
   piperVoice: "",
+  // Where the bot's voice plays: "app" (this browser, default), "overlay" (the
+  // Bot voice OBS browser source only) or "both".
+  ttsOutput: "app",
+  mixer: DEFAULT_MIXER,
   chatTtsEnabled: false,
   chatTtsCommand: "",
   chatTtsVoiceURI: "",
   chatTtsTemplate: DEFAULT_CHAT_TTS_TEMPLATE,
+  // Where chat-command TTS ("!tts ...") plays: "app" (this browser, default),
+  // "overlay" (the Chat TTS OBS overlay source) or "both".
+  chatTtsOutput: "app",
   micMode: "off", // "off" | "voice" | "commands" | "full" — see App.jsx's voice.onTranscript handler
   micDeviceId: "",
   micLang: "es-ES",
@@ -95,6 +103,9 @@ export function migrateSettings(saved) {
     // Old on/off mic checkbox → the 4-way mic mode
     micMode: raw.micMode === undefined ? (raw.micEnabled ? "voice" : "off") : raw.micMode,
     panelLayout: mergePanelLayout(raw.panelLayout),
+    // Always a full, clamped channel set — a partial/legacy blob can't drop a
+    // channel or push a gain out of 0..1.
+    mixer: sanitizeMixer(raw.mixer),
   };
   for (const key of LEGACY_CREDENTIAL_KEYS) delete out[key];
   return out;
@@ -407,6 +418,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const countdownIntervalRef = useRef(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
+  const mixerBroadcastRef = useRef(null);
   const tierRef = useRef(tier);
   tierRef.current = tier;
   const onRefreshAuthRef = useRef(onRefreshAuth);
@@ -674,15 +686,43 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   useEffect(() => {
     tts.setVoice(settings.voiceURI);
     tts.setRate(settings.ttsRate);
-    tts.setVolume(settings.ttsVolume);
+    // Local playback gets the provider volume scaled by the bot-voice and
+    // master mixer gains; the overlay receives the raw provider volume and
+    // applies the same gains itself, so they are never applied twice.
+    tts.setVolume(settings.ttsVolume * channelGain(settings.mixer, "botVoice"));
+    tts.setOverlayVolume(settings.ttsVolume);
     tts.setProvider(settings.ttsProvider);
+    tts.setOutput(settings.ttsOutput || "app");
     tts.setPiper({ voice: settings.piperVoice });
-  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice]);
+  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice, settings.mixer, settings.ttsOutput]);
 
   // Chat command TTS is intentionally separate from the AI response TTS.
   useEffect(() => {
     chatTts.setVoice(settings.chatTtsVoiceURI);
   }, [settings.chatTtsVoiceURI]);
+
+  useEffect(() => {
+    chatTts.setVolume(channelGain(settings.mixer, "chatTts"));
+  }, [settings.mixer]);
+
+  useEffect(() => {
+    chatTts.setOutput(settings.chatTtsOutput || "app");
+  }, [settings.chatTtsOutput]);
+
+  // The Mixer panel's gains are broadcast to this account's OBS overlays
+  // (chat alerts, video queue, shoutouts, custom sound layers, voice overlay).
+  // Debounced so dragging a slider doesn't fire a request per pixel.
+  useEffect(() => {
+    clearTimeout(mixerBroadcastRef.current);
+    mixerBroadcastRef.current = setTimeout(() => {
+      apiFetch("/mixer", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mixer: settings.mixer }),
+      }).catch(() => {});
+    }, 250);
+    return () => clearTimeout(mixerBroadcastRef.current);
+  }, [settings.mixer]);
 
   useEffect(() => {
     chatTts.setEnabled(settings.chatTtsEnabled);
@@ -900,6 +940,14 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           setBotStatus(data.status.type);
           if (data.botUsername) setActiveBotUsername(data.botUsername);
           setUsingSiteBot(!!data.usingSiteBot);
+        } else if (data.type === "tts_state") {
+          // Emitted by whichever player is actually audible. In "overlay"/"both"
+          // mode that is the OBS voice overlay, so this is what keeps the Skip
+          // button and the avatar panel's speaking state in sync with it. In
+          // "app" mode the local queue already owns ttsPlaying, and a stale
+          // "stop" from the previous clip must not hide Skip mid-generation.
+          setTtsSpeaking(!!data.playing);
+          if ((settingsRef.current.ttsOutput || "app") !== "app") setTtsPlaying(!!data.playing);
         } else if (data.type === "tiktok_status") {
           const tiktokStatusType = data.status.type;
           setTiktokStatus(tiktokStatusType);
@@ -1024,6 +1072,17 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const updateSetting = useCallback((key, value) => {
     setSettings((prev) => {
       const next = { ...prev, [key]: value };
+      localStorage.setItem("settings", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
+  // Mixer panel: set one channel gain (0..1) and persist. The TTS/mixer effect
+  // above re-applies it to local playback; the debounced POST broadcasts it to
+  // this account's OBS overlays.
+  const updateMixer = useCallback((channel, value) => {
+    setSettings((prev) => {
+      const next = { ...prev, mixer: { ...prev.mixer, [channel]: value } };
       localStorage.setItem("settings", JSON.stringify(next));
       return next;
     });
@@ -1262,7 +1321,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           command: settings.chatTtsCommand,
           voiceURI: settings.chatTtsVoiceURI,
           template: settings.chatTtsTemplate,
+          output: settings.chatTtsOutput,
           onUpdateSetting: updateSetting,
+        }}
+        mixerPanelProps={{
+          mixer: settings.mixer,
+          onChange: updateMixer,
         }}
       />
 

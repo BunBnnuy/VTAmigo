@@ -889,6 +889,18 @@ export default function Settings({ settings, tier, onSave, onClose }) {
                 <option value="piper">{t("settings.tts.piper")}</option>
               </select>
             </div>
+            <div style={styles.field}>
+              <label>{t("settings.tts.output")}</label>
+              <select
+                value={form.ttsOutput || "app"}
+                onChange={(e) => set("ttsOutput", e.target.value)}
+              >
+                <option value="app">{t("settings.tts.outputApp")}</option>
+                <option value="overlay">{t("settings.tts.outputOverlay")}</option>
+                <option value="both">{t("settings.tts.outputBoth")}</option>
+              </select>
+              <span style={styles.hint}>{t("settings.tts.outputHint")}</span>
+            </div>
             {(form.ttsProvider || "windows") === "windows" && (
               <div style={styles.field}>
                 <label>{t("settings.tts.voice")}</label>

@@ -206,6 +206,11 @@ export default {
       piperHint: "CPU上で完全オフラインで動作します — APIキーもサーバーも不要です。生成に失敗した場合はWindows TTSにフォールバックします。",
       speed: "速度（{rate}x）",
       volume: "音量（{volume}%）",
+      output: "音声の出力先",
+      outputApp: "このブラウザ",
+      outputOverlay: "OBSのボットボイスオーバーレイ",
+      outputBoth: "両方",
+      outputHint: "ボットの声を再生する場所。アプリのウィンドウをキャプチャせずにOBSで聞くには、オーバーレイスタジオで「Bot voice (TTS)」オーバーレイを追加してください。",
     },
 
     voice: {
@@ -458,6 +463,11 @@ export default {
     template: "メッセージ形式",
     templatePlaceholder: "{user} が言いました: {message}",
     templateHint: "{user} は送信者、{message} または {mensaje} はチャット本文に置き換わります。",
+    output: "音声の出力先",
+    outputApp: "このブラウザ",
+    outputOverlay: "OBSのチャットTTSオーバーレイ",
+    outputBoth: "両方",
+    outputHint: "チャットコマンドTTSを再生する場所。アプリのウィンドウをキャプチャせずにOBSで聞くには、オーバーレイスタジオで「Chat TTS」オーバーレイを追加してください。",
     hint: "AI共同ホストのTTSとは別に動作します。",
   },
 
@@ -568,6 +578,18 @@ export default {
     copied: "オーバーレイをコピーしました",
     copyOverlay: "オーバーレイをコピー",
     hint: "オーバーレイにはこのランキングだけが表示され、自動更新されます。",
+  },
+
+  mixerPanel: {
+    title: "オーディオミキサー",
+    master: "マスター",
+    botVoice: "ボットの声（TTS）",
+    chatTts: "チャットTTS",
+    chatAlerts: "チャットアラート",
+    videoQueue: "動画キュー",
+    shoutout: "シャウトアウト",
+    overlaySound: "オーバーレイ効果音",
+    hint: "すべての音源を調整します。ボット／チャットのTTSはこのブラウザで再生され、それ以外はOBSオーバーレイに送信されます: チャットアラート、動画キュー、シャウトアウト、カスタム効果音、ボットボイスオーバーレイ。",
   },
 
   chatOverlayPreview: {

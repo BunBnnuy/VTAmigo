@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Bot Voice Overlay</title>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+  }
+  #voice-preview {
+    position: fixed;
+    inset: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    font-family: "Segoe UI", system-ui, sans-serif;
+    font-size: 16px;
+    font-weight: 700;
+    color: rgba(255,255,255,0.9);
+    background: rgba(20,20,24,0.55);
+    border: 2px dashed rgba(255,255,255,0.35);
+    border-radius: 12px;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<script src="/overlay/preview-note.js?v=3"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+  const isPreview = params.get("preview") === "1";
+
+  // Gains broadcast by the Mixer panel. Kept live: a slider move re-applies to
+  // whatever is currently audible, not just the next clip.
+  let mixer = {};
+  function botGain(itemVolume) {
+    const bot = mixer.botVoice != null ? mixer.botVoice : 1;
+    const master = mixer.master != null ? mixer.master : 1;
+    const base = itemVolume != null ? itemVolume : 1;
+    return Math.min(1, Math.max(0, base * bot * master));
+  }
+
+  // Builder preview: the page is transparent when live, so the canvas would
+  // otherwise show an empty box. Draw a labelled placeholder instead.
+  if (isPreview && window.OverlayPreviewNote && OverlayPreviewNote.badge) {
+    OverlayPreviewNote.badge();
+    const el = document.createElement("div");
+    el.id = "voice-preview";
+    el.textContent = "Bot voice (TTS)";
+    document.body.appendChild(el);
+  }
+
+  // Initial gains (the WS only pushes on change).
+  fetch("/mixer/state?token=" + encodeURIComponent(token))
+    .then((r) => r.json())
+    .then((d) => { if (d && d.mixer) mixer = d.mixer; })
+    .catch(() => {});
+
+  // ── Avatar mouth-sync ──────────────────────────────────────────────────────
+  // The overlay, not the app, is now the audible source, so it is what tells
+  // the avatar overlay when the bot is speaking.
+  function reportSpeaking(playing) {
+    fetch("/overlay/tts/speaking/" + (playing ? "start" : "stop") + "?token=" + encodeURIComponent(token), {
+      method: "POST",
+    }).catch(() => {});
+  }
+
+  // ── Voice engines ──────────────────────────────────────────────────────────
+  // Browser speechSynthesis first (the desktop preview experience), Piper as
+  // the fallback — OBS's CEF browser source almost never exposes OS voices, so
+  // Piper is what actually plays on stream.
+  let voicesReady = false;
+  function loadVoices() {
+    try { voicesReady = !!window.speechSynthesis && window.speechSynthesis.getVoices().length > 0; } catch { voicesReady = false; }
+  }
+  if (window.speechSynthesis) {
+    loadVoices();
+    try { window.speechSynthesis.addEventListener("voiceschanged", loadVoices); } catch {}
+  }
+
+  const queue = [];
+  let busy = false;
+  let stopped = false;
+  let currentAudio = null;
+  let currentUtterance = null;
+
+  function enqueue(item) {
+    if (!item || !item.text) return;
+    queue.push(item);
+    next();
+  }
+
+  function next() {
+    if (busy || queue.length === 0) return;
+    const item = queue.shift();
+    busy = true;
+    stopped = false;
+    speak(item).finally(() => {
+      busy = false;
+      setTimeout(next, 60); // brief gap so back-to-back clips don't collide
+    });
+  }
+
+  function speak(item) {
+    const gain = botGain(item.volume);
+    const rate = item.rate || 1;
+    const usePiper = item.forcePiper || !voicesReady || !window.speechSynthesis;
+    if (!usePiper) {
+      return speakBrowser(item, gain, rate).then((ok) => (ok ? undefined : speakPiper(item, gain, rate)));
+    }
+    return speakPiper(item, gain, rate);
+  }
+
+  function speakBrowser(item, gain, rate) {
+    return new Promise((resolve) => {
+      let utt;
+      try { utt = new SpeechSynthesisUtterance(item.text); } catch { return resolve(false); }
+      utt.volume = gain;
+      utt.rate = rate;
+      utt._baseVolume = item.volume;
+      if (item.voiceURI) {
+        const voice = window.speechSynthesis.getVoices().find((v) => v.voiceURI === item.voiceURI);
+        if (voice) utt.voice = voice;
+      }
+      let started = false;
+      currentUtterance = utt;
+      utt.onstart = () => { started = true; reportSpeaking(true); };
+      utt.onend = () => { if (currentUtterance === utt) currentUtterance = null; reportSpeaking(false); resolve(started); };
+      utt.onerror = () => { if (currentUtterance === utt) currentUtterance = null; reportSpeaking(false); resolve(false); };
+      try { window.speechSynthesis.speak(utt); } catch { return resolve(false); }
+      // If the engine never starts (no voice installed, or silent), fall back
+      // to Piper instead of silently dropping the line.
+      setTimeout(() => {
+        if (!started && currentUtterance === utt) {
+          try { window.speechSynthesis.cancel(); } catch {}
+          currentUtterance = null;
+          resolve(false);
+        }
+      }, 1200);
+    });
+  }
+
+  function speakPiper(item, gain, rate) {
+    return fetch("/overlay/tts/piper?token=" + encodeURIComponent(token), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: item.text, voice: item.piperVoice || undefined }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error("piper " + res.status);
+        const blob = await res.blob();
+        if (stopped) return;
+        const audio = new Audio(URL.createObjectURL(blob));
+        audio.volume = gain;
+        audio.playbackRate = rate;
+        audio._baseVolume = item.volume;
+        currentAudio = audio;
+        return new Promise((resolve) => {
+          const finish = () => {
+            if (currentAudio === audio) {
+              currentAudio = null;
+              if (audio.src) URL.revokeObjectURL(audio.src);
+            }
+            reportSpeaking(false);
+            resolve();
+          };
+          audio.onended = finish;
+          audio.onerror = finish;
+          audio.play().then(() => reportSpeaking(true)).catch(finish);
+        });
+      })
+      .catch((err) => {
+        console.warn("[voice-overlay] playback failed", err && err.message);
+      });
+  }
+
+  function skipAll() {
+    stopped = true;
+    queue.length = 0;
+    if (currentAudio) { try { currentAudio.pause(); } catch {} }
+    if (currentUtterance) { try { window.speechSynthesis.cancel(); } catch {} }
+    reportSpeaking(false);
+  }
+
+  // ── WebSocket ──────────────────────────────────────────────────────────────
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      if (data.type === "tts_speak") {
+        enqueue(data);
+      } else if (data.type === "tts_skip") {
+        skipAll();
+      } else if (data.type === "mixer_state" && data.mixer) {
+        mixer = data.mixer;
+        // Re-apply to anything currently audible.
+        if (currentAudio && currentAudio._baseVolume != null) currentAudio.volume = botGain(currentAudio._baseVolume);
+        if (currentUtterance && currentUtterance._baseVolume != null) currentUtterance.volume = botGain(currentUtterance._baseVolume);
+      }
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+  connect();
+</script>
+</body>
+</html>

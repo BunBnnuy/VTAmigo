@@ -38,6 +38,7 @@ const activityRouter = require("./routes/activity");
 const overlaysRouter = require("./routes/overlays");
 const streamRouter = require("./routes/stream");
 const settingsRouter = require("./routes/settings");
+const mixerRouter = require("./routes/mixer");
 const videoRouter = require("./routes/video");
 const overlayBuilderRouter = require("./routes/overlayBuilder");
 const ttsRouter = require("./routes/tts");
@@ -288,6 +289,7 @@ app.use(activityRouter);      // /activity/recent
 app.use(overlaysRouter);      // /overlay/avatar*, /overlay/chat, /chat-overlay/*
 app.use(streamRouter);        // /stream/*
 app.use(settingsRouter);      // /settings
+app.use(mixerRouter);         // /mixer, /mixer/state
 app.use(videoRouter);         // /video/*, /overlay/video
 app.use(overlayBuilderRouter); // /overlay-builder/*, /overlay/custom/*
 app.use(avatarRouter);         // /avatar/reactive/*

@@ -206,6 +206,11 @@ export default {
       piperHint: "Runs fully offline on CPU — no API key or server needed. Falls back to Windows TTS if generation fails.",
       speed: "Speed ({rate}x)",
       volume: "Volume ({volume}%)",
+      output: "Voice output",
+      outputApp: "This browser",
+      outputOverlay: "OBS Bot voice overlay",
+      outputBoth: "Both",
+      outputHint: "Where the bot's voice plays. Add the \"Bot voice (TTS)\" overlay in the Overlay Studio to hear it in OBS without capturing the app window.",
     },
 
     voice: {
@@ -465,6 +470,11 @@ export default {
     template: "Message template",
     templatePlaceholder: "{user} said: {message}",
     templateHint: "Use {user} for the sender and {message} or {mensaje} for the chat text.",
+    output: "Voice output",
+    outputApp: "This browser",
+    outputOverlay: "OBS Chat TTS overlay",
+    outputBoth: "Both",
+    outputHint: "Where chat-command TTS plays. Add the \"Chat TTS\" overlay in the Overlay Studio to hear it in OBS without capturing the app window.",
     hint: "Independent from the AI co-host TTS.",
   },
 
@@ -575,6 +585,18 @@ export default {
     copied: "Overlay copied",
     copyOverlay: "Copy overlay",
     hint: "The overlay shows only this ranking and refreshes automatically.",
+  },
+
+  mixerPanel: {
+    title: "Audio Mixer",
+    master: "Master",
+    botVoice: "Bot voice (TTS)",
+    chatTts: "Chat TTS",
+    chatAlerts: "Chat alerts",
+    videoQueue: "Video queue",
+    shoutout: "Shoutouts",
+    overlaySound: "Overlay sounds",
+    hint: "Balances every sound source. Bot and chat TTS play in this browser; the rest are sent to your OBS overlays — chat alerts, video queue, shoutouts, custom sound layers and the Bot voice overlay.",
   },
 
   chatOverlayPreview: {
