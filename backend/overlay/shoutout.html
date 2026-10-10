@@ -136,6 +136,14 @@
   let endTimer = null;    // the short hold between `ended` and the fade
   let clearTimer = null;  // empties the DOM after the fade completes
 
+  // Mixer gains (see the /mixer/state fetch + mixer_state WS event below).
+  let mixer = {};
+  function shoutoutGain() {
+    const s = mixer.shoutout != null ? mixer.shoutout : 1;
+    const master = mixer.master != null ? mixer.master : 1;
+    return Math.min(1, Math.max(0, s * master));
+  }
+
   // Twitch's clip iframe is non-interactive (no JS API, un-hideable chrome),
   // so it's only a fallback: the signed MP4 Twitch serves plays in a plain
   // <video> we fully control.
@@ -160,7 +168,7 @@
       video.src = clip.mp4Url;
       video.playsInline = true;
       video.preload = "auto";
-      video.volume = 1;
+      video.volume = shoutoutGain();
       video.muted = false;
       // The real signal: play the clip all the way to its final frame, hold a
       // beat, then fade. No duration math involved.
@@ -304,9 +312,18 @@
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
       if (data.type === "shoutout") show(data);
+      else if (data.type === "mixer_state" && data.mixer) {
+        mixer = data.mixer;
+        const video = clipBox.querySelector("video");
+        if (video) video.volume = shoutoutGain();
+      }
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }
+  fetch("/mixer/state?token=" + encodeURIComponent(token))
+    .then((r) => r.json())
+    .then((d) => { if (d && d.mixer) mixer = d.mixer; })
+    .catch(() => {});
   showShoutoutSample();
   connect();
 </script>

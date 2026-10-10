@@ -147,4 +147,4 @@ Notes:
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`. OpenCode installs with `npm install -g opencode-ai` (lands on the service PATH at `/usr/local/bin/opencode`; override with `OPENCODE_PATH` if you install it elsewhere).
 - `PIPER_DIR`, `PIPER_EXE`, `PIPER_VOICES_DIR`, and `PIPER_DEFAULT_VOICE` are all overridable via env — see `backend/piper.js`.
-- The systemd unit caps memory at 800M (`MemoryMax`) as a conservative default to leave headroom for the OS; raise it in `vtamigo-backend.service` if needed.
+- The systemd unit caps memory at 2G (`MemoryMax`) as a conservative default to leave headroom for the OS; raise it in `vtamigo-backend.service` if needed.

@@ -72,6 +72,16 @@
   let latestByKind = {};
   let currentLayers = [];
 
+  // Mixer gains (see the /mixer/state fetch + mixer_state WS event below):
+  // scales sound/video layer playback by the "Overlay sound" channel times the
+  // master. Kept live so a slider move affects currently-playing media.
+  let mixer = {};
+  function overlayGain() {
+    const s = mixer.overlaySound != null ? mixer.overlaySound : 1;
+    const master = mixer.master != null ? mixer.master : 1;
+    return Math.min(1, Math.max(0, s * master));
+  }
+
   // Keep in sync with frontend/src/OverlayCanvas.jsx's TOKEN_TO_KIND/fillTemplate —
   // this is a separate static-HTML bundle, not React, so it's duplicated by hand.
   const TOKEN_TO_KIND = { follower: "follow", sub: "sub", resub: "resub", giftsub: "giftsub", raid: "raid", cheer: "cheer", redeem: "redeem" };
@@ -171,6 +181,7 @@
       video.src = layer.assetUrl;
       video.loop = false; // manual looping — see the "ended" listener below
       video.muted = layer.muted !== false;
+      video.volume = overlayGain();
       video.playsInline = true;
       video.addEventListener("playing", () => { el.style.visibility = "visible"; });
       video.addEventListener("ended", () => {
@@ -183,7 +194,7 @@
       const audio = document.createElement("audio");
       audio.src = layer.assetUrl;
       audio.loop = false; // manual looping, same as video
-      audio.volume = (layer.volume != null ? layer.volume : 100) / 100;
+      audio.volume = ((layer.volume != null ? layer.volume : 100) / 100) * overlayGain();
       audio.addEventListener("ended", () => {
         if (entry.layer.playMode === "loop") startPlayback(entry);
       });
@@ -230,8 +241,9 @@
       img.style.opacity = (layer.opacity != null ? layer.opacity : 100) / 100;
     } else if (layer.type === "video") {
       entry.mediaEl.muted = layer.muted !== false;
+      entry.mediaEl.volume = overlayGain();
     } else if (layer.type === "sound") {
-      entry.mediaEl.volume = (layer.volume != null ? layer.volume : 100) / 100;
+      entry.mediaEl.volume = ((layer.volume != null ? layer.volume : 100) / 100) * overlayGain();
     } else if (layer.type === "text") {
       const text = entry.el.firstChild;
       text.textContent = fillTemplate(layer.text || "");
@@ -351,11 +363,22 @@
         } else {
           checkTriggers("command", { text: data.msg.text, msg: data.msg });
         }
+      } else if (data.type === "mixer_state" && data.mixer) {
+        mixer = data.mixer;
+        for (const entry of layerEls.values()) {
+          if (!entry.mediaEl) continue;
+          if (entry.layer.type === "sound") entry.mediaEl.volume = ((entry.layer.volume != null ? entry.layer.volume : 100) / 100) * overlayGain();
+          else if (entry.layer.type === "video") entry.mediaEl.volume = overlayGain();
+        }
       }
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }
   connect();
+  fetch("/mixer/state?token=" + encodeURIComponent(token))
+    .then((r) => r.json())
+    .then((d) => { if (d && d.mixer) mixer = d.mixer; })
+    .catch(() => {});
 </script>
 </body>
 </html>

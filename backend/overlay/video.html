@@ -129,6 +129,19 @@
   let pendingTitle = "";
   let progressTimer = null;
 
+  // Mixer gains (see the /mixer/state fetch + mixer_state WS event below).
+  let mixer = {};
+  function videoGain() {
+    const vq = mixer.videoQueue != null ? mixer.videoQueue : 1;
+    const master = mixer.master != null ? mixer.master : 1;
+    return vq * master;
+  }
+  function applyMixer() {
+    if (playerReady && player && player.setVolume) {
+      try { player.setVolume(Math.round(Math.min(1, Math.max(0, videoGain())) * 100)); } catch {}
+    }
+  }
+
   function fmtTime(sec) {
     sec = Math.max(0, Math.round(sec));
     const m = Math.floor(sec / 60);
@@ -172,6 +185,7 @@
 
   function onPlayerReady() {
     playerReady = true;
+    applyMixer();
     if (currentVideoId) loadVideo(currentVideoId, pendingOffsetSec, pendingPaused, pendingTitle);
   }
 
@@ -253,9 +267,14 @@
       let data;
       try { data = JSON.parse(e.data); } catch { return; }
       if (data.type === "video_state") applyState(data);
+      else if (data.type === "mixer_state" && data.mixer) { mixer = data.mixer; applyMixer(); }
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }
+  fetch("/mixer/state?token=" + encodeURIComponent(token))
+    .then((r) => r.json())
+    .then((d) => { if (d && d.mixer) { mixer = d.mixer; applyMixer(); } })
+    .catch(() => {});
   showVideoSample();
   connect();
 </script>

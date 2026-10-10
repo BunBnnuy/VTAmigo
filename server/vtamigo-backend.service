@@ -13,7 +13,7 @@ EnvironmentFile=/etc/vtamigo.env
 ExecStart=/usr/bin/node index.js
 Restart=on-failure
 RestartSec=5
-MemoryMax=800M
+MemoryMax=2G
 
 [Install]
 WantedBy=multi-user.target

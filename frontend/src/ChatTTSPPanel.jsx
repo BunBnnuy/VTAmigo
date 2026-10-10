@@ -22,7 +22,7 @@ function Toggle({ checked, onChange }) {
 }
 
 // Content only — the outer draggable/resizable frame is provided by Window.
-export default function ChatTTSPPanel({ enabled, command, voiceURI, template, onUpdateSetting, lang }) {
+export default function ChatTTSPPanel({ enabled, command, voiceURI, template, output, onUpdateSetting, lang }) {
   const { t } = useTranslation(lang);
   const [voices, setVoices] = useState([]);
 
@@ -79,6 +79,20 @@ export default function ChatTTSPPanel({ enabled, command, voiceURI, template, on
             </option>
           ))}
         </select>
+      </div>
+
+      <div style={styles.field}>
+        <label style={styles.fieldLabel} htmlFor="chat-tts-output">{t("chatTtsPanel.output")}</label>
+        <select
+          id="chat-tts-output"
+          value={output || "app"}
+          onChange={(e) => onUpdateSetting("chatTtsOutput", e.target.value)}
+        >
+          <option value="app">{t("chatTtsPanel.outputApp")}</option>
+          <option value="overlay">{t("chatTtsPanel.outputOverlay")}</option>
+          <option value="both">{t("chatTtsPanel.outputBoth")}</option>
+        </select>
+        <span style={styles.hint}>{t("chatTtsPanel.outputHint")}</span>
       </div>
 
       <div style={styles.note}>

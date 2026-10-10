@@ -206,6 +206,11 @@ export default {
       piperHint: "CPU에서 완전히 오프라인으로 실행됩니다 — API 키나 서버가 필요 없습니다. 생성에 실패하면 Windows TTS로 대체됩니다.",
       speed: "속도 ({rate}x)",
       volume: "음량 ({volume}%)",
+      output: "음성 출력",
+      outputApp: "이 브라우저",
+      outputOverlay: "OBS 봇 보이스 오버레이",
+      outputBoth: "둘 다",
+      outputHint: "봇 음성이 재생되는 위치입니다. 앱 창을 캡처하지 않고 OBS에서 들으려면 오버레이 스튜디오에서 \"Bot voice (TTS)\" 오버레이를 추가하세요.",
     },
 
     voice: {
@@ -458,6 +463,11 @@ export default {
     template: "메시지 형식",
     templatePlaceholder: "{user}님이 말했습니다: {message}",
     templateHint: "{user}는 발신자, {message} 또는 {mensaje}는 채팅 내용으로 바뀝니다.",
+    output: "음성 출력",
+    outputApp: "이 브라우저",
+    outputOverlay: "OBS 채팅 TTS 오버레이",
+    outputBoth: "둘 다",
+    outputHint: "채팅 명령어 TTS가 재생되는 위치입니다. 앱 창을 캡처하지 않고 OBS에서 들으려면 오버레이 스튜디오에서 \"Chat TTS\" 오버레이를 추가하세요.",
     hint: "AI 공동 진행자의 TTS와 별도로 작동합니다.",
   },
 
@@ -568,6 +578,18 @@ export default {
     copied: "오버레이가 복사됨",
     copyOverlay: "오버레이 복사",
     hint: "오버레이에는 이 순위만 표시되며 자동으로 새로 고침됩니다.",
+  },
+
+  mixerPanel: {
+    title: "오디오 믹서",
+    master: "마스터",
+    botVoice: "봇 음성(TTS)",
+    chatTts: "채팅 TTS",
+    chatAlerts: "채팅 알림음",
+    videoQueue: "영상 대기열",
+    shoutout: "샤우트아웃",
+    overlaySound: "오버레이 효과음",
+    hint: "모든 사운드 소스를 조절합니다. 봇/채팅 TTS는 이 브라우저에서 재생되고, 나머지는 OBS 오버레이로 전송됩니다: 채팅 알림음, 영상 대기열, 샤우트아웃, 커스텀 효과음, 봇 보이스 오버레이.",
   },
 
   chatOverlayPreview: {

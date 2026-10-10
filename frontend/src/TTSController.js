@@ -30,10 +30,14 @@ class TTSController {
     this.playing = false; // true while the queue has/is processing an item (including mid-generation)
     this.speaking = false; // true only once audio is actually audible — same instant as speakingStart/speakingStop
     this.muted = false;
-    this.volume = 1;
+    this.volume = 1; // effective local gain (provider volume × mixer channels)
+    this.overlayVolume = 1; // raw provider volume; the voice overlay applies the mixer itself
     this.rate = 1;
     this.voiceURI = null;
     this.provider = "windows";
+    // "app" (local browser, default), "overlay" (OBS voice-overlay browser
+    // source only) or "both" — see _next().
+    this.output = "app";
     this.piperVoice = "";
     this.currentAudio = null; // active remote-provider Audio element
     this.onStateChange = null; // () => void — called when playing/queue changes
@@ -52,6 +56,16 @@ class TTSController {
     if (this.currentAudio) this.currentAudio.volume = v;
   }
 
+  // The overlay gets the un-mixed provider volume and applies the Mixer panel's
+  // bot-voice/master gains itself, so the two paths never double-apply them.
+  setOverlayVolume(v) {
+    this.overlayVolume = v;
+  }
+
+  setOutput(mode) {
+    this.output = mode === "overlay" || mode === "both" ? mode : "app";
+  }
+
   setRate(r) {
     this.rate = r;
   }
@@ -67,6 +81,7 @@ class TTSController {
   setMuted(m) {
     this.muted = m;
     if (m) {
+      if (this.output !== "app") this._clearOverlay();
       speakingStop();
       this._setSpeaking(false);
       this._stopCurrentAudio();
@@ -89,6 +104,7 @@ class TTSController {
   }
 
   skip() {
+    if (this.output !== "app") this._clearOverlay();
     speakingStop();
     this._setSpeaking(false);
     if (this.currentAudio) {
@@ -100,6 +116,7 @@ class TTSController {
   }
 
   clearQueue() {
+    if (this.output !== "app") this._clearOverlay();
     speakingStop();
     this._setSpeaking(false);
     this.queue = [];
@@ -107,6 +124,28 @@ class TTSController {
     this.synth.cancel();
     this.playing = false;
     this._notify();
+  }
+
+  // Hands one line to the account's voice overlay (backend /tts/speak →
+  // {type:"tts_speak"} broadcast → overlay/voice.html). The overlay owns its
+  // own sequential queue and reports the audible window back as tts_state.
+  _sendToOverlay(text) {
+    apiFetch("/tts/speak", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        text,
+        voiceURI: this.voiceURI || null,
+        piperVoice: this.piperVoice || null,
+        rate: this.rate,
+        volume: this.overlayVolume,
+        forcePiper: this.provider === "piper",
+      }),
+    }).catch(() => {});
+  }
+
+  _clearOverlay() {
+    apiFetch("/tts/skip", { method: "POST" }).catch(() => {});
   }
 
   _stopCurrentAudio(fireDone = false) {
@@ -129,6 +168,19 @@ class TTSController {
     const { text, onDone } = this.queue.shift();
     this.playing = true;
     this._notify();
+
+    // The voice overlay owns playback when the output setting includes it: the
+    // app either just hands the line off ("overlay") or also speaks it locally
+    // ("both"). Overlay-only drains the local queue immediately — the overlay
+    // runs its own sequential queue — and the tts_state WS event drives the
+    // speaking UI (see App.jsx).
+    if (this.output === "overlay") {
+      this._sendToOverlay(text);
+      if (onDone) onDone();
+      this._next();
+      return;
+    }
+    if (this.output === "both") this._sendToOverlay(text);
 
     if (this.provider === "piper") {
       this._speakRemote(text, onDone, "Piper", "/tts/piper", {

@@ -206,6 +206,11 @@ export default {
       piperHint: "Funciona totalmente sin conexión en CPU — no necesita API key ni servidor. Vuelve al TTS de Windows si falla la generación.",
       speed: "Velocidad ({rate}x)",
       volume: "Volumen ({volume}%)",
+      output: "Salida de voz",
+      outputApp: "Este navegador",
+      outputOverlay: "Overlay de voz del bot en OBS",
+      outputBoth: "Ambos",
+      outputHint: "Dónde suena la voz del bot. Agrega el overlay \"Bot voice (TTS)\" en el Estudio de overlays para oírla en OBS sin capturar la ventana de la aplicación.",
     },
 
     voice: {
@@ -458,6 +463,11 @@ export default {
     template: "Formato del mensaje",
     templatePlaceholder: "{user} dijo: {mensaje}",
     templateHint: "Usa {user} para el usuario y {message} o {mensaje} para el texto del chat.",
+    output: "Salida de voz",
+    outputApp: "Este navegador",
+    outputOverlay: "Overlay Chat TTS en OBS",
+    outputBoth: "Ambos",
+    outputHint: "Dónde se reproduce el TTS de comandos del chat. Agrega el overlay \"Chat TTS\" en el Estudio de overlays para oírlo en OBS sin capturar la ventana de la aplicación.",
     hint: "Es independiente del TTS del bot IA.",
   },
 
@@ -568,6 +578,18 @@ export default {
     copied: "Overlay copiado",
     copyOverlay: "Copiar overlay",
     hint: "El overlay muestra solo este ranking y se actualiza automáticamente.",
+  },
+
+  mixerPanel: {
+    title: "Mezclador de audio",
+    master: "Maestro",
+    botVoice: "Voz del bot (TTS)",
+    chatTts: "TTS del chat",
+    chatAlerts: "Alertas del chat",
+    videoQueue: "Cola de video",
+    shoutout: "Shoutouts",
+    overlaySound: "Sonidos de overlays",
+    hint: "Equilibra cada fuente de sonido. El TTS del bot y del chat suenan en este navegador; el resto se envía a tus overlays de OBS: alertas del chat, cola de video, shoutouts, capas de sonido y el overlay de voz del bot.",
   },
 
   chatOverlayPreview: {
