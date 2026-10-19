@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # VTAmigo headless backend setup — Ubuntu 22.04 / 26.04
 #
-# Installs Node.js, backend deps, Piper TTS, and the Spanish voices from
+# Installs Node.js, backend deps, Piper TTS, KittenTTS, Kokoro-82M, and the Spanish voices from
 # https://huggingface.co/AIHeaven/piper_unofficial_voices (es/ folder).
 #
 # Run from the repo root: sudo bash server/setup.sh
@@ -22,6 +22,19 @@ PIPER_ARCHIVE="piper_linux_x86_64.tar.gz"
 # from a verified download on 2026-09-18). Bump together with PIPER_VERSION:
 # download the new asset once, verify it out-of-band, update this hash.
 PIPER_SHA256="a50cb45f355b7af1f6d758c1b360717877ba0a398cc8cbe6d2a7a3a26e225992"
+
+# Download $1 to $2 unless $2 already matches the pinned SHA256 in $3.
+fetch_verified() {
+  local url="$1" dest="$2" sha="$3"
+  if [ -f "$dest" ] && echo "$sha  $dest" | sha256sum -c - >/dev/null 2>&1; then
+    echo "  $(basename "$dest") already present"
+    return
+  fi
+  local tmp="$dest.tmp"
+  curl -fsSL -o "$tmp" "$url"
+  echo "$sha  $tmp" | sha256sum -c -
+  mv "$tmp" "$dest"
+}
 
 echo "==> Installing system packages"
 apt-get update -y
@@ -45,6 +58,46 @@ if ! command -v node >/dev/null || [ "$(node -v | cut -d. -f1 | tr -d v)" -lt 18
 else
   echo "Node $(node -v) already installed, skipping"
 fi
+
+echo "==> Installing KittenTTS (optional offline neural voices)"
+# The ONNX worker lives in its own venv. `kittenml` is installed with
+# --no-deps on purpose: its metadata pulls torch + CUDA wheels (~5 GB) that the
+# lightweight ONNX models never import. See backend/kitten/requirements.txt.
+KITTEN_DIR="$BACKEND_DIR/kitten"
+apt-get install -y python3 python3-venv
+if [ ! -x "$KITTEN_DIR/.venv/bin/python" ]; then
+  python3 -m venv "$KITTEN_DIR/.venv"
+else
+  echo "KittenTTS venv already present, refreshing packages"
+fi
+"$KITTEN_DIR/.venv/bin/pip" install --quiet --upgrade pip
+"$KITTEN_DIR/.venv/bin/pip" install --quiet --no-deps kittenml==0.9.4
+"$KITTEN_DIR/.venv/bin/pip" install --quiet -r "$KITTEN_DIR/requirements.txt"
+# The service user downloads/caches the model here on first request.
+mkdir -p "$KITTEN_DIR/models"
+if id vtamigo >/dev/null 2>&1; then
+  chown -R vtamigo:vtamigo "$KITTEN_DIR/models"
+fi
+
+echo "==> Installing Kokoro-82M (Spanish-capable neural voices)"
+# Second Python sidecar, same idea as KittenTTS. Unlike Kitten, the 311 MB
+# model is fetched here instead of on the first request.
+KOKORO_DIR="$BACKEND_DIR/kokoro"
+if [ ! -x "$KOKORO_DIR/.venv/bin/python" ]; then
+  python3 -m venv "$KOKORO_DIR/.venv"
+else
+  echo "Kokoro venv already present, refreshing packages"
+fi
+"$KOKORO_DIR/.venv/bin/pip" install --quiet --upgrade pip
+"$KOKORO_DIR/.venv/bin/pip" install --quiet -r "$KOKORO_DIR/requirements.txt"
+mkdir -p "$KOKORO_DIR/models"
+KOKORO_RELEASE="https://github.com/thewh1teagle/kokoro-onnx/releases/download/model-files-v1.1"
+# Verified against the v1.1 release assets on 2026-10-19. Bump the URL and the
+# hashes together after reviewing a new release.
+fetch_verified "$KOKORO_RELEASE/kokoro-v1.0.onnx" "$KOKORO_DIR/models/kokoro-v1.0.onnx" \
+  "beb0d1848dee9a49da392cc3df26958d46cfa35d321edf434f52949153f0df3a"
+fetch_verified "$KOKORO_RELEASE/voices-v1.0.bin" "$KOKORO_DIR/models/voices-v1.0.bin" \
+  "bca610b8308e8d99f32e6fe4197e7ec01679264efed0cac9140fe9c29f1fbf7d"
 
 echo "==> Installing backend dependencies"
 cd "$BACKEND_DIR"

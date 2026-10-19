@@ -1,5 +1,22 @@
 # Changelog
 
+## 2026-10-19
+
+- Added **KittenTTS** as a third TTS provider alongside Windows TTS and Piper.
+  - Local neural voices (Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, Leo), fully offline, no API key.
+  - Works in all three voice outputs: this browser, the OBS Bot voice overlay, and Both.
+  - The Python worker starts on first use and exits after 10 idle minutes, so it only holds RAM while the bot is talking.
+  - The lightweight ONNX models are English-only; keep Piper selected for Spanish. KittenTTS 2 is multilingual but needs ~2.3 GB of RAM, above the backend's 2 GB cap.
+  - `server/setup.sh` now creates `backend/kitten/.venv` and installs the ONNX dependencies.
+- Added **Kokoro-82M** as a fourth TTS provider, with official Spanish speakers.
+  - Voices: Dora (ES), Alex (ES), Santa (ES), plus Heart, Bella, Nova, Michael, Fenrir, Emma and George in English.
+  - Apache 2.0, fully offline, ~640 MB RSS while active; the worker exits after 10 idle minutes.
+  - The 311 MB fp32 ONNX model and voice bank are downloaded by `server/setup.sh` with pinned SHA256 hashes.
+  - This is the recommended neural provider for Spanish; KittenTTS stays as the lighter English-only option and Piper as the ultralight one.
+  - The two Python sidecars now share `backend/ttsWorker.js` for spawning, the JSON protocol, concurrency caps and idle shutdown.
+- Experimental: `KITTEN_LANGUAGE` (e.g. `KITTEN_LANGUAGE=es`) swaps KittenTTS's English G2P for another espeak language while keeping the English-trained voice, so the lightweight model can read Spanish with an accent.
+- Unified the TTS voice picker in Settings and Quick Controls into one list across engines (`Windows/...` or `Browser/...` for system/browser voices, `Piper/...`, `Kitten/...`, `Kokoro/...`). Choosing a voice now also chooses its provider; the old provider dropdown is gone.
+
 ## 2026-09-28
 
 - Rebuilt the **chat overlay** with a full set of appearance and behavior options.

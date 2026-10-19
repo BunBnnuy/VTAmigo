@@ -91,9 +91,8 @@ All settings are available in the in-app Settings panel:
 | Max messages per batch | Cap on messages sent per request (gated by account tier) |
 | Response style | Auto / Chatbot / Narrator |
 | Base prompt | System prompt prepended to every AI request (empty by default for new users) |
-| TTS provider | "Windows TTS" (the browser's own `speechSynthesis` voices) or Piper (local offline voices installed by `server/setup.sh`) |
-| Piper voice | Pick any `.onnx` voice installed under `backend/piper/voices` |
-| TTS voice / speed / volume | Speech synthesis settings |
+| TTS voice | One unified list labeled `Provider/Voice` — `Windows/Microsoft ...` for system voices, `Browser/Google ...` for the browser's own voices, `Piper/...` (local offline Spanish voices), `Kitten/...` (English-only ONNX voices) and `Kokoro/...` (neural voices with official Spanish speakers). Picking a voice also picks its provider |
+| TTS speed / volume | Speech synthesis settings |
 | Voice output | App / OBS Bot voice overlay / Both — where the bot's voice plays |
 | Audio Mixer | Per-source + master volume for every sound path (Mixer panel) |
 | Avatar overlay | Upload speaking/silent images and get an OBS overlay URL |
@@ -150,6 +149,9 @@ VTAmigo/
 │   ├── aiMigration.js # Admin bulk migration of every account's memory to another provider
 │   ├── memoryDownload.js     # Session memory download with progress reporting
 │   ├── piper.js       # Piper TTS engine runner
+│   ├── kitten.js      # KittenTTS worker supervisor (spawns backend/kitten/worker.py)
+│   ├── kokoro.js      # Kokoro-82M worker supervisor (spawns backend/kokoro/worker.py)
+│   ├── ttsWorker.js   # Shared spawn/protocol/idle-shutdown logic for the Python TTS sidecars
 │   ├── twitch.js      # Twitch IRC client
 │   ├── eventsub.js    # Twitch EventSub client
 │   ├── emotes.js      # Twitch/FFZ/BTTV/7TV emote + badge resolution, used by the chat overlay

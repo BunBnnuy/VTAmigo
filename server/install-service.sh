@@ -43,8 +43,8 @@ chown -R "$SERVICE_USER":"$SERVICE_USER" "/home/$SERVICE_USER"
 # backend it runs from. The service user gets ownership of the runtime DATA
 # dirs only (SQLite lives in data/db, uploads/avatars/overlay assets in
 # data/*, memory exports in memories/).
-mkdir -p "$REPO_DIR/backend/data" "$REPO_DIR/backend/memories"
-chown -R "$SERVICE_USER":"$SERVICE_USER" "$REPO_DIR/backend/data" "$REPO_DIR/backend/memories"
+mkdir -p "$REPO_DIR/backend/data" "$REPO_DIR/backend/memories" "$REPO_DIR/backend/kitten/models" "$REPO_DIR/backend/kokoro/models"
+chown -R "$SERVICE_USER":"$SERVICE_USER" "$REPO_DIR/backend/data" "$REPO_DIR/backend/memories" "$REPO_DIR/backend/kitten/models" "$REPO_DIR/backend/kokoro/models"
 
 if [ ! -f "$ENV_FILE" ]; then
   echo "==> No $ENV_FILE found, copying example (edit it before starting the service)"

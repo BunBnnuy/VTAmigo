@@ -1,4 +1,7 @@
 export default {
+  ttsVoices: {
+    providerDefault: "Default",
+  },
   login: {
     logIn: "Log in with Twitch",
     title: "An AI co-host that never misses {chat}.",
@@ -196,6 +199,8 @@ export default {
       provider: "TTS Provider",
       windows: "Windows TTS (system voices)",
       piper: "Piper (local Spanish voices, offline)",
+      kitten: "KittenTTS (local neural voices, offline)",
+      kokoro: "Kokoro (local neural voices, Spanish included)",
       voice: "Voice",
       systemDefault: "System default",
       loadVoices: "Load voices",
@@ -204,6 +209,15 @@ export default {
       piperDefault: "Default (es_MX claude, high quality)",
       piperMissing: "piper.exe not found in projects\\piperttsspanish",
       piperHint: "Runs fully offline on CPU — no API key or server needed. Falls back to Windows TTS if generation fails.",
+      kittenVoice: "KittenTTS voice",
+      kittenDefault: "Default (Luna)",
+      kittenMissing: "KittenTTS is not installed on this server",
+      kittenHint: "Runs fully offline on CPU. The lightweight KittenTTS voices are English-only — use Piper for Spanish. Falls back to Windows TTS if generation fails.",
+      kokoroVoice: "Kokoro voice",
+      kokoroDefault: "Default (Dora · Spanish)",
+      kokoroMissing: "Kokoro is not installed on this server",
+      kokoroHint: "Runs fully offline on CPU with official Spanish voices (Dora, Alex, Santa). Apache 2.0. Falls back to Windows TTS if generation fails.",
+      voiceHint: "All engines in one list. Picking a voice also picks its provider.",
       speed: "Speed ({rate}x)",
       volume: "Volume ({volume}%)",
       output: "Voice output",
@@ -456,6 +470,10 @@ export default {
     systemDefault: "System default",
     defaultOption: "Default",
     piperMissing: "Piper is not installed",
+    kittenOption: "KittenTTS",
+    kittenMissing: "KittenTTS is not installed",
+    kokoroMissing: "Kokoro is not installed",
+    voiceHint: "Provider/Voice — picking one also switches the engine.",
     hint: "This panel can be hidden in compact mode",
   },
 

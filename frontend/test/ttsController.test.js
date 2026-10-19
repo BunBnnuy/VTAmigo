@@ -178,6 +178,70 @@ describe("avatar speaking signal", () => {
   });
 });
 
+describe("kitten provider", () => {
+  it("posts to /tts/kitten with the selected voice and plays the returned clip", async () => {
+    const tts = await freshTts();
+    tts.setProvider("kitten");
+    tts.setKitten({ voice: "Bruno" });
+
+    tts.enqueue("hola");
+
+    await vi.waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+    const call = globalThis.fetch.mock.calls.find(([url]) => String(url).endsWith("/tts/kitten"));
+    expect(call).toBeTruthy();
+    expect(JSON.parse(call[1].body)).toEqual({ text: "hola", voice: "Bruno" });
+  });
+
+  it("sends the kitten voice and provider to the OBS voice overlay", async () => {
+    const tts = await freshTts();
+    tts.setProvider("kitten");
+    tts.setOutput("overlay");
+    tts.setKitten({ voice: "Luna" });
+
+    tts.enqueue("hola overlay");
+
+    const call = globalThis.fetch.mock.calls.find(([url]) => String(url).endsWith("/tts/speak"));
+    expect(call).toBeTruthy();
+    expect(JSON.parse(call[1].body)).toMatchObject({
+      kittenVoice: "Luna",
+      ttsProvider: "kitten",
+      forcePiper: false,
+    });
+  });
+});
+
+describe("kokoro provider", () => {
+  it("posts to /tts/kokoro with the selected Spanish voice", async () => {
+    const tts = await freshTts();
+    tts.setProvider("kokoro");
+    tts.setKokoro({ voice: "em_alex" });
+
+    tts.enqueue("hola");
+
+    await vi.waitFor(() => expect(FakeAudio.instances).toHaveLength(1));
+    const call = globalThis.fetch.mock.calls.find(([url]) => String(url).endsWith("/tts/kokoro"));
+    expect(call).toBeTruthy();
+    expect(JSON.parse(call[1].body)).toEqual({ text: "hola", voice: "em_alex" });
+  });
+
+  it("sends the kokoro voice and provider to the OBS voice overlay", async () => {
+    const tts = await freshTts();
+    tts.setProvider("kokoro");
+    tts.setOutput("overlay");
+    tts.setKokoro({ voice: "ef_dora" });
+
+    tts.enqueue("hola overlay");
+
+    const call = globalThis.fetch.mock.calls.find(([url]) => String(url).endsWith("/tts/speak"));
+    expect(call).toBeTruthy();
+    expect(JSON.parse(call[1].body)).toMatchObject({
+      kokoroVoice: "ef_dora",
+      ttsProvider: "kokoro",
+      forcePiper: false,
+    });
+  });
+});
+
 describe("mute and volume", () => {
   it("muting silences the current response and tells the overlay to stop", async () => {
     const tts = await freshTts();

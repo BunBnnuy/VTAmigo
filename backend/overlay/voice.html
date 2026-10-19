@@ -114,10 +114,18 @@
     const gain = botGain(item.volume);
     const rate = item.rate || 1;
     const usePiper = item.forcePiper || !voicesReady || !window.speechSynthesis;
-    if (!usePiper) {
-      return speakBrowser(item, gain, rate).then((ok) => (ok ? undefined : speakPiper(item, gain, rate)));
+    const fallback = () => (
+      usePiper ? speakPiper(item, gain, rate) : speakBrowser(item, gain, rate).then((started) => (started ? undefined : speakPiper(item, gain, rate)))
+    );
+    // The neural engines are explicit: the streamer chose one in Settings, so
+    // try it first and only fall back when the worker is missing or fails.
+    if (item.ttsProvider === "kokoro") {
+      return speakNeural(item, gain, rate, "/overlay/tts/kokoro", "kokoroVoice", "Kokoro").then((ok) => (ok ? undefined : fallback()));
     }
-    return speakPiper(item, gain, rate);
+    if (item.ttsProvider === "kitten") {
+      return speakNeural(item, gain, rate, "/overlay/tts/kitten", "kittenVoice", "KittenTTS").then((ok) => (ok ? undefined : fallback()));
+    }
+    return fallback();
   }
 
   function speakBrowser(item, gain, rate) {
@@ -180,6 +188,45 @@
       })
       .catch((err) => {
         console.warn("[voice-overlay] playback failed", err && err.message);
+      });
+  }
+
+  // Same shape as speakPiper, but resolves true only when the engine actually
+  // produced and started a clip, so speak() can fall back to the other engines
+  // when the worker is not installed on this host. Shared by KittenTTS and
+  // Kokoro: only the route and the payload's voice key differ.
+  function speakNeural(item, gain, rate, endpoint, voiceKey, label) {
+    return fetch(endpoint + "?token=" + encodeURIComponent(token), {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: item.text, voice: item[voiceKey] || undefined }),
+    })
+      .then(async (res) => {
+        if (!res.ok) throw new Error(label + " " + res.status);
+        const blob = await res.blob();
+        if (stopped) return true;
+        const audio = new Audio(URL.createObjectURL(blob));
+        audio.volume = gain;
+        audio.playbackRate = rate;
+        audio._baseVolume = item.volume;
+        currentAudio = audio;
+        return new Promise((resolve) => {
+          const finish = () => {
+            if (currentAudio === audio) {
+              currentAudio = null;
+              if (audio.src) URL.revokeObjectURL(audio.src);
+            }
+            reportSpeaking(false);
+            resolve(true);
+          };
+          audio.onended = finish;
+          audio.onerror = finish;
+          audio.play().then(() => reportSpeaking(true)).catch(() => resolve(false));
+        });
+      })
+      .catch((err) => {
+        console.warn("[voice-overlay] " + label + " failed, falling back", err && err.message);
+        return false;
       });
   }
 

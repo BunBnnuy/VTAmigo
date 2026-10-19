@@ -23,6 +23,8 @@ sudo journalctl -u vtamigo-backend -f
 - Installs Node.js 20.x and backend npm dependencies
 - Downloads the Piper Linux binary
 - Clones the `es/` folder from [AIHeaven/piper_unofficial_voices](https://huggingface.co/AIHeaven/piper_unofficial_voices) into `backend/piper/voices`
+- Creates the KittenTTS Python venv in `backend/kitten/.venv` and installs its ONNX dependencies (the model itself downloads on first use into `backend/kitten/models`)
+- Creates the Kokoro Python venv in `backend/kokoro/.venv` and downloads the pinned 311 MB ONNX model + voice bank into `backend/kokoro/models` (SHA256-checked)
 
 ## Hosting the frontend too
 
@@ -147,4 +149,7 @@ Notes:
 
 - Grok/AGY/Claude CLIs are not installed by this script — install whichever provider(s) you're using and point `CLAUDE_PATH` / `GROK_PATH` / `AGY_PATH` at their Linux binaries in `/etc/vtamigo.env`. OpenCode installs with `npm install -g opencode-ai` (lands on the service PATH at `/usr/local/bin/opencode`; override with `OPENCODE_PATH` if you install it elsewhere).
 - `PIPER_DIR`, `PIPER_EXE`, `PIPER_VOICES_DIR`, and `PIPER_DEFAULT_VOICE` are all overridable via env — see `backend/piper.js`.
+- `KITTEN_MODEL`, `KITTEN_DEFAULT_VOICE`, `KITTEN_CACHE_DIR`, `KITTEN_LANGUAGE`, `KITTEN_IDLE_MS`, `KITTEN_STARTUP_TIMEOUT_MS` and `KITTEN_REQUEST_TIMEOUT_MS` configure the KittenTTS worker — see `backend/kitten.js`. Only the lightweight ONNX models are practical here (8 English voices, ~230 MB RSS); KittenTTS 2 needs ~2.3 GB and does not fit the 2G service cap. `KITTEN_LANGUAGE=es` is experimental: it phonemizes Spanish while using the English-trained voice.
+- `KOKORO_MODEL`, `KOKORO_VOICES`, `KOKORO_DEFAULT_VOICE`, `KOKORO_IDLE_MS`, `KOKORO_STARTUP_TIMEOUT_MS` and `KOKORO_REQUEST_TIMEOUT_MS` configure the Kokoro worker — see `backend/kokoro.js`. The fp32 model is ~640 MB RSS and ~3-4 s per sentence on CPU; the int8 export was ~3x slower here.
+- `TTS_VERBOSE=1` forwards the Python sidecars' stderr (download progress, library chatter) to the service journal.
 - The systemd unit caps memory at 2G (`MemoryMax`) as a conservative default to leave headroom for the OS; raise it in `vtamigo-backend.service` if needed.

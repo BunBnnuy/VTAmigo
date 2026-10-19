@@ -1,0 +1,9 @@
+# Kokoro-82M runs in its own virtualenv (backend/kokoro/.venv) next to the
+# Node backend, like KittenTTS. The ONNX model and voice bank are downloaded
+# by server/setup.sh into backend/kokoro/ (pinned by SHA256 there).
+#
+# 0.4.7 is pinned deliberately: newer kokoro-onnx releases require Python
+# <3.14, and this host runs 3.14. backend/kokoro/worker.py works around the
+# 0.4.7 float-speed bug (see its docstring).
+kokoro-onnx==0.4.7
+soundfile

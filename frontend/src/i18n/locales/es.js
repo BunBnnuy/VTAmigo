@@ -1,4 +1,7 @@
 export default {
+  ttsVoices: {
+    providerDefault: "Predeterminada",
+  },
   login: {
     logIn: "Iniciar sesión con Twitch",
     title: "Un co-presentador de IA que nunca se pierde el {chat}.",
@@ -196,6 +199,8 @@ export default {
       provider: "Proveedor de TTS",
       windows: "TTS de Windows (voces del sistema)",
       piper: "Piper (voces locales en español, sin conexión)",
+      kitten: "KittenTTS (voces neuronales locales, sin conexión)",
+      kokoro: "Kokoro (voces neuronales locales, incluye español)",
       voice: "Voz",
       systemDefault: "Predeterminada del sistema",
       loadVoices: "Cargar voces",
@@ -204,6 +209,15 @@ export default {
       piperDefault: "Predeterminada (es_MX claude, alta calidad)",
       piperMissing: "Piper no está instalado en el servidor",
       piperHint: "Funciona totalmente sin conexión en CPU — no necesita API key ni servidor. Vuelve al TTS de Windows si falla la generación.",
+      kittenVoice: "Voz de KittenTTS",
+      kittenDefault: "Predeterminada (Luna)",
+      kittenMissing: "KittenTTS no está instalado en este servidor",
+      kittenHint: "Funciona totalmente sin conexión en CPU. Las voces ligeras de KittenTTS son solo en inglés; usa Piper para español. Si falla, se usa la voz del sistema.",
+      kokoroVoice: "Voz de Kokoro",
+      kokoroDefault: "Predeterminada (Dora · español)",
+      kokoroMissing: "Kokoro no está instalado en este servidor",
+      kokoroHint: "Funciona totalmente sin conexión en CPU con voces españolas oficiales (Dora, Alex, Santa). Licencia Apache 2.0. Si falla, se usa la voz del sistema.",
+      voiceHint: "Todos los motores en una sola lista. Al elegir una voz también se elige su proveedor.",
       speed: "Velocidad ({rate}x)",
       volume: "Volumen ({volume}%)",
       output: "Salida de voz",
@@ -449,6 +463,10 @@ export default {
     systemDefault: "Predeterminada del sistema",
     defaultOption: "Predeterminada",
     piperMissing: "Piper no está instalado",
+    kittenOption: "KittenTTS",
+    kittenMissing: "KittenTTS no está instalado",
+    kokoroMissing: "Kokoro no está instalado",
+    voiceHint: "Proveedor/Voz — al elegir una voz también cambia el motor.",
     hint: "Este panel se puede ocultar en modo compacto",
   },
 
