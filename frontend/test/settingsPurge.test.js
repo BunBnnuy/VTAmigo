@@ -7,7 +7,6 @@ import { createElement } from "react";
 import { render, screen } from "@testing-library/react";
 import Settings from "../src/Settings.jsx";
 import { migrateSettings } from "../src/App.jsx";
-import en from "../src/i18n/locales/en.js";
 
 const BASE_SETTINGS = {
   language: "en",
@@ -86,10 +85,12 @@ describe("Settings no longer renders the retired desktop features", () => {
     }
   });
 
-  it("still offers the TTS providers that survived", () => {
+  it("still offers every surviving TTS engine in the unified voice list", () => {
     renderSettings();
-    expect(screen.getByRole("option", { name: en.settings.tts.windows })).toBeInTheDocument();
-    expect(screen.getByRole("option", { name: en.settings.tts.piper })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Windows\// })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Piper\// })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Kitten\// })).toBeInTheDocument();
+    expect(screen.getByRole("option", { name: /^Kokoro\// })).toBeInTheDocument();
   });
 });
 

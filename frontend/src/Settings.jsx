@@ -3,6 +3,7 @@ import { X, XCircle, CheckCircle2, Check, AlertTriangle, RefreshCw, Download, Up
 import { tts } from "./TTSController.js";
 import { voice, isChromeBrowser } from "./VoiceTranscription.js";
 import { apiFetch, apiUrl } from "./api.js";
+import { buildVoiceOptions, parseVoiceValue, selectedVoiceValue, voiceSelectionPatch, withSelectedOption } from "./ttsVoices.js";
 import { useTranslation, SUPPORTED_LANGUAGES } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
 import { DEFAULT_BASE_PROMPT } from "./promptDefaults.js";
@@ -42,6 +43,10 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [micDevices, setMicDevices] = useState([]);
   const [piperVoices, setPiperVoices] = useState([]);
   const [piperStatus, setPiperStatus] = useState(""); // "", "loading", "ok", "missing", "error message"
+  const [kittenVoices, setKittenVoices] = useState([]);
+  const [kittenStatus, setKittenStatus] = useState("");
+  const [kokoroVoices, setKokoroVoices] = useState([]);
+  const [kokoroStatus, setKokoroStatus] = useState("");
   const [exportTarget, setExportTarget] = useState("");
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
   const [importFile, setImportFile] = useState(null); // { name, content }
@@ -364,8 +369,38 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     }
   };
 
+  const loadKittenVoices = async () => {
+    setKittenStatus("loading");
+    try {
+      const res = await apiFetch("/tts/kitten/voices");
+      const data = await res.json();
+      setKittenVoices(data.voices || []);
+      setKittenStatus(data.installed ? "ok" : "missing");
+    } catch (err) {
+      setKittenVoices([]);
+      setKittenStatus(err.message);
+    }
+  };
+
+  const loadKokoroVoices = async () => {
+    setKokoroStatus("loading");
+    try {
+      const res = await apiFetch("/tts/kokoro/voices");
+      const data = await res.json();
+      setKokoroVoices(data.voices || []);
+      setKokoroStatus(data.installed ? "ok" : "missing");
+    } catch (err) {
+      setKokoroVoices([]);
+      setKokoroStatus(err.message);
+    }
+  };
+
   useEffect(() => {
-    if (settings.ttsProvider === "piper") loadPiperVoices();
+    // The unified voice list shows every engine at once, so all three local
+    // lists load on mount (and the refresh button reloads them together).
+    loadPiperVoices();
+    loadKittenVoices();
+    loadKokoroVoices();
   }, []);
 
   useEffect(() => {
@@ -389,6 +424,34 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   }, []);
 
   const set = (k, v) => setForm((f) => ({ ...f, [k]: v }));
+
+  // Unified voice picker: one list across providers, "Provider/Voice". The
+  // selected value encodes both, so choosing a voice also chooses its engine.
+  const voiceValue = selectedVoiceValue(form);
+  const voiceOptions = withSelectedOption(
+    buildVoiceOptions({ voices, piperVoices, kittenVoices, kokoroVoices, t }),
+    voiceValue,
+    t
+  );
+  const selectedProvider = parseVoiceValue(voiceValue).provider;
+  const providerStatus = { piper: piperStatus, kitten: kittenStatus, kokoro: kokoroStatus }[selectedProvider];
+  const providerMissing = {
+    piper: t("settings.tts.piperMissing"),
+    kitten: t("settings.tts.kittenMissing"),
+    kokoro: t("settings.tts.kokoroMissing"),
+  }[selectedProvider];
+  const providerHint = {
+    piper: t("settings.tts.piperHint"),
+    kitten: t("settings.tts.kittenHint"),
+    kokoro: t("settings.tts.kokoroHint"),
+  }[selectedProvider];
+  const loadingVoices = [piperStatus, kittenStatus, kokoroStatus].includes("loading");
+  const loadAllVoices = () => {
+    loadPiperVoices();
+    loadKittenVoices();
+    loadKokoroVoices();
+  };
+
 
   // Settings live in this origin's localStorage only, so moving from e.g. the
   // local app to a VPS-hosted instance needs an explicit export/import round trip.
@@ -877,17 +940,37 @@ export default function Settings({ settings, tier, onSave, onClose }) {
           <section style={styles.section}>
             <h3 style={styles.sectionTitle}>{t("settings.tts.title")}</h3>
             <div style={styles.field}>
-              <label>{t("settings.tts.provider")}</label>
-              <select
-                value={form.ttsProvider || "windows"}
-                onChange={(e) => {
-                  set("ttsProvider", e.target.value);
-                  if (e.target.value === "piper") loadPiperVoices();
-                }}
-              >
-                <option value="windows">{t("settings.tts.windows")}</option>
-                <option value="piper">{t("settings.tts.piper")}</option>
-              </select>
+              <label>{t("settings.tts.voice")}</label>
+              <div style={{ display: "flex", gap: 8 }}>
+                <select
+                  value={voiceValue}
+                  onChange={(e) => {
+                    const patch = voiceSelectionPatch(e.target.value);
+                    setForm((f) => ({ ...f, ...patch }));
+                  }}
+                  style={{ flex: 1 }}
+                >
+                  {voiceOptions.map((option) => (
+                    <option key={option.value} value={option.value}>{option.label}</option>
+                  ))}
+                </select>
+                <button
+                  type="button"
+                  style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
+                  onClick={loadAllVoices}
+                  disabled={loadingVoices}
+                >
+                  {loadingVoices ? t("settings.tts.loading") : (<><RefreshCw size={14} color="var(--accent)" /> {t("settings.tts.loadVoices")}</>)}
+                </button>
+              </div>
+              <span style={styles.hint}>{t("settings.tts.voiceHint")}</span>
+              {providerStatus === "missing" && providerMissing && (
+                <span style={{ ...styles.hint, color: "var(--red)" }}>{providerMissing}</span>
+              )}
+              {providerStatus && !["loading", "ok", "missing"].includes(providerStatus) && (
+                <span style={{ ...styles.hint, color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} /> {providerStatus}</span>
+              )}
+              {providerHint && <span style={styles.hint}>{providerHint}</span>}
             </div>
             <div style={styles.field}>
               <label>{t("settings.tts.output")}</label>
@@ -901,51 +984,6 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               </select>
               <span style={styles.hint}>{t("settings.tts.outputHint")}</span>
             </div>
-            {(form.ttsProvider || "windows") === "windows" && (
-              <div style={styles.field}>
-                <label>{t("settings.tts.voice")}</label>
-                <select value={form.voiceURI} onChange={(e) => set("voiceURI", e.target.value)}>
-                  <option value="">{t("settings.tts.systemDefault")}</option>
-                  {voices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} ({v.lang})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-            {form.ttsProvider === "piper" && (
-              <div style={styles.field}>
-                <label>{t("settings.tts.piperVoice")}</label>
-                <div style={{ display: "flex", gap: 8 }}>
-                  <select
-                    value={form.piperVoice || ""}
-                    onChange={(e) => set("piperVoice", e.target.value)}
-                    style={{ flex: 1 }}
-                  >
-                    <option value="">{t("settings.tts.piperDefault")}</option>
-                    {piperVoices.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    style={{ background: "var(--surface2)", border: "1px solid var(--border)", color: "var(--text)", whiteSpace: "nowrap" }}
-                    onClick={loadPiperVoices}
-                    disabled={piperStatus === "loading"}
-                  >
-                    {piperStatus === "loading" ? t("settings.tts.loading") : (<><RefreshCw size={14} color="var(--accent)" /> {t("settings.tts.loadVoices")}</>)}
-                  </button>
-                </div>
-                {piperStatus === "missing" && (
-                  <span style={{ ...styles.hint, color: "var(--red)" }}>{t("settings.tts.piperMissing")}</span>
-                )}
-                {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
-                  <span style={{ ...styles.hint, color: "var(--red)", display: "flex", alignItems: "center", gap: 4 }}><AlertTriangle size={14} /> {piperStatus}</span>
-                )}
-                <span style={styles.hint}>{t("settings.tts.piperHint")}</span>
-              </div>
-            )}
             <div style={styles.row2}>
               <div style={styles.field}>
                 <label>{t("settings.tts.speed", { rate: form.ttsRate })}</label>

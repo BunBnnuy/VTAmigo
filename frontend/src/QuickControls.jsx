@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { apiFetch } from "./api.js";
 import { tts } from "./TTSController.js";
+import { buildVoiceOptions, parseVoiceValue, selectedVoiceValue, voiceSelectionPatch, withSelectedOption } from "./ttsVoices.js";
 import { useTranslation } from "./i18n/index.js";
 import { RefreshCw, AlertTriangle, SkipForward, Play } from "lucide-react";
 
@@ -33,7 +34,7 @@ export default function QuickControls({
   muted, onToggleMute,
   ttsPlaying, onSkipTts,
   nowDisabled, nowOnCooldown, nowRemainingSec, nowTitle, onNowClick,
-  settings, onUpdateSetting, lang,
+  settings, onUpdateSetting, onUpdateSettings, lang,
   queuedCount, onPruneQueue,
 }) {
   const { t } = useTranslation(lang);
@@ -42,6 +43,10 @@ export default function QuickControls({
   const [voices, setVoices] = useState([]);
   const [piperVoices, setPiperVoices] = useState([]);
   const [piperStatus, setPiperStatus] = useState("");
+  const [kittenVoices, setKittenVoices] = useState([]);
+  const [kittenStatus, setKittenStatus] = useState("");
+  const [kokoroVoices, setKokoroVoices] = useState([]);
+  const [kokoroStatus, setKokoroStatus] = useState("");
 
   useEffect(() => {
     const load = () => setVoices(tts.getVoices());
@@ -62,13 +67,71 @@ export default function QuickControls({
     }
   };
 
+  const loadKittenVoices = async () => {
+    setKittenStatus("loading");
+    try {
+      const res = await apiFetch("/tts/kitten/voices");
+      const data = await res.json();
+      setKittenVoices(data.voices || []);
+      setKittenStatus(data.installed ? "ok" : "missing");
+    } catch (err) {
+      setKittenVoices([]);
+      setKittenStatus(err.message);
+    }
+  };
+
+  const loadKokoroVoices = async () => {
+    setKokoroStatus("loading");
+    try {
+      const res = await apiFetch("/tts/kokoro/voices");
+      const data = await res.json();
+      setKokoroVoices(data.voices || []);
+      setKokoroStatus(data.installed ? "ok" : "missing");
+    } catch (err) {
+      setKokoroVoices([]);
+      setKokoroStatus(err.message);
+    }
+  };
+
   useEffect(() => {
     if (!settings) return;
-    if (settings.ttsProvider === "piper") loadPiperVoices();
+    // The unified voice list shows every engine at once, so all three local
+    // lists load on mount (and the refresh button reloads them together).
+    loadPiperVoices();
+    loadKittenVoices();
+    loadKokoroVoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const ttsProvider = settings?.ttsProvider || "windows";
+  const voiceValue = settings ? selectedVoiceValue(settings) : "windows:";
+  const voiceOptions = withSelectedOption(
+    buildVoiceOptions({ voices, piperVoices, kittenVoices, kokoroVoices, t }),
+    voiceValue,
+    t
+  );
+  const selectedProvider = parseVoiceValue(voiceValue).provider;
+  const providerStatus = { piper: piperStatus, kitten: kittenStatus, kokoro: kokoroStatus }[selectedProvider];
+  const providerMissing = {
+    piper: t("quickControls.piperMissing"),
+    kitten: t("quickControls.kittenMissing"),
+    kokoro: t("quickControls.kokoroMissing"),
+  }[selectedProvider];
+  const loadingVoices = [piperStatus, kittenStatus, kokoroStatus].includes("loading");
+  const loadAllVoices = () => {
+    loadPiperVoices();
+    loadKittenVoices();
+    loadKokoroVoices();
+  };
+  const pickVoice = (value) => {
+    const patch = voiceSelectionPatch(value);
+    if (onUpdateSettings) onUpdateSettings(patch);
+    else {
+      onUpdateSetting("ttsProvider", patch.ttsProvider);
+      Object.entries(patch).forEach(([key, setting]) => {
+        if (key !== "ttsProvider") onUpdateSetting(key, setting);
+      });
+    }
+  };
 
   return (
     <>
@@ -128,71 +191,36 @@ export default function QuickControls({
 
         <div style={styles.sectionLabel}>{t("quickControls.voiceSection")}</div>
 
-        {settings && onUpdateSetting && (
-          <>
-            <div style={styles.field}>
-              <label style={styles.fieldLabel}>{t("quickControls.provider")}</label>
+        {settings && (onUpdateSetting || onUpdateSettings) && (
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
+            <div style={{ display: "flex", gap: 6 }}>
               <select
-                value={ttsProvider}
-                onChange={(e) => {
-                  onUpdateSetting("ttsProvider", e.target.value);
-                  if (e.target.value === "piper") loadPiperVoices();
-                }}
+                value={voiceValue}
+                onChange={(e) => pickVoice(e.target.value)}
+                style={{ flex: 1 }}
               >
-                <option value="windows">{t("quickControls.windowsOption")}</option>
-                <option value="piper">Piper</option>
+                {voiceOptions.map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
+              <button
+                type="button"
+                style={styles.smallBtn}
+                onClick={loadAllVoices}
+                disabled={loadingVoices}
+              >
+                <RefreshCw size={14} color="var(--accent)" />
+              </button>
             </div>
-
-            {ttsProvider === "windows" && (
-              <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
-                <select
-                  value={settings.voiceURI || ""}
-                  onChange={(e) => onUpdateSetting("voiceURI", e.target.value)}
-                >
-                  <option value="">{t("quickControls.systemDefault")}</option>
-                  {voices.map((v) => (
-                    <option key={v.voiceURI} value={v.voiceURI}>
-                      {v.name} ({v.lang})
-                    </option>
-                  ))}
-                </select>
-              </div>
+            {providerStatus === "missing" && providerMissing && (
+              <span style={styles.errorText}>{providerMissing}</span>
             )}
-
-            {ttsProvider === "piper" && (
-              <div style={styles.field}>
-                <label style={styles.fieldLabel}>{t("quickControls.voice")}</label>
-                <div style={{ display: "flex", gap: 6 }}>
-                  <select
-                    value={settings.piperVoice || ""}
-                    onChange={(e) => onUpdateSetting("piperVoice", e.target.value)}
-                    style={{ flex: 1 }}
-                  >
-                    <option value="">{t("quickControls.defaultOption")}</option>
-                    {piperVoices.map((v) => (
-                      <option key={v.id} value={v.id}>{v.name}</option>
-                    ))}
-                  </select>
-                  <button
-                    type="button"
-                    style={styles.smallBtn}
-                    onClick={loadPiperVoices}
-                    disabled={piperStatus === "loading"}
-                  >
-                    <RefreshCw size={14} color="var(--accent)" />
-                  </button>
-                </div>
-                {piperStatus === "missing" && (
-                  <span style={styles.errorText}>{t("quickControls.piperMissing")}</span>
-                )}
-                {piperStatus && !["loading", "ok", "missing"].includes(piperStatus) && (
-                  <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {piperStatus}</span>
-                )}
-              </div>
+            {providerStatus && !["loading", "ok", "missing"].includes(providerStatus) && (
+              <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {providerStatus}</span>
             )}
-          </>
+            <span style={styles.hint}>{t("quickControls.voiceHint")}</span>
+          </div>
         )}
       </div>
       <div style={styles.hint}>{t("quickControls.hint")}</div>

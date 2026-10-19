@@ -43,6 +43,8 @@ const DEFAULT_SETTINGS = {
   ttsVolume: 1,
   ttsProvider: "windows",
   piperVoice: "",
+  kittenVoice: "",
+  kokoroVoice: "",
   // Where the bot's voice plays: "app" (this browser, default), "overlay" (the
   // Bot voice OBS browser source only) or "both".
   ttsOutput: "app",
@@ -694,7 +696,9 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     tts.setProvider(settings.ttsProvider);
     tts.setOutput(settings.ttsOutput || "app");
     tts.setPiper({ voice: settings.piperVoice });
-  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice, settings.mixer, settings.ttsOutput]);
+    tts.setKitten({ voice: settings.kittenVoice });
+    tts.setKokoro({ voice: settings.kokoroVoice });
+  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice, settings.kittenVoice, settings.kokoroVoice, settings.mixer, settings.ttsOutput]);
 
   // Chat command TTS is intentionally separate from the AI response TTS.
   useEffect(() => {
@@ -1077,6 +1081,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     });
   }, []);
 
+  // Bulk version for controls that must change several keys atomically, like
+  // the unified voice picker (one choice selects both engine and voice).
+  const updateSettings = useCallback((patch) => {
+    setSettings((prev) => {
+      const next = { ...prev, ...patch };
+      localStorage.setItem("settings", JSON.stringify(next));
+      return next;
+    });
+  }, []);
+
   // Mixer panel: set one channel gain (0..1) and persist. The TTS/mixer effect
   // above re-applies it to local playback; the debounced POST broadcasts it to
   // this account's OBS overlays.
@@ -1302,6 +1316,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           onNowClick: handleNowClick,
           settings,
           onUpdateSetting: updateSetting,
+          onUpdateSettings: updateSettings,
           lang: settings.language,
           queuedCount,
           onPruneQueue: pruneQueue,

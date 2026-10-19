@@ -1,0 +1,15 @@
+# KittenTTS runs in its own virtualenv (backend/kitten/.venv) because it needs
+# Python + onnxruntime, which are not part of the Node backend. setup.sh creates
+# it and installs `kittenml` separately with --no-deps.
+#
+# --no-deps matters: the `kittenml` wheel declares torch/torchaudio/transformers
+# as hard requirements even though the lightweight ONNX models never import
+# them. A normal install drags in ~5 GB of CUDA wheels that this box will never
+# use. The ONNX path only needs the packages below.
+numpy
+onnxruntime
+espeakng_loader
+phonemizer
+soundfile
+huggingface_hub
+kitten-text-processing>=0.1.0

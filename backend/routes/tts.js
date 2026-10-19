@@ -1,10 +1,11 @@
-// Text-to-speech: the local Piper CLI voices, and the two routes that tell an
-// account's avatar overlay whether TTS audio is currently playing.
+// Text-to-speech: the local Piper CLI, KittenTTS and Kokoro voices, plus the
+// two routes that tell an account's avatar overlay whether TTS audio is
+// currently playing.
 //
 // Both halves belong to the same "the bot is talking" moment — the frontend
-// player calls /avatar/speaking/start right before it plays a Piper clip and
-// /avatar/speaking/stop when it ends — which is why they share a router even
-// though the avatar *images* are served by routes/overlays.js.
+// player calls /avatar/speaking/start right before it plays a local TTS clip
+// and /avatar/speaking/stop when it ends — which is why they share a router
+// even though the avatar *images* are served by routes/overlays.js.
 //
 // "/avatar" and "/tts" are both PROTECTED_PREFIXES entries, so req.user is
 // already populated by the blanket gate in app.js, which is registered before
@@ -13,6 +14,8 @@
 const express = require("express");
 const path = require("path");
 const piper = require("../piper");
+const kitten = require("../kitten");
+const kokoro = require("../kokoro");
 const { aiLimiter } = require("../rateLimits");
 const { getApprovedUserFromCookieHeader, findUserByOverlayToken } = require("../auth");
 const { broadcastToAccount } = require("../sessions");
@@ -42,6 +45,22 @@ function sendPiperError(res, err) {
   if (err.message === "PIPER_BAD_VOICE") return res.status(400).json({ error: "Unknown Piper voice (must be a .onnx file in voices/)" });
   console.error("[piper/tts]", err.message);
   res.status(502).json({ error: err.message });
+}
+
+// Same mapping for the Python sidecars (KittenTTS, Kokoro). Codes end in a
+// stable suffix (`*_BUSY`, `*_TIMEOUT`, ...); the engine prefix differs, so
+// matching the suffix keeps one handler for both.
+function sendWorkerError(res, err, label, maxChars, dirName) {
+  const message = err.message || "";
+  const code = message.split(":")[0];
+  if (code.endsWith("_BUSY")) return res.status(429).json({ error: "TTS is busy, try again shortly" });
+  if (code.endsWith("_TEXT_TOO_LONG")) return res.status(400).json({ error: `Text too long (max ${maxChars} characters)` });
+  if (code.endsWith("_NOT_INSTALLED")) return res.status(503).json({ error: `${label} is not installed (run server/setup.sh or check backend/${dirName})` });
+  if (code.endsWith("_NOT_WRITABLE")) return res.status(503).json({ error: message });
+  if (code.endsWith("_BAD_VOICE")) return res.status(400).json({ error: `Unknown ${label} voice` });
+  if (code.endsWith("_TIMEOUT")) return res.status(504).json({ error: `${label} took too long, try again` });
+  console.error(`[${label}/tts]`, message);
+  res.status(502).json({ error: message });
 }
 
 // ── Avatar speaking state ─────────────────────────────────────────────────────
@@ -96,19 +115,61 @@ router.post("/tts/piper", aiLimiter, async (req, res) => {
   }
 });
 
+// ── KittenTTS (local Python worker) ──────────────────────────────────────────
+
+// GET /tts/kitten/voices — { installed, voices: [{ id, name }] }
+router.get("/tts/kitten/voices", (req, res) => {
+  res.json({ installed: kitten.isInstalled(), voices: kitten.listVoices() });
+});
+
+// POST /tts/kitten — { text, voice?, speed? } → audio/wav. Shares aiLimiter
+// with Piper and /respond: each call ties up the single Python worker.
+router.post("/tts/kitten", aiLimiter, async (req, res) => {
+  const { text, voice, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await kitten.generateSpeech({ text, voice, speed });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    sendWorkerError(res, err, "KittenTTS", kitten.MAX_TEXT_CHARS, "kitten/.venv");
+  }
+});
+
+// ── Kokoro-82M (local Python worker) ─────────────────────────────────────────
+
+// GET /tts/kokoro/voices — { installed, voices: [{ id, name }] }
+router.get("/tts/kokoro/voices", (req, res) => {
+  res.json({ installed: kokoro.isInstalled(), voices: kokoro.listVoices() });
+});
+
+// POST /tts/kokoro — { text, voice?, speed? } → audio/wav. The provider to
+// pick for Spanish: Kokoro ships ef_dora/em_alex/em_santa.
+router.post("/tts/kokoro", aiLimiter, async (req, res) => {
+  const { text, voice, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await kokoro.generateSpeech({ text, voice, speed });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    sendWorkerError(res, err, "Kokoro", kokoro.MAX_TEXT_CHARS, "kokoro");
+  }
+});
+
 // ── Voice overlay (OBS browser source) ───────────────────────────────────────
 //
 // The separate "bot voice" overlay plays the AI's TTS inside OBS, so the
 // streamer no longer has to capture the app window's audio. The app POSTs the
 // response text to /tts/speak (session-authed, under the "/tts" prefix); that
 // broadcasts a {type:"tts_speak"} event to the account, and overlay/voice.html
-// queues it, speaks it (browser voices first, Piper as the fallback that
-// actually exists inside OBS's CEF), and reports the audible window back so
-// the avatar overlay keeps mouth-syncing.
+// queues it, speaks it (Kokoro/KittenTTS when selected, browser voices first,
+// Piper as the fallback that actually exists inside OBS's CEF), and reports
+// the audible window back so the avatar overlay keeps mouth-syncing.
 
-// POST /tts/speak — { text, voiceURI, piperVoice, rate, volume, forcePiper }
+// POST /tts/speak — { text, voiceURI, piperVoice, kittenVoice, kokoroVoice, ttsProvider, rate, volume, forcePiper }
 router.post("/tts/speak", (req, res) => {
-  const { text, voiceURI, piperVoice, rate, volume, forcePiper } = req.body || {};
+  const { text, voiceURI, piperVoice, kittenVoice, kokoroVoice, ttsProvider, rate, volume, forcePiper } = req.body || {};
   const clean = typeof text === "string" ? text.trim() : "";
   if (!clean) return res.status(400).json({ error: "text is required" });
 
@@ -117,6 +178,11 @@ router.post("/tts/speak", (req, res) => {
     text: clean.slice(0, piper.MAX_TEXT_CHARS),
     voiceURI: voiceURI || null,
     piperVoice: piperVoice || null,
+    kittenVoice: kittenVoice || null,
+    kokoroVoice: kokoroVoice || null,
+    // Which engine the app picked. The overlay uses this to choose the local
+    // neural worker over its browser-voice/Piper fallback chain.
+    ttsProvider: ttsProvider === "kitten" || ttsProvider === "kokoro" ? ttsProvider : null,
     rate: clampNum(rate, 0.5, 2, 1),
     volume: clampNum(volume, 0, 1, 1),
     forcePiper: !!forcePiper,
@@ -184,6 +250,40 @@ router.post("/overlay/tts/piper", async (req, res) => {
     res.send(audio);
   } catch (err) {
     sendPiperError(res, err);
+  }
+});
+
+// POST /overlay/tts/kitten?token=... — { text, voice, speed? } → audio/wav.
+// Same contract as /tts/kitten but authenticated by the OBS overlay token, and
+// deliberately not behind aiLimiter (OBS shares one IP and speaks far more
+// than 5 clips/min); the worker's own concurrency cap is the backpressure.
+router.post("/overlay/tts/kitten", async (req, res) => {
+  const user = overlayUser(req);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const { text, voice, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await kitten.generateSpeech({ text, voice, speed });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    sendWorkerError(res, err, "KittenTTS", kitten.MAX_TEXT_CHARS, "kitten/.venv");
+  }
+});
+
+// POST /overlay/tts/kokoro?token=... — { text, voice, speed? } → audio/wav.
+// Same contract as /overlay/tts/kitten: OBS token auth, no aiLimiter.
+router.post("/overlay/tts/kokoro", async (req, res) => {
+  const user = overlayUser(req);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const { text, voice, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await kokoro.generateSpeech({ text, voice, speed });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    sendWorkerError(res, err, "Kokoro", kokoro.MAX_TEXT_CHARS, "kokoro");
   }
 });
 

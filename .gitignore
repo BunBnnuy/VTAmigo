@@ -13,6 +13,12 @@ backend/usage.json
 backend/error-log.json
 backend/chatOverlayConfig.json
 backend/piper/
+# KittenTTS Python venv + Hugging Face model cache (installed by setup.sh).
+backend/kitten/.venv/
+backend/kitten/models/
+backend/kokoro/.venv/
+backend/kokoro/models/
+__pycache__/
 # All runtime user data — the SQLite DB, uploaded avatars, chat overlay
 # backgrounds and overlay assets. Ignore the whole directory rather than
 # listing subdirectories: overlayAssets/ was added later and was NOT covered,

@@ -1,4 +1,7 @@
 export default {
+  ttsVoices: {
+    providerDefault: "デフォルト",
+  },
   login: {
     logIn: "Twitchでログイン",
     title: "{chat}を絶対に見逃さないAI共同配信者。",
@@ -196,6 +199,8 @@ export default {
       provider: "TTSプロバイダー",
       windows: "Windows TTS（システム音声）",
       piper: "Piper（ローカルのスペイン語音声、オフライン）",
+      kitten: "KittenTTS（ローカル音声合成、オフライン）",
+      kokoro: "Kokoro（ローカル音声合成、スペイン語対応）",
       voice: "音声",
       systemDefault: "システムのデフォルト",
       loadVoices: "音声を読み込む",
@@ -204,6 +209,15 @@ export default {
       piperDefault: "デフォルト（es_MX claude、高品質）",
       piperMissing: "projects\\piperttsspanish に piper.exe が見つかりません",
       piperHint: "CPU上で完全オフラインで動作します — APIキーもサーバーも不要です。生成に失敗した場合はWindows TTSにフォールバックします。",
+      kittenVoice: "KittenTTSの声",
+      kittenDefault: "デフォルト（Luna）",
+      kittenMissing: "このサーバーにKittenTTSがインストールされていません",
+      kittenHint: "CPUで完全オフライン動作します。軽量KittenTTSの声は英語のみです。スペイン語にはPiperを使用してください。失敗時はシステム音声にフォールバックします。",
+      kokoroVoice: "Kokoroの声",
+      kokoroDefault: "デフォルト（Dora・スペイン語）",
+      kokoroMissing: "このサーバーにKokoroがインストールされていません",
+      kokoroHint: "CPUで完全オフライン動作し、公式のスペイン語音声（Dora、Alex、Santa）を備えています。Apache 2.0。失敗時はシステム音声にフォールバックします。",
+      voiceHint: "すべてのエンジンを1つのリストにまとめています。声を選ぶとプロバイダーも切り替わります。",
       speed: "速度（{rate}x）",
       volume: "音量（{volume}%）",
       output: "音声の出力先",
@@ -449,6 +463,10 @@ export default {
     systemDefault: "システムのデフォルト",
     defaultOption: "デフォルト",
     piperMissing: "Piperがインストールされていません",
+    kittenOption: "KittenTTS",
+    kittenMissing: "KittenTTSがインストールされていません",
+    kokoroMissing: "Kokoroがインストールされていません",
+    voiceHint: "プロバイダー/声 — 選ぶとエンジンも切り替わります。",
     hint: "このパネルはコンパクトモードで非表示にできます",
   },
 

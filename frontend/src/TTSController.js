@@ -1,6 +1,8 @@
 // TTS queue — responses play sequentially, never overlapping.
-// Providers: "windows" (Web Speech API, default) or "piper" (local offline
-// Piper CLI via backend proxy → Audio element).
+// Providers: "windows" (Web Speech API, default), "piper" (local offline
+// Piper CLI), "kitten" (English-only KittenTTS) or "kokoro" (Kokoro-82M,
+// official Spanish voices) — the local engines are proxied by the backend and
+// played through an Audio element.
 
 import { apiFetch, apiUrl } from "./api.js";
 
@@ -39,6 +41,8 @@ class TTSController {
     // source only) or "both" — see _next().
     this.output = "app";
     this.piperVoice = "";
+    this.kittenVoice = "";
+    this.kokoroVoice = "";
     this.currentAudio = null; // active remote-provider Audio element
     this.onStateChange = null; // () => void — called when playing/queue changes
   }
@@ -76,6 +80,14 @@ class TTSController {
 
   setPiper({ voice }) {
     if (voice != null) this.piperVoice = voice;
+  }
+
+  setKitten({ voice }) {
+    if (voice != null) this.kittenVoice = voice;
+  }
+
+  setKokoro({ voice }) {
+    if (voice != null) this.kokoroVoice = voice;
   }
 
   setMuted(m) {
@@ -137,6 +149,9 @@ class TTSController {
         text,
         voiceURI: this.voiceURI || null,
         piperVoice: this.piperVoice || null,
+        kittenVoice: this.kittenVoice || null,
+        kokoroVoice: this.kokoroVoice || null,
+        ttsProvider: this.provider,
         rate: this.rate,
         volume: this.overlayVolume,
         forcePiper: this.provider === "piper",
@@ -185,6 +200,14 @@ class TTSController {
     if (this.provider === "piper") {
       this._speakRemote(text, onDone, "Piper", "/tts/piper", {
         text, voice: this.piperVoice || undefined,
+      });
+    } else if (this.provider === "kitten") {
+      this._speakRemote(text, onDone, "KittenTTS", "/tts/kitten", {
+        text, voice: this.kittenVoice || undefined,
+      });
+    } else if (this.provider === "kokoro") {
+      this._speakRemote(text, onDone, "Kokoro", "/tts/kokoro", {
+        text, voice: this.kokoroVoice || undefined,
       });
     } else {
       this._speakWindows(text, onDone);

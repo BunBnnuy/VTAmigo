@@ -1,4 +1,7 @@
 export default {
+  ttsVoices: {
+    providerDefault: "기본값",
+  },
   login: {
     logIn: "Twitch로 로그인",
     title: "{chat}을(를) 절대 놓치지 않는 AI 공동 진행자.",
@@ -196,6 +199,8 @@ export default {
       provider: "TTS 제공자",
       windows: "Windows TTS (시스템 음성)",
       piper: "Piper (로컬 스페인어 음성, 오프라인)",
+      kitten: "KittenTTS (로컬 신경 음성, 오프라인)",
+      kokoro: "Kokoro (로컬 신경 음성, 스페인어 포함)",
       voice: "음성",
       systemDefault: "시스템 기본값",
       loadVoices: "음성 불러오기",
@@ -204,6 +209,15 @@ export default {
       piperDefault: "기본값 (es_MX claude, 고품질)",
       piperMissing: "projects\\piperttsspanish 에서 piper.exe를 찾을 수 없습니다",
       piperHint: "CPU에서 완전히 오프라인으로 실행됩니다 — API 키나 서버가 필요 없습니다. 생성에 실패하면 Windows TTS로 대체됩니다.",
+      kittenVoice: "KittenTTS 음성",
+      kittenDefault: "기본값 (Luna)",
+      kittenMissing: "이 서버에 KittenTTS가 설치되어 있지 않습니다",
+      kittenHint: "CPU에서 완전 오프라인으로 동작합니다. 경량 KittenTTS 음성은 영어만 지원합니다. 스페인어는 Piper를 사용하세요. 실패하면 시스템 음성으로 대체됩니다.",
+      kokoroVoice: "Kokoro 음성",
+      kokoroDefault: "기본값 (Dora · 스페인어)",
+      kokoroMissing: "이 서버에 Kokoro가 설치되어 있지 않습니다",
+      kokoroHint: "CPU에서 완전 오프라인으로 동작하며 공식 스페인어 음성(Dora, Alex, Santa)을 제공합니다. Apache 2.0. 실패하면 시스템 음성으로 대체됩니다.",
+      voiceHint: "모든 엔진을 하나의 목록에 표시합니다. 음성을 선택하면 공급자도 함께 변경됩니다.",
       speed: "속도 ({rate}x)",
       volume: "음량 ({volume}%)",
       output: "음성 출력",
@@ -449,6 +463,10 @@ export default {
     systemDefault: "시스템 기본값",
     defaultOption: "기본값",
     piperMissing: "Piper가 설치되어 있지 않습니다",
+    kittenOption: "KittenTTS",
+    kittenMissing: "KittenTTS가 설치되어 있지 않습니다",
+    kokoroMissing: "Kokoro가 설치되어 있지 않습니다",
+    voiceHint: "공급자/음성 — 선택하면 엔진도 함께 변경됩니다.",
     hint: "이 패널은 컴팩트 모드에서 숨길 수 있습니다",
   },
 
