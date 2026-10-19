@@ -123,8 +123,15 @@ app.use((req, res, next) => {
 const jsonDefault = express.json({ limit: "100kb" });
 const jsonMemoryImport = express.json({ limit: "1mb" }); // hand-picked .md memory files
 const jsonAvatarUpload = express.json({ limit: "10mb" }); // 5MB image -> ~6.7MB base64 dataUrl
+// Same idea for the Overlay Builder's media library: overlayAssets.MAX_IMAGE_BYTES
+// is 20MB, which arrives as a ~26.7MB base64 dataUrl (POST /overlay-builder/assets).
+// Without its own budget the 100kb default rejected every real screenshot with 413.
+// (Video/audio there are multipart, so express.json never sees them — multer
+// enforces the same 20MB per-file cap while streaming to disk.)
+const jsonOverlayAsset = express.json({ limit: "30mb" });
 app.use((req, res, next) => {
   if (req.path === "/avatar/reactive/upload") return jsonAvatarUpload(req, res, next);
+  if (req.path === "/overlay-builder/assets") return jsonOverlayAsset(req, res, next);
   if (req.path === "/memory/import") return jsonMemoryImport(req, res, next);
   return jsonDefault(req, res, next);
 });

@@ -10,9 +10,14 @@ const { randomUUID } = require("crypto");
 
 const ASSETS_DIR = path.join(__dirname, "data", "overlayAssets");
 const MANIFEST_PATH = path.join(ASSETS_DIR, "manifest.json");
-const MAX_IMAGE_BYTES = 5 * 1024 * 1024;
-const MAX_VIDEO_BYTES = 150 * 1024 * 1024;
-const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+// One per-file cap for every asset kind (image, video, audio). Keeping a
+// single number is what lets the routes, the JSON-body budget in app.js and
+// the nginx upload location stay in sync; the per-account total is still
+// bounded by QUOTA_BYTES below.
+const MAX_ASSET_BYTES = 20 * 1024 * 1024;
+const MAX_IMAGE_BYTES = MAX_ASSET_BYTES;
+const MAX_VIDEO_BYTES = MAX_ASSET_BYTES;
+const MAX_AUDIO_BYTES = MAX_ASSET_BYTES;
 // Total disk quota across every asset kind combined, per account.
 const QUOTA_BYTES = 100 * 1024 * 1024;
 const IMAGE_MIME_EXT = {

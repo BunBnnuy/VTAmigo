@@ -2,6 +2,11 @@
 
 ## 2026-10-19
 
+- Fixed the **Overlay Builder** rejecting every image upload with "Request body too large".
+  - `POST /overlay-builder/assets` carries the image as a base64 `dataUrl`, but only the avatar and memory-import routes had their own body budget, so the 100kb default rejected every real screenshot. It now has the room its 20MB image cap needs (30mb).
+  - The media library's upload cap is now a single **20MB per file** for images, video and audio (was 5MB image / 150MB video / 20MB audio). The 100MB per-account quota is unchanged.
+  - The nginx upload location (`/overlay-builder/assets*`) allows those bodies through, and nginx-generated 413s now answer JSON instead of an HTML page the frontend could not parse.
+
 - Added **KittenTTS** as a third TTS provider alongside Windows TTS and Piper.
   - Local neural voices (Bella, Jasper, Luna, Bruno, Rosie, Hugo, Kiki, Leo), fully offline, no API key.
   - Works in all three voice outputs: this browser, the OBS Bot voice overlay, and Both.

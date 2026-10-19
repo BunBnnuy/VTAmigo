@@ -94,6 +94,19 @@ describe("JSON body limits (Issue 2)", () => {
       .send({ markdown: big });
     expect(res.status).toBe(401);
   });
+
+  it("still parses a real-sized overlay-builder image body (401 from the auth gate, not 413)", async () => {
+    // Regression: POST /overlay-builder/assets takes a base64 dataUrl, and
+    // overlayAssets.MAX_IMAGE_BYTES is 20MB (~26.7MB once base64-encoded). The
+    // route used to fall through to the 100kb default, so every screenshot
+    // upload failed with "Request body too large" before auth was even checked.
+    const image = Buffer.alloc(12 * 1024 * 1024); // ~16.4MB body: over any 10mb cap, under the real budget
+    const res = await request(app)
+      .post("/overlay-builder/assets")
+      .set("X-Forwarded-For", "10.99.20.4")
+      .send({ dataUrl: `data:image/png;base64,${image.toString("base64")}` });
+    expect(res.status).toBe(401);
+  });
 });
 
 describe("anonymous relay rate limits (Issue 2)", () => {

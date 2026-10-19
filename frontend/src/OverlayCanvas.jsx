@@ -17,6 +17,11 @@ import {
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
 const SAVE_DEBOUNCE_MS = 800;
+// Mirrors overlayAssets.MAX_ASSET_BYTES on the backend. Checked here first so
+// an oversized file gets a clear message instead of waiting for the upload to
+// fail at the request-body limit ("Request body too large").
+const MAX_UPLOAD_BYTES = 20 * 1024 * 1024;
+const MAX_UPLOAD_LABEL = `${MAX_UPLOAD_BYTES / (1024 * 1024)}MB`;
 
 function uid() {
   return (crypto.randomUUID && crypto.randomUUID()) || `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -187,6 +192,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   };
 
   const uploadImage = (file) => {
+    if (file.size > MAX_UPLOAD_BYTES) return setErrorMsg(`Image must be under ${MAX_UPLOAD_LABEL}`);
     setUploading(true);
     const reader = new FileReader();
     reader.onload = async () => {
@@ -208,6 +214,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   };
 
   const uploadVideo = async (file) => {
+    if (file.size > MAX_UPLOAD_BYTES) return setErrorMsg(`Video must be under ${MAX_UPLOAD_LABEL}`);
     setUploading(true);
     try {
       const formData = new FormData();
@@ -227,6 +234,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   };
 
   const uploadAudio = async (file) => {
+    if (file.size > MAX_UPLOAD_BYTES) return setErrorMsg(`Audio must be under ${MAX_UPLOAD_LABEL}`);
     setUploading(true);
     try {
       const formData = new FormData();
