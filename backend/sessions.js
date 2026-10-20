@@ -420,7 +420,10 @@ async function connectTwitchForUser(user) {
     token,
     username: channel,
     onMessage: (msg) => handleChat(twitchId, msg),
-    onStatus: (status) => broadcastToAccount(twitchId, { type: "status", status }),
+    onStatus: (status) => {
+      console.log(`[twitch/${channel}]`, status.type, status.message || "");
+      broadcastToAccount(twitchId, { type: "status", status });
+    },
   });
   session.twitchClient.connect();
 
