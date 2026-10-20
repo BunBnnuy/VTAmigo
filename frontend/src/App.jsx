@@ -22,6 +22,8 @@ import {
   markAnnouncementSeen,
 } from "./announcements.js";
 import { apiFetch, wsUrl } from "./api.js";
+import { ChatConnection } from "./ChatConnection.js";
+import { logError } from "./errorLogger.js";
 import { track } from "./analytics.js";
 import { detectLanguage, useTranslation } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
@@ -385,6 +387,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [toasts, setToasts] = useState([]);
 
   const wsRef = useRef(null);
+  const connectAttemptRef = useRef(0);
   const seenMsgIds = useRef(new Set());
   const bufferRef = useRef([]);
   const [queuedCount, setQueuedCount] = useState(0);
@@ -549,7 +552,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     handleConnect();
     if (settingsRef.current.tiktokUsername) handleTikTokConnect();
     return () => {
-      if (wsRef.current) { wsRef.current.close(); wsRef.current = null; }
+      connectAttemptRef.current += 1;
+      if (wsRef.current) { wsRef.current.stop(); wsRef.current = null; }
     };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -862,19 +866,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   // ── WebSocket ─────────────────────────────────────────────────────────────
 
   const connectWS = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-    const ws = new WebSocket(wsUrl("/chat"));
-    wsRef.current = ws;
-
-    ws.onopen = () => setConnected(true);
-    ws.onclose = () => {
-      setConnected(false);
-      setConnStatus("disconnected");
-    };
-
-    ws.onmessage = (evt) => {
+    wsRef.current?.stop();
+    const onMessage = (evt) => {
       try {
         const data = JSON.parse(evt.data);
         if (data.type === "chat") {
@@ -994,11 +987,21 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         // ignore parse errors
       }
     };
+    const connection = new ChatConnection({
+      url: () => wsUrl("/chat"),
+      onOpen: () => { setConnected(true); setConnStatus("connecting"); },
+      onClose: () => { setConnected(false); setConnStatus("disconnected"); },
+      onDiagnostic: (details) => logError("chat.websocket", new Error(JSON.stringify(details))),
+      onMessage,
+    });
+    wsRef.current = connection;
+    connection.start();
   }, [triggerResponse, pushToBuffer, triggerEventResponse, pushToast, fetchAchievements]);
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
   const handleConnect = useCallback(async (manual) => {
+    const attempt = ++connectAttemptRef.current;
     try {
       // The bot account is resolved server-side from the OAuth-linked bot
       // (/bot-link/*) or the site-wide fallback — no credentials travel here.
@@ -1007,6 +1010,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ manual: !!manual }),
       });
+      if (attempt !== connectAttemptRef.current) return;
       if (!res.ok) {
         const d = await res.json().catch(() => ({}));
         setConnStatus("error");
@@ -1016,16 +1020,17 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       connectWS();
       startCountdown();
     } catch (err) {
-      setConnStatus("error");
+      if (attempt === connectAttemptRef.current) setConnStatus("error");
     }
   }, [connectWS]);
 
   const handleDisconnect = useCallback(async (manual) => {
+    connectAttemptRef.current += 1;
     clearTimeout(batchTimerRef.current);
     clearInterval(countdownIntervalRef.current);
     clearTimeout(burstTimerRef.current);
     setCountdown(null);
-    if (wsRef.current) wsRef.current.close();
+    if (wsRef.current) { wsRef.current.stop(); wsRef.current = null; }
     try {
       await apiFetch("/disconnect", {
         method: "POST",

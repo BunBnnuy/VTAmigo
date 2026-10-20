@@ -45,6 +45,8 @@ const ttsRouter = require("./routes/tts");
 const avatarRouter = require("./routes/avatar");
 const shoutoutRouter = require("./routes/shoutout");
 
+const { monitorChatSocket } = require("./chatSocket");
+
 const PORT = process.env.PORT || 3001;
 const app = express();
 // nginx sits in front of this process on localhost and sets X-Forwarded-For /
@@ -322,7 +324,9 @@ if (isProd) {
   });
 }
 
-wss.on("connection", (ws, req) => {
+// Coalesce recovery when multiple browser tabs reconnect after a restart.
+const chatRecovery = new Map();
+wss.on("connection", async (ws, req) => {
   // The OBS overlay (backend/overlay/xp.html) can't send the session cookie —
   // it's a separate CEF instance — so it connects with ?token=... instead
   // (forwarded from its own query string, see xp.html).
@@ -334,8 +338,34 @@ wss.on("connection", (ws, req) => {
     return;
   }
   ws.twitchId = user.twitchId;
-  console.log(`[ws] frontend connected (${user.login})`);
-  ws.on("close", () => console.log(`[ws] frontend disconnected (${user.login})`));
+  monitorChatSocket(ws, { login: user.login, client: token ? "overlay" : "app" });
+  // OBS sockets only subscribe. An app reconnect also restores Twitch after
+  // a backend restart; an existing session is reused without interrupting it.
+  try {
+    if (!token && !sessions.twitchSessions.has(user.twitchId)) {
+      if (!chatRecovery.has(user.twitchId)) {
+        const recovery = sessions.connectTwitchForUser(user)
+          .finally(() => chatRecovery.delete(user.twitchId));
+        chatRecovery.set(user.twitchId, recovery);
+      }
+      await chatRecovery.get(user.twitchId);
+    }
+    const session = sessions.twitchSessions.get(user.twitchId);
+    if (ws.readyState === 1 && session) {
+      ws.send(JSON.stringify({ type: "status", status: {
+        type: session.twitchClient?.ready ? "connected" : "connecting",
+      } }));
+      ws.send(JSON.stringify({ type: "bot_status", status: {
+        type: session.botClient?.ready ? "connected" : "disconnected",
+      }, botUsername: session.botUsername, usingSiteBot: session.usingSiteBot }));
+    }
+  } catch (error) {
+    console.warn(`[ws] session recovery failed (${user.login}):`, error.message);
+    if (ws.readyState === 1) {
+      const needsLogin = ["NO_TWITCH_TOKEN", "TWITCH_TOKEN_REFRESH_FAILED"].includes(error.message);
+      ws.close(needsLogin ? 4401 : 1011, needsLogin ? "Twitch login required" : "session recovery failed");
+    }
+  }
 });
 
 // Every 30 min, check whether each connected account's Twitch token needs a
