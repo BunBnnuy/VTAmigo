@@ -156,6 +156,10 @@
     </div>
   </div>
 
+  <!-- One alert sting per account, uploaded from the Watch streak panel. The
+       overlay preloads it once and restarts it for each card. -->
+  <audio id="streak-audio" preload="auto"></audio>
+
 <script src="/overlay/preview-note.js?v=2"></script>
 <script>
   const params = new URLSearchParams(location.search);
@@ -166,6 +170,56 @@
   const fallback = document.getElementById("avatar-fallback");
   const nameEl = document.getElementById("name");
   const countEl = document.getElementById("count");
+  const audio = document.getElementById("streak-audio");
+
+  // Mixer gains (see the /mixer/state fetch + mixer_state WS event below).
+  // The alert sound gets its own channel on top of the master, like every
+  // other OBS-side sound source.
+  let mixer = {};
+  let hasAudio = false;
+
+  function streakGain() {
+    const channel = mixer.streakAlert != null ? mixer.streakAlert : 1;
+    const master = mixer.master != null ? mixer.master : 1;
+    return Math.min(1, Math.max(0, channel * master));
+  }
+
+  function playAlertSound() {
+    if (!hasAudio || !audio.getAttribute("src")) return;
+    audio.volume = streakGain();
+    try { audio.currentTime = 0; } catch { /* not seekable yet */ }
+    const started = audio.play();
+    if (started && typeof started.catch === "function") started.catch(() => {});
+  }
+
+  // Ask what the account has before wiring a src: an absent clip would
+  // otherwise log a 404 on every overlay load. The version in the URL is the
+  // upload timestamp, so replacing the file busts any cache.
+  async function refreshAudio() {
+    try {
+      const res = await fetch(`/streak/audio/status?token=${encodeURIComponent(token)}`);
+      if (!res.ok) { hasAudio = false; return; }
+      const data = await res.json();
+      hasAudio = !!data.hasAudio;
+      if (hasAudio) {
+        audio.src = `/streak/audio?token=${encodeURIComponent(token)}&v=${encodeURIComponent(data.updatedAt || Date.now())}`;
+        audio.load();
+      } else {
+        audio.pause();
+        audio.removeAttribute("src");
+        audio.load();
+      }
+    } catch {
+      hasAudio = false;
+    }
+  }
+
+  function fetchMixer() {
+    fetch(`/mixer/state?token=${encodeURIComponent(token)}`)
+      .then((r) => r.json())
+      .then((d) => { if (d && d.mixer) mixer = d.mixer; })
+      .catch(() => {});
+  }
 
   // Keep these in sync with the transitions above.
   const HOLD_MS = 5200;
@@ -208,6 +262,7 @@
 
   async function play(ev) {
     render(ev);
+    playAlertSound();
     card.classList.remove("show");
     void card.offsetWidth; // restart the entrance even if already visible
     card.classList.add("show");
@@ -255,11 +310,19 @@
       // Test button uses its own type so it never reaches the feed or the AI.
       if (data.type === "twitch_event" && data.event && data.event.kind === "streak") show(data.event);
       else if (data.type === "streak_test") show(data.event);
+      else if (data.type === "mixer_state" && data.mixer) {
+        mixer = data.mixer;
+        if (!audio.paused) audio.volume = streakGain();
+      } else if (data.type === "streak_audio_updated") {
+        refreshAudio();
+      }
     };
     ws.onclose = () => setTimeout(connect, 2000);
   }
 
   showSample();
+  refreshAudio();
+  fetchMixer();
   connect();
 </script>
 </body>
