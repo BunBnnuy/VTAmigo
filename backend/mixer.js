@@ -19,6 +19,7 @@ const DEFAULT_MIXER = Object.freeze({
   chatAlerts: 1,
   videoQueue: 1,
   shoutout: 1,
+  streakAlert: 1,
   overlaySound: 1,
 });
 

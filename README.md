@@ -16,7 +16,7 @@ VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/READ
 - **Custom Overlay Builder** — a freeform OBS overlay designer at `/overlay-builder`: a 1920x1080 canvas with image, text, video, and sound layers (HSB filters on images; autoplay/loop/trigger options on video and sound); text layers support `{token}` interpolation for live Twitch event data (e.g. `{follower.username}`, `{cheer.bits}`). Save multiple named layouts per account, each with its own OBS URL, backed by a per-account media library with a 20MB per-file cap and a 100MB total quota.
 - **Activity Panel** — a persisted feed of follows, subs, resubs, gift subs, raids, cheers, and watch streaks; backfilled from Twitch's API on first connect and stored server-side, so it survives page reloads
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems; also what feeds the Activity Panel and the Overlay Builder's live `{token}` data
-- **Watch streak alerts** — Twitch's consecutive-stream milestones (2, 3, 4 and 5+) arrive as IRC `USERNOTICE`s rather than EventSub, so they now show up in the chat feed and Activity Panel and have a compact OBS overlay (`/overlay/streak?token=...`) with the viewer's profile picture, name and streak count. The Watch streak panel has the copyable URL and a Test button.
+- **Watch streak alerts** — Twitch's consecutive-stream milestones (2, 3, 4 and 5+) arrive as IRC `USERNOTICE`s rather than EventSub, so they now show up in the chat feed and Activity Panel and have a compact OBS overlay (`/overlay/streak?token=...`) with the viewer's profile picture, name and streak count. The Watch streak panel has the copyable URL, a Test button, and an optional alert sound (MP3/M4A/WAV/OGG/WebM) whose volume is the **Watch streak alerts** channel in the Audio Mixer.
 - **Stream Settings panel** — change your live Twitch title and category from the site (with category search/autocomplete), or hands-free via voice commands
 - **Voice control & commands** — a 4-way mic mode in Settings/Quick Controls: **Off** (mic disabled), **Voice to text** (transcribes your mic into the AI's context, shown in the chat feed), **Commands only** (nothing added to chat — only spoken commands like "change the title to ..." are acted on), or **Full** (both). Commands only cover changing your live Twitch title/category so far. Chromium-based browsers only (Web Speech API).
 - **Live chat typing** — type messages directly into the chat feed, labeled with your logged-in Twitch username
@@ -156,6 +156,7 @@ VTAmigo/
 │   ├── twitch.js      # Twitch IRC client
 │   ├── eventsub.js    # Twitch EventSub client
 │   ├── streaks.js     # Watch-streak USERNOTICE normalization (event shape)
+│   ├── streakAudio.js # Per-account watch-streak alert sound storage
 │   ├── viewerAvatars.js # Cached Helix profile-picture lookup for viewer overlays
 │   ├── emotes.js      # Twitch/FFZ/BTTV/7TV emote + badge resolution, used by the chat overlay
 │   ├── activity.js    # Activity Panel event persistence + Twitch API backfill
@@ -173,7 +174,7 @@ VTAmigo/
 │   ├── sysmonitor.js  # System resource monitoring
 │   ├── xp.js          # XP ranking system
 │   ├── migrate-to-sqlite.js  # One-shot import of legacy JSON data into SQLite
-│   ├── overlay/       # OBS overlay HTML pages (avatar, chat, custom, video, xp)
+│   ├── overlay/       # OBS overlay HTML pages (avatar, chat, custom, video, xp, shoutout, streak)
 │   └── test/          # Vitest + supertest suites
 ├── frontend/         # Vite + React UI
 │   ├── src/

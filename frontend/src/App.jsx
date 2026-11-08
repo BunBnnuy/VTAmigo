@@ -1333,7 +1333,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         avatarPanelProps={{ ttsSpeaking }}
         videoQueueProps={{ videoState }}
         shoutoutProps={{ lastShoutout }}
-        streakProps={{ lastStreak }}
+        streakProps={{ lastStreak, mixer: settings.mixer }}
         activityPanelProps={{ events: activityEvents, lang: settings.language }}
         achievementsPanelProps={{
           achievements: achievementsState.achievements,

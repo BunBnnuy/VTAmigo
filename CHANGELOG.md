@@ -1,5 +1,12 @@
 # Changelog
 
+## 2026-11-08
+
+- Added an optional **alert sound** to watch-streak alerts.
+  - The Watch streak panel can upload, preview, replace and remove one clip per account (MP3, M4A/AAC, WAV, OGG or WebM, up to 4 MB). It is served to OBS through a token-gated URL and stored under `backend/data/streakAudio`.
+  - The `/overlay/streak` card restarts the clip each time it appears; replacing the file reloads it live in an open OBS Browser Source.
+  - The sound has its own **Watch streak alerts** channel in the Audio Mixer, applied on top of the master gain like every other OBS-side source.
+
 ## 2026-11-07
 
 - Added **watch streak alerts**. Twitch announces a viewer's consecutive-stream milestones (2, 3, 4 and 5+) as an IRC `USERNOTICE` (`msg-id=viewermilestone`, `msg-param-category=watch-streak`); there is no dedicated EventSub subscription, so the chat client now parses it.

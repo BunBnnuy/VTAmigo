@@ -34,7 +34,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     chatRanking:        { x: 1580, y: 960, w: 320, h: 360, z: 13, collapsed: false, closed: false },
     shoutout:          { x: 520,  y: 960, w: 480, h: 340, z: 14, collapsed: false, closed: false },
     mixer:             { x: 20,   y: 600, w: 480, h: 360, z: 15, collapsed: false, closed: false },
-    streak:            { x: 20,   y: 960, w: 480, h: 360, z: 16, collapsed: false, closed: false },
+    streak:            { x: 20,   y: 960, w: 480, h: 420, z: 16, collapsed: false, closed: false },
   },
 };
 

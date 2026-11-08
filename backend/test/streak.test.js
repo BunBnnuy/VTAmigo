@@ -6,6 +6,16 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import request from "supertest";
 import jwt from "jsonwebtoken";
 
+const fs = require("node:fs");
+const os = require("node:os");
+const path = require("node:path");
+
+// Keep the alert-sound store out of backend/data. This must be set before
+// anything requires routes/streak.js (through app.js), because streakAudio
+// resolves its directory at require time.
+const AUDIO_TEST_DIR = path.join(os.tmpdir(), `vtamigo-streak-audio-${process.pid}`);
+process.env.STREAK_AUDIO_DIR = AUDIO_TEST_DIR;
+
 const { parseUserNotice, parseTwitchMessage } = require("../twitch");
 const streaks = require("../streaks");
 const viewerAvatars = require("../viewerAvatars");
@@ -26,6 +36,10 @@ viewerAvatars.getAvatarByLogin = async (login) => {
 };
 
 const { app } = require("../app");
+
+afterAll(() => {
+  fs.rmSync(AUDIO_TEST_DIR, { recursive: true, force: true });
+});
 
 // Example from dev.twitch.tv/docs/irc/tags (USERNOTICE Tags), including the
 // tag escaping Twitch uses inside system-msg (\s = space).
@@ -251,5 +265,59 @@ describe("watch-streak overlay routes", () => {
       streak: 3,
       avatarUrl: "https://cdn.example/avatar.png",
     });
+  });
+
+  it("stores, serves, replaces and removes the alert sound", async () => {
+    const empty = await request(app).get("/streak/audio/status").set("Cookie", sessionCookie);
+    expect(empty.status).toBe(200);
+    expect(empty.body).toEqual({ hasAudio: false });
+
+    const clip = Buffer.from("ID3 fake mp3 bytes for the overlay");
+    const upload = await request(app)
+      .post("/streak/audio")
+      .set("Cookie", sessionCookie)
+      .attach("audio", clip, { filename: "spark.mp3", contentType: "audio/mpeg" });
+    expect(upload.status).toBe(200);
+    expect(upload.body).toMatchObject({
+      hasAudio: true,
+      name: "spark.mp3",
+      mime: "audio/mpeg",
+      sizeBytes: clip.length,
+    });
+
+    const status = await request(app).get("/streak/audio/status").set("Cookie", sessionCookie);
+    expect(status.body).toMatchObject({ hasAudio: true, name: "spark.mp3", sizeBytes: clip.length });
+
+    const binary = await request(app).get(`/streak/audio?token=${getOverlayToken(TWITCH_ID)}`);
+    expect(binary.status).toBe(200);
+    expect(binary.headers["content-type"]).toMatch(/audio\/mpeg/);
+    expect(Number(binary.headers["content-length"])).toBe(clip.length);
+
+    // A replacement with a different type must not leave the old file behind.
+    const replace = await request(app)
+      .post("/streak/audio")
+      .set("Cookie", sessionCookie)
+      .attach("audio", Buffer.from("RIFF fake wav"), { filename: "spark.wav", contentType: "audio/wav" });
+    expect(replace.status).toBe(200);
+    expect(replace.body).toMatchObject({ hasAudio: true, name: "spark.wav", mime: "audio/wav" });
+
+    const removed = await request(app).delete("/streak/audio").set("Cookie", sessionCookie);
+    expect(removed.body).toEqual({ ok: true, hasAudio: false });
+    const gone = await request(app).get(`/streak/audio?token=${getOverlayToken(TWITCH_ID)}`);
+    expect(gone.status).toBe(404);
+  });
+
+  it("rejects a non-audio upload", async () => {
+    const res = await request(app)
+      .post("/streak/audio")
+      .set("Cookie", sessionCookie)
+      .attach("audio", Buffer.from("not audio"), { filename: "note.txt", contentType: "text/plain" });
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/MP3/);
+  });
+
+  it("requires a token or cookie for the alert-sound reads", async () => {
+    expect((await request(app).get("/streak/audio/status")).status).toBe(401);
+    expect((await request(app).get("/streak/audio")).status).toBe(401);
   });
 });
