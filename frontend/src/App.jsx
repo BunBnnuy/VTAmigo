@@ -371,6 +371,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [micSpeaking, setMicSpeaking] = useState(false);
   const [videoState, setVideoState] = useState({ queue: [], defaultPlaylistId: null, nowPlaying: null });
   const [lastShoutout, setLastShoutout] = useState(null);
+  const [lastStreak, setLastStreak] = useState(null);
   const [botStatus, setBotStatus] = useState("disconnected");
   const [activeBotUsername, setActiveBotUsername] = useState(null);
   const [usingSiteBot, setUsingSiteBot] = useState(false);
@@ -962,8 +963,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
             eventKind: event.kind,
           }]);
           setActivityEvents((prev) => [...prev.slice(-99), event]);
-          // Immediately trigger a Claude response for this event
-          triggerEventResponse(event);
+          // Watch streaks (USERNOTICE viewermilestone) feed the panel's "last
+          // streak" line. They are informational milestones, not prompts, so
+          // they must not trigger an AI response — everything else still does.
+          if (event.kind === "streak") setLastStreak(event);
+          else triggerEventResponse(event);
         } else if (data.type === "achievement_unlocked") {
           // Toast from the WS payload (authoritative names come from the
           // panel's own i18n keys at render time), panel state via refetch.
@@ -1329,6 +1333,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         avatarPanelProps={{ ttsSpeaking }}
         videoQueueProps={{ videoState }}
         shoutoutProps={{ lastShoutout }}
+        streakProps={{ lastStreak }}
         activityPanelProps={{ events: activityEvents, lang: settings.language }}
         achievementsPanelProps={{
           achievements: achievementsState.achievements,

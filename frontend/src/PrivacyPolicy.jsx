@@ -180,8 +180,9 @@ export default function PrivacyPolicy() {
             </li>
             <li style={styles.li}>
               <strong>Stream events are stored</strong> — follows, subs, gift
-              subs, raids and cheers are recorded with the username involved,
-              so overlays and reactions can refer to them.
+              subs, raids, cheers and watch streaks are recorded with the
+              username involved (watch streaks also keep the viewer&apos;s public
+              profile-picture URL), so overlays and reactions can refer to them.
             </li>
           </ul>
           <p style={styles.p}>

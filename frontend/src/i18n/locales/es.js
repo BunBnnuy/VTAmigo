@@ -388,6 +388,7 @@ export default {
       raidOne: "¡Raid con {viewers} espectador!",
       raidMany: "¡Raid con {viewers} espectadores!",
       cheer: "¡{bits} bits!{messageSuffix}",
+      streak: "¡Racha de {count} streams seguidos!{messageSuffix}",
       default: "Evento de Twitch",
     },
     voiceCommand: {
@@ -503,6 +504,7 @@ export default {
     raidOne: "hizo un raid con {viewers} espectador",
     raidMany: "hizo un raid con {viewers} espectadores",
     cheer: "envió {bits} bits",
+    streak: "mantuvo una racha de {count} streams",
     redeem: "canjeó \"{reward}\"",
     default: "Actividad de Twitch",
   },
@@ -687,6 +689,23 @@ export default {
     loadError: "No se pudo cargar la configuración.",
     testError: "Falló el shoutout: {error}",
     hint: "Los mods y el streamer pueden activarlo con !so <usuario>",
+  },
+
+  streakPanel: {
+    title: "Rachas",
+    copyOverlayTitle: "Copiar la URL del overlay de rachas para OBS",
+    copyOverlay: "Copiar overlay",
+    copied: "Copiado",
+    testSection: "Prueba",
+    testNamePlaceholder: "Usuario de Twitch (vacío = tú)",
+    testStreakLabel: "Streams seguidos",
+    testButton: "Probar racha",
+    testing: "Probando…",
+    testError: "Falló la prueba: {error}",
+    lastSection: "Última racha",
+    noStreak: "Todavía no hay rachas",
+    streakCount: "{count} streams seguidos",
+    hint: "Agrega la URL del overlay como Browser Source en OBS. Twitch avisa los hitos de 2, 3, 4 y 5+ streams consecutivos.",
   },
 
   chatOverlayPanel: {

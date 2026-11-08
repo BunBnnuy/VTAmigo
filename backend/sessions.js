@@ -49,6 +49,8 @@ const videoQueue = require("./videoQueue");
 const youtube = require("./youtube");
 const shoutout = require("./shoutout");
 const twitchClips = require("./twitchClips");
+const streaks = require("./streaks");
+const viewerAvatars = require("./viewerAvatars");
 
 // Set once by app.js via attach(), right after http.createServer(app) and
 // new WebSocketServer({ server }). Never reassigned afterwards.
@@ -157,6 +159,30 @@ function isModOrBroadcaster(badgeTag) {
     const name = entry.split("/")[0].trim();
     return name === "broadcaster" || name === "moderator";
   });
+}
+
+// Twitch watch streaks (USERNOTICE msg-id=viewermilestone, see streaks.js).
+// Only milestones arrive — 2, 3, 4 and 5+ consecutive streams — so the extra
+// Helix call for the viewer's profile picture is rare, and viewerAvatars
+// caches it per user id. Latency is irrelevant here; a failed lookup still
+// broadcasts, with the overlay drawing an initial-letter avatar instead.
+//
+// The event goes out on the same "twitch_event" broadcast as follows/subs/
+// raids, so it lands in the chat feed, the Activity Panel and activity
+// history without a second code path. The streak overlay listens for
+// kind === "streak" on that message (and for "streak_test" from the panel's
+// Test button, which deliberately never touches the feed or the AI).
+async function handleUserNotice(twitchId, notice) {
+  const event = streaks.streakEventFromNotice(notice);
+  if (!event) return;
+  try {
+    const token = await getValidTwitchToken(twitchId);
+    event.avatarUrl = await viewerAvatars.getAvatar(event.userId, token);
+  } catch (err) {
+    console.warn("[streak] avatar lookup failed:", err.message);
+  }
+  activity.record(twitchId, event);
+  broadcastToAccount(twitchId, { type: "twitch_event", event });
 }
 
 function broadcastVideoState(twitchId) {
@@ -420,6 +446,9 @@ async function connectTwitchForUser(user) {
     token,
     username: channel,
     onMessage: (msg) => handleChat(twitchId, msg),
+    onNotice: (notice) => {
+      handleUserNotice(twitchId, notice).catch((err) => console.error("[streak]", err.message));
+    },
     onStatus: (status) => {
       console.log(`[twitch/${channel}]`, status.type, status.message || "");
       broadcastToAccount(twitchId, { type: "status", status });
@@ -474,5 +503,6 @@ module.exports = {
   handleSongRequest,
   isModOrBroadcaster,
   handleShoutout,
+  handleUserNotice,
   connectTwitchForUser,
 };

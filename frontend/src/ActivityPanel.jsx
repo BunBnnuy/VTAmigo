@@ -1,5 +1,5 @@
 import React from "react";
-import { Heart, Star, Repeat, Gift, Rocket, Gem, Trophy, Sparkles } from "lucide-react";
+import { Heart, Star, Repeat, Gift, Rocket, Gem, Trophy, Sparkles, Flame } from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
 
 const KIND_ICON = {
@@ -9,6 +9,7 @@ const KIND_ICON = {
   giftsub: Gift,
   raid: Rocket,
   cheer: Gem,
+  streak: Flame,
   redeem: Trophy,
 };
 
@@ -19,6 +20,7 @@ const KIND_COLOR = {
   giftsub: "var(--yellow)",
   raid: "var(--green)",
   cheer: "var(--accent-light)",
+  streak: "var(--yellow)",
   redeem: "var(--accent)",
 };
 
@@ -43,6 +45,8 @@ function describeEvent(event, t) {
       return t(event.viewers === 1 ? "activityPanel.raidOne" : "activityPanel.raidMany", { viewers: event.viewers });
     case "cheer":
       return t("activityPanel.cheer", { bits: event.bits });
+    case "streak":
+      return t("activityPanel.streak", { count: event.streak });
     case "redeem":
       return t("activityPanel.redeem", { reward: event.rewardTitle });
     default:
