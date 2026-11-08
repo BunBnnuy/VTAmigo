@@ -1,5 +1,13 @@
 # Changelog
 
+## 2026-11-07
+
+- Added **watch streak alerts**. Twitch announces a viewer's consecutive-stream milestones (2, 3, 4 and 5+) as an IRC `USERNOTICE` (`msg-id=viewermilestone`, `msg-param-category=watch-streak`); there is no dedicated EventSub subscription, so the chat client now parses it.
+  - Streaks appear in the chat feed and the Activity Panel with their own flame icon, and are stored with the rest of the activity history.
+  - New **Watch streak** panel with a copyable OBS overlay URL and a Test button (username + streak count) that previews the alert without touching the feed, chat, or the AI.
+  - The overlay is a compact card with the viewer's profile picture, name in their chat color, and the streak number. The picture comes from Helix (cached); viewers without one get an initial-letter avatar.
+  - Milestones are informational: unlike follows/subs/raids/cheers they do not trigger an AI response.
+
 ## 2026-10-19
 
 - Fixed the **Overlay Builder** rejecting every image upload with "Request body too large".

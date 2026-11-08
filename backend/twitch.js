@@ -19,18 +19,34 @@ const HYPE_KEYWORDS = [
   "hyped",
 ];
 
-function parseTwitchMessage(raw) {
-  // Parse: @tags :user!user@user.tmi.twitch.tv PRIVMSG #channel :message
+// IRCv3 tags escape a handful of characters so a value can never break the
+// line: \s is a space, \: a semicolon, \\ a backslash, \r / \n newlines.
+// Only the USERNOTICE fields we render (system-msg, the viewer's message)
+// actually need decoding, but the helper is shared by both parsers.
+const TAG_ESCAPES = { s: " ", ":": ";", "\\": "\\", r: "\r", n: "\n" };
+
+function unescapeTagValue(value) {
+  return String(value).replace(/\\(.)/g, (_, ch) => (ch in TAG_ESCAPES ? TAG_ESCAPES[ch] : ch));
+}
+
+// Split a raw IRC line into its tags and the tagless remainder. Values may
+// contain "=" (tag ids, base64-ish payloads), so only the first one separates
+// the key from the value.
+function splitIrcTags(raw) {
   const tagMatch = raw.match(/^@([^ ]+) /);
   const tags = {};
-  if (tagMatch) {
-    tagMatch[1].split(";").forEach((kv) => {
-      const [k, v] = kv.split("=");
-      tags[k] = v;
-    });
+  if (!tagMatch) return { tags, rest: raw };
+  for (const kv of tagMatch[1].split(";")) {
+    const eq = kv.indexOf("=");
+    if (eq === -1) continue;
+    tags[kv.slice(0, eq)] = kv.slice(eq + 1);
   }
+  return { tags, rest: raw.slice(tagMatch[0].length) };
+}
 
-  const rest = tagMatch ? raw.slice(tagMatch[0].length) : raw;
+function parseTwitchMessage(raw) {
+  // Parse: @tags :user!user@user.tmi.twitch.tv PRIVMSG #channel :message
+  const { tags, rest } = splitIrcTags(raw);
   const msgMatch = rest.match(/^:(\w+)!\w+@\S+ PRIVMSG #(\S+) :(.+)$/s);
   if (!msgMatch) return null;
 
@@ -75,12 +91,40 @@ function parseTwitchMessage(raw) {
   };
 }
 
+// USERNOTICE is how Twitch delivers chat-visible notices that aren't regular
+// messages: subs, raids, announcements… and, since 2026, viewer milestones.
+// The only one this app consumes is the watch streak
+// (msg-id=viewermilestone, msg-param-category=watch-streak) — see
+// dev.twitch.tv/docs/irc/tags. Everything else is dropped, exactly as before.
+function parseUserNotice(raw) {
+  const { tags, rest } = splitIrcTags(raw);
+  // ":tmi.twitch.tv USERNOTICE #channel" with an optional ":message" tail.
+  const noticeMatch = rest.match(/^:tmi\.twitch\.tv USERNOTICE #(\S+?)(?: :([\s\S]*))?$/);
+  if (!noticeMatch) return null;
+
+  return {
+    id: tags["id"] || null,
+    msgId: tags["msg-id"] || null,
+    category: tags["msg-param-category"] || null,
+    milestoneId: tags["msg-param-id"] || null,
+    streak: tags["msg-param-value"] ? Number(tags["msg-param-value"]) : null,
+    systemMessage: unescapeTagValue(tags["system-msg"] || ""),
+    message: (noticeMatch[2] || "").trim(),
+    username: tags["display-name"] || tags["login"] || "",
+    login: tags["login"] || "",
+    userId: tags["user-id"] || null,
+    color: tags["color"] || null,
+    timestamp: Number(tags["tmi-sent-ts"]) || Date.now(),
+  };
+}
+
 class TwitchIRCClient {
-  constructor({ channel, token, username, onMessage, onStatus }) {
+  constructor({ channel, token, username, onMessage, onStatus, onNotice }) {
     this.channel = channel.toLowerCase().replace(/^#/, "");
     this.token = token;
     this.username = username || "justinfan" + Math.floor(Math.random() * 80000);
     this.onMessage = onMessage;
+    this.onNotice = onNotice || (() => {});
     this.onStatus = onStatus;
     this.ws = null;
     this.reconnectDelay = 1000;
@@ -123,6 +167,10 @@ class TwitchIRCClient {
         if (line.includes("PRIVMSG")) {
           const msg = parseTwitchMessage(line);
           if (msg) this.onMessage(msg);
+        }
+        if (line.includes("USERNOTICE")) {
+          const notice = parseUserNotice(line);
+          if (notice) this.onNotice(notice);
         }
         if (line.includes(":Welcome, GLHF!")) {
           this.ready = true;
@@ -189,4 +237,4 @@ class TwitchIRCClient {
   }
 }
 
-module.exports = { TwitchIRCClient };
+module.exports = { TwitchIRCClient, parseTwitchMessage, parseUserNotice };

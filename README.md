@@ -14,8 +14,9 @@ VTAmigo is a hosted, multi-account web app (see [`server/README.md`](server/READ
 - **Avatar overlay** — upload speaking/silent images (JPEG/PNG/GIF/WebP, 5MB max) and add an OBS browser source that swaps between them while the co-host talks
 - **Chat overlay** — a Twitch-chat OBS browser source with two themes: a "default" nine-slice-background renderer, or "bubbles", a decorated speech-bubble theme (emote/badge rendering, custom flower ornaments, per-event alert copy). Both themes share message limits, fade timing, colors/fonts, and bot-message filtering, all configured from the Chat Overlay panel.
 - **Custom Overlay Builder** — a freeform OBS overlay designer at `/overlay-builder`: a 1920x1080 canvas with image, text, video, and sound layers (HSB filters on images; autoplay/loop/trigger options on video and sound); text layers support `{token}` interpolation for live Twitch event data (e.g. `{follower.username}`, `{cheer.bits}`). Save multiple named layouts per account, each with its own OBS URL, backed by a per-account media library with a 20MB per-file cap and a 100MB total quota.
-- **Activity Panel** — a persisted feed of follows, subs, resubs, gift subs, raids, and cheers; backfilled from Twitch's API on first connect and stored server-side, so it survives page reloads
+- **Activity Panel** — a persisted feed of follows, subs, resubs, gift subs, raids, cheers, and watch streaks; backfilled from Twitch's API on first connect and stored server-side, so it survives page reloads
 - **Twitch EventSub** — reacts to follows, subs, raids, cheers, and channel point redeems; also what feeds the Activity Panel and the Overlay Builder's live `{token}` data
+- **Watch streak alerts** — Twitch's consecutive-stream milestones (2, 3, 4 and 5+) arrive as IRC `USERNOTICE`s rather than EventSub, so they now show up in the chat feed and Activity Panel and have a compact OBS overlay (`/overlay/streak?token=...`) with the viewer's profile picture, name and streak count. The Watch streak panel has the copyable URL and a Test button.
 - **Stream Settings panel** — change your live Twitch title and category from the site (with category search/autocomplete), or hands-free via voice commands
 - **Voice control & commands** — a 4-way mic mode in Settings/Quick Controls: **Off** (mic disabled), **Voice to text** (transcribes your mic into the AI's context, shown in the chat feed), **Commands only** (nothing added to chat — only spoken commands like "change the title to ..." are acted on), or **Full** (both). Commands only cover changing your live Twitch title/category so far. Chromium-based browsers only (Web Speech API).
 - **Live chat typing** — type messages directly into the chat feed, labeled with your logged-in Twitch username
@@ -154,6 +155,8 @@ VTAmigo/
 │   ├── ttsWorker.js   # Shared spawn/protocol/idle-shutdown logic for the Python TTS sidecars
 │   ├── twitch.js      # Twitch IRC client
 │   ├── eventsub.js    # Twitch EventSub client
+│   ├── streaks.js     # Watch-streak USERNOTICE normalization (event shape)
+│   ├── viewerAvatars.js # Cached Helix profile-picture lookup for viewer overlays
 │   ├── emotes.js      # Twitch/FFZ/BTTV/7TV emote + badge resolution, used by the chat overlay
 │   ├── activity.js    # Activity Panel event persistence + Twitch API backfill
 │   ├── chatOverlayConfig.js  # Chat overlay appearance config (default/bubbles themes), per account
@@ -187,6 +190,7 @@ VTAmigo/
 │   │   ├── StreamSettingsPanel.jsx
 │   │   ├── AvatarPanel.jsx
 │   │   ├── VideoQueue.jsx
+│   │   ├── StreakPanel.jsx  # Watch-streak overlay URL + test button
 │   │   ├── VoiceTranscription.js / voiceCommands.js  # Mic transcription + spoken-command parsing
 │   │   ├── TTSController.js
 │   │   ├── QuickControls.jsx

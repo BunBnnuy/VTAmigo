@@ -388,6 +388,7 @@ export default {
       raidOne: "{viewers}人の視聴者とレイド！",
       raidMany: "{viewers}人の視聴者とレイド！",
       cheer: "{bits} ビット！{messageSuffix}",
+      streak: "ウォッチストリーク: {count}配信連続！{messageSuffix}",
       default: "Twitchイベント",
     },
     voiceCommand: {
@@ -503,6 +504,7 @@ export default {
     raidOne: "{viewers}人の視聴者とレイドしました",
     raidMany: "{viewers}人の視聴者とレイドしました",
     cheer: "{bits}ビットをチアーしました",
+    streak: "{count}配信連続視聴のストリークを継続しました",
     redeem: "「{reward}」と交換しました",
     default: "Twitchアクティビティ",
   },
@@ -687,6 +689,23 @@ export default {
     loadError: "設定を読み込めませんでした。",
     testError: "シャウトアウトに失敗しました: {error}",
     hint: "モデレーターと配信者は !so <ユーザー名> で実行できます",
+  },
+
+  streakPanel: {
+    title: "ウォッチストリーク",
+    copyOverlayTitle: "OBS用ウォッチストリークオーバーレイのURLをコピー",
+    copyOverlay: "オーバーレイをコピー",
+    copied: "コピーしました",
+    testSection: "テスト",
+    testNamePlaceholder: "Twitchユーザー名（空欄 = 自分）",
+    testStreakLabel: "連続配信数",
+    testButton: "ストリークをテスト",
+    testing: "テスト中…",
+    testError: "テストに失敗しました: {error}",
+    lastSection: "最後のストリーク",
+    noStreak: "まだウォッチストリークはありません",
+    streakCount: "{count}配信連続",
+    hint: "オーバーレイURLをOBSのブラウザソースとして追加してください。Twitchは2、3、4、5以上の連続配信で通知します。",
   },
 
   chatOverlayPanel: {

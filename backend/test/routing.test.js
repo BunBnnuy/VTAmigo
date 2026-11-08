@@ -45,6 +45,7 @@ const PROTECTED_SAMPLES = [
   { router: "routes/tts.js", method: "post", path: "/avatar/speaking/stop" },
   { router: "routes/avatar.js", method: "post", path: "/avatar/reactive/stop" },
   { router: "routes/avatar.js", method: "get", path: "/avatar/reactive/overlay-url" },
+  { router: "routes/streak.js", method: "get", path: "/streak/overlay-url" },
 ];
 
 let overlayToken;

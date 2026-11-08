@@ -388,6 +388,7 @@ export default {
       raidOne: "시청자 {viewers}명과 레이드!",
       raidMany: "시청자 {viewers}명과 레이드!",
       cheer: "{bits} 비트!{messageSuffix}",
+      streak: "시청 스트릭: {count}회 연속 시청!{messageSuffix}",
       default: "Twitch 이벤트",
     },
     voiceCommand: {
@@ -503,6 +504,7 @@ export default {
     raidOne: "시청자 {viewers}명과 레이드했습니다",
     raidMany: "시청자 {viewers}명과 레이드했습니다",
     cheer: "{bits} 비트를 후원했습니다",
+    streak: "{count}회 연속 시청 스트릭을 이어갔습니다",
     redeem: "\"{reward}\"을(를) 교환했습니다",
     default: "Twitch 활동",
   },
@@ -687,6 +689,23 @@ export default {
     loadError: "설정을 불러오지 못했습니다.",
     testError: "셔아웃 실패: {error}",
     hint: "모더레이터와 스트리머가 !so <사용자명>으로 실행할 수 있습니다",
+  },
+
+  streakPanel: {
+    title: "시청 스트릭",
+    copyOverlayTitle: "OBS용 시청 스트릭 오버레이 URL 복사",
+    copyOverlay: "오버레이 복사",
+    copied: "복사됨",
+    testSection: "테스트",
+    testNamePlaceholder: "Twitch 사용자 이름 (비우면 본인)",
+    testStreakLabel: "연속 시청 수",
+    testButton: "스트릭 테스트",
+    testing: "테스트 중…",
+    testError: "테스트 실패: {error}",
+    lastSection: "마지막 스트릭",
+    noStreak: "아직 시청 스트릭이 없습니다",
+    streakCount: "{count}회 연속 시청",
+    hint: "오버레이 URL을 OBS 브라우저 소스로 추가하세요. Twitch는 2, 3, 4, 5회 이상 연속 시청 시 알려줍니다.",
   },
 
   chatOverlayPanel: {

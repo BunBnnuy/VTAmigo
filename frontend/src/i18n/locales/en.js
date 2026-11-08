@@ -390,6 +390,7 @@ export default {
       raidOne: "Raid with {viewers} viewer!",
       raidMany: "Raid with {viewers} viewers!",
       cheer: "{bits} bits!{messageSuffix}",
+      streak: "Watch streak: {count} streams in a row!{messageSuffix}",
       default: "Twitch event",
     },
     voiceCommand: {
@@ -510,6 +511,7 @@ export default {
     raidOne: "raided with {viewers} viewer",
     raidMany: "raided with {viewers} viewers",
     cheer: "cheered {bits} bits",
+    streak: "kept a {count}-stream watch streak",
     redeem: "redeemed \"{reward}\"",
     default: "Twitch activity",
   },
@@ -694,6 +696,23 @@ export default {
     loadError: "Could not load shoutout settings.",
     testError: "Shoutout failed: {error}",
     hint: "Mods and the streamer can trigger this with !so <username>",
+  },
+
+  streakPanel: {
+    title: "Watch streaks",
+    copyOverlayTitle: "Copy the watch-streak overlay URL for OBS",
+    copyOverlay: "Copy overlay",
+    copied: "Copied",
+    testSection: "Test",
+    testNamePlaceholder: "Twitch username (empty = yours)",
+    testStreakLabel: "Streams in a row",
+    testButton: "Test streak",
+    testing: "Testing…",
+    testError: "Test failed: {error}",
+    lastSection: "Last streak",
+    noStreak: "No watch streak yet",
+    streakCount: "{count} streams in a row",
+    hint: "Add the overlay URL as an OBS Browser Source. Twitch announces milestones at 2, 3, 4 and 5+ consecutive streams.",
   },
 
   streamSettingsPanel: {

@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Watch Streak Overlay</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link
+  href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800&family=Quicksand:wght@600;700&display=swap"
+  rel="stylesheet"
+/>
+<style>
+  html, body {
+    margin: 0;
+    padding: 0;
+    background: transparent;
+    overflow: hidden;
+    width: 100vw;
+    height: 100vh;
+    user-select: none;
+    font-family: Quicksand, Nunito, sans-serif;
+  }
+
+  /* Compact card, bottom center. OBS moves the whole Browser Source, so the
+     page only has to look right at its own default size (420x160). */
+  #card {
+    position: fixed;
+    left: 50%;
+    bottom: 6vh;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    max-width: min(92vw, 520px);
+    box-sizing: border-box;
+    padding: 14px 26px 14px 14px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, rgba(24, 16, 30, 0.94), rgba(48, 21, 38, 0.94));
+    border: 2px solid rgba(255, 138, 61, 0.9);
+    box-shadow: 0 12px 36px rgba(0, 0, 0, 0.55), inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    opacity: 0;
+    transform: translateX(-50%) translateY(14px) scale(0.96);
+    transition: opacity 0.42s ease, transform 0.42s cubic-bezier(0.22, 1, 0.36, 1);
+    pointer-events: none;
+  }
+  #card.show {
+    opacity: 1;
+    transform: translateX(-50%) translateY(0) scale(1);
+  }
+
+  #avatar-wrap {
+    position: relative;
+    width: 76px;
+    height: 76px;
+    flex: 0 0 76px;
+  }
+  #avatar, #avatar-fallback {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    border-radius: 50%;
+    box-sizing: border-box;
+    border: 2px solid rgba(255, 255, 255, 0.92);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
+  }
+  #avatar { object-fit: cover; background: rgba(0, 0, 0, 0.4); }
+  /* Author `display` rules beat the UA `[hidden]` rule, so both states have to
+     be spelled out or the fallback would sit on top of a real picture. */
+  #avatar[hidden], #avatar-fallback[hidden] { display: none; }
+  /* Initial-letter fallback for viewers without a profile picture (or when
+     the Helix lookup failed) — filled with their chat color. */
+  #avatar-fallback {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 32px;
+    font-weight: 800;
+    color: #fff;
+    text-transform: uppercase;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.5);
+  }
+
+  #text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    min-width: 0;
+  }
+  #name {
+    font-size: 20px;
+    font-weight: 700;
+    line-height: 1.1;
+    color: #fff;
+    text-shadow: 0 1px 4px rgba(0, 0, 0, 0.7);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 320px;
+  }
+  #streak-row {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    white-space: nowrap;
+  }
+  #flame {
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    filter: drop-shadow(0 0 6px rgba(255, 138, 61, 0.55));
+  }
+  #count {
+    font-family: Nunito, Quicksand, sans-serif;
+    font-size: 32px;
+    font-weight: 800;
+    line-height: 1;
+    color: #ffb45e;
+    text-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+  }
+  #label {
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.78);
+  }
+</style>
+</head>
+<body>
+  <div id="card" role="status">
+    <div id="avatar-wrap">
+      <img id="avatar" alt="" hidden />
+      <span id="avatar-fallback" hidden></span>
+    </div>
+    <div id="text">
+      <div id="name"></div>
+      <div id="streak-row">
+        <svg id="flame" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+          <defs>
+            <linearGradient id="flame-grad" x1="4" y1="22" x2="20" y2="4" gradientUnits="userSpaceOnUse">
+              <stop offset="0" stop-color="#ff5a1f" />
+              <stop offset="1" stop-color="#ffd75e" />
+            </linearGradient>
+          </defs>
+          <path
+            d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"
+            stroke="url(#flame-grad)"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
+        </svg>
+        <span id="count"></span>
+        <span id="label">Stream streak</span>
+      </div>
+    </div>
+  </div>
+
+<script src="/overlay/preview-note.js?v=2"></script>
+<script>
+  const params = new URLSearchParams(location.search);
+  const token = params.get("token") || "";
+
+  const card = document.getElementById("card");
+  const avatar = document.getElementById("avatar");
+  const fallback = document.getElementById("avatar-fallback");
+  const nameEl = document.getElementById("name");
+  const countEl = document.getElementById("count");
+
+  // Keep these in sync with the transitions above.
+  const HOLD_MS = 5200;
+  const FADE_MS = 460;
+
+  const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+
+  function showFallback(username, color) {
+    const initial = String(username || "?").trim().charAt(0) || "?";
+    fallback.textContent = initial;
+    fallback.style.background = color || "#e11d76";
+    fallback.hidden = false;
+    avatar.hidden = true;
+    avatar.removeAttribute("src");
+  }
+
+  function showAvatar(url, username, color) {
+    if (!url) return showFallback(username, color);
+    avatar.onerror = () => showFallback(username, color);
+    avatar.src = url;
+    avatar.hidden = false;
+    fallback.hidden = true;
+  }
+
+  function render(ev) {
+    const username = ev.username || "Viewer";
+    nameEl.textContent = username;
+    // Twitch chat colors are made for dark backgrounds, so use them as-is.
+    nameEl.style.color = ev.color || "#ffffff";
+    countEl.textContent = (() => {
+      const n = Number(ev.streak);
+      return Number.isFinite(n) && n >= 1 ? String(Math.floor(n)) : "?";
+    })();
+    showAvatar(ev.avatarUrl, username, ev.color);
+  }
+
+  // Serialized so two milestones in a row don't overlap on screen.
+  const queue = [];
+  let playing = false;
+
+  async function play(ev) {
+    render(ev);
+    card.classList.remove("show");
+    void card.offsetWidth; // restart the entrance even if already visible
+    card.classList.add("show");
+    await wait(HOLD_MS);
+    card.classList.remove("show");
+    await wait(FADE_MS);
+  }
+
+  async function pump() {
+    if (playing) return;
+    playing = true;
+    while (queue.length) await play(queue.shift());
+    playing = false;
+  }
+
+  function show(ev) {
+    if (!ev) return;
+    if (queue.length < 5) queue.push(ev);
+    pump();
+  }
+
+  // Builder preview: a populated card so the canvas shows the real layout
+  // before any viewer hits a milestone. A live event overwrites every field.
+  function showSample() {
+    if (!window.OverlayPreviewNote || !OverlayPreviewNote.badge) return;
+    OverlayPreviewNote.badge();
+    nameEl.textContent = "PixelPanda";
+    nameEl.style.color = "#4fa8ff";
+    countEl.textContent = "7";
+    if (OverlayPreviewNote.avatarDataUrl) {
+      avatar.src = OverlayPreviewNote.avatarDataUrl();
+      avatar.hidden = false;
+      fallback.hidden = true;
+    }
+    card.classList.add("show");
+  }
+
+  function connect() {
+    const wsProtocol = location.protocol === "https:" ? "wss://" : "ws://";
+    const ws = new WebSocket(wsProtocol + location.host + "/chat?token=" + encodeURIComponent(token));
+    ws.onmessage = (e) => {
+      let data;
+      try { data = JSON.parse(e.data); } catch { return; }
+      // Real milestones ride the shared "twitch_event" broadcast; the panel's
+      // Test button uses its own type so it never reaches the feed or the AI.
+      if (data.type === "twitch_event" && data.event && data.event.kind === "streak") show(data.event);
+      else if (data.type === "streak_test") show(data.event);
+    };
+    ws.onclose = () => setTimeout(connect, 2000);
+  }
+
+  showSample();
+  connect();
+</script>
+</body>
+</html>

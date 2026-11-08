@@ -9,6 +9,7 @@ import ChatOverlayPanel from "./ChatOverlayPanel.jsx";
 import ChatOverlayPreview from "./ChatOverlayPreview.jsx";
 import AvatarPanel from "./AvatarPanel.jsx";
 import ShoutoutPanel from "./ShoutoutPanel.jsx";
+import StreakPanel from "./StreakPanel.jsx";
 import ActivityPanel from "./ActivityPanel.jsx";
 import AchievementsPanel from "./AchievementsPanel.jsx";
 import ChatTTSPPanel from "./ChatTTSPPanel.jsx";
@@ -33,6 +34,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     chatRanking:        { x: 1580, y: 960, w: 320, h: 360, z: 13, collapsed: false, closed: false },
     shoutout:          { x: 520,  y: 960, w: 480, h: 340, z: 14, collapsed: false, closed: false },
     mixer:             { x: 20,   y: 600, w: 480, h: 360, z: 15, collapsed: false, closed: false },
+    streak:            { x: 20,   y: 960, w: 480, h: 360, z: 16, collapsed: false, closed: false },
   },
 };
 
@@ -54,6 +56,7 @@ export const PANEL_META = [
   { id: "reactiveAvatar", titleKey: "reactiveAvatarPanel.title", dataTour: null },
   { id: "chatRanking", titleKey: "chatRankingPanel.title", dataTour: null },
   { id: "shoutout", titleKey: "shoutoutPanel.title", dataTour: null },
+  { id: "streak", titleKey: "streakPanel.title", dataTour: null },
   { id: "mixer", titleKey: "mixerPanel.title", dataTour: null },
 ];
 
@@ -73,7 +76,7 @@ export default function WindowManager({
   panelLayout, onUpdateWindow, onFocusWindow, t,
   chatFeedProps, responsePanelProps, quickControlsProps, videoQueueProps,
   avatarPanelProps, activityPanelProps, achievementsPanelProps, chatTtsPanelProps,
-  shoutoutProps, mixerPanelProps, lang,
+  shoutoutProps, streakProps, mixerPanelProps, lang,
 }) {
   // `layout` is handed to panels that need to know whether they're actually on
   // screen — <Window> keeps collapsed children mounted (hidden with CSS) so
@@ -107,6 +110,7 @@ export default function WindowManager({
       case "reactiveAvatar": return <ReactiveAvatarPanel lang={lang} />;
       case "chatRanking": return <ChatRankingPanel lang={lang} />;
       case "shoutout": return <ShoutoutPanel {...shoutoutProps} lang={lang} />;
+      case "streak": return <StreakPanel {...streakProps} lang={lang} />;
       case "mixer": return <MixerPanel {...mixerPanelProps} lang={lang} />;
       default: return null;
     }

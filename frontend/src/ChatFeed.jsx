@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
 import {
-  Star, PartyPopper, Gift, Swords, Gem, Megaphone,
+  Star, PartyPopper, Gift, Swords, Gem, Megaphone, Flame,
   Keyboard, Mic, SlidersHorizontal, AlertTriangle, Zap,
 } from "lucide-react";
 import { useTranslation } from "./i18n/index.js";
@@ -16,6 +16,7 @@ const EVENT_ICONS = {
   giftsub: Gift,
   raid: Swords,
   cheer: Gem,
+  streak: Flame,
 };
 
 // Renders a message as text with its resolved emotes spliced in as images.

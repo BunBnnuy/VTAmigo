@@ -44,6 +44,7 @@ const overlayBuilderRouter = require("./routes/overlayBuilder");
 const ttsRouter = require("./routes/tts");
 const avatarRouter = require("./routes/avatar");
 const shoutoutRouter = require("./routes/shoutout");
+const streakRouter = require("./routes/streak");
 
 const { monitorChatSocket } = require("./chatSocket");
 
@@ -304,6 +305,7 @@ app.use(overlayBuilderRouter); // /overlay-builder/*, /overlay/custom/*
 app.use(avatarRouter);         // /avatar/reactive/*
 app.use(ttsRouter);           // /avatar/speaking/*, /tts/piper*
 app.use(shoutoutRouter);       // /overlay/shoutout, /shoutout/*
+app.use(streakRouter);         // /overlay/streak, /streak/*
 
 // GET /health
 app.get("/health", (req, res) => res.json({ ok: true }));

@@ -10,6 +10,7 @@ const SOURCES = Object.freeze([
   { id: "xp-ranking", name: "XP ranking", path: "/overlay/xp-ranking", w: 420, h: 440 },
   { id: "video", name: "Video queue", path: "/overlay/video", w: 960, h: 540 },
   { id: "shoutout", name: "Shoutouts", path: "/overlay/shoutout", w: 1280, h: 720 },
+  { id: "streak", name: "Watch streak", path: "/overlay/streak", w: 420, h: 160 },
 ]);
 
 const byId = new Map(SOURCES.map((source) => [source.id, source]));
