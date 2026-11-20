@@ -12,10 +12,27 @@ import {
   Trash2,
   Check,
   X,
+  EyeOff,
+  Crosshair,
+  Minus,
+  Plus,
+  GripVertical,
+  Pencil,
+  Images,
 } from "lucide-react";
 
 const CANVAS_W = 1920;
 const CANVAS_H = 1080;
+// Extra pasteboard (in canvas px) around the artboard. Layers are free to be
+// dragged past the canvas edge (OBS clips at the 1920x1080 boundary, so this
+// is purely a design surface) and this margin gives that off-canvas space a
+// visible area to land in instead of dropping into the void. Kept small so
+// the artboard itself still gets most of the viewport; the zoom controls let
+// the pasteboard be inspected when needed.
+const WORKSPACE_MARGIN = 200;
+const ZOOM_MIN = 0.5;
+const ZOOM_MAX = 4;
+const ZOOM_STEP = 1.25;
 const SAVE_DEBOUNCE_MS = 800;
 // Mirrors overlayAssets.MAX_ASSET_BYTES on the backend. Checked here first so
 // an oversized file gets a clear message instead of waiting for the upload to
@@ -79,7 +96,12 @@ function hsbFilter(layer) {
 // sidebar of this account's uploaded assets. Changes autosave (debounced)
 // via PUT /overlay-builder/layouts/:id, which also broadcasts the update to
 // any open OBS view over the /chat WS — see backend/overlay/custom.html.
-export default function OverlayCanvas({ layoutId, latestByKind }) {
+//
+// brandSlot/headerControls are rendered by OverlayBuilder and placed at the
+// two ends of this component's single header bar, so the layout picker and
+// page actions share one row with the add-layer buttons instead of stacking
+// a second full-width toolbar underneath.
+export default function OverlayCanvas({ layoutId, latestByKind, brandSlot, headerControls }) {
   const [layers, setLayers] = useState([]);
   const [assets, setAssets] = useState([]);
   const [usageBytes, setUsageBytes] = useState(0);
@@ -88,15 +110,20 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
   const [overlaySources, setOverlaySources] = useState([]);
   const [selectedLayerId, setSelectedLayerId] = useState(null);
   const [fitScale, setFitScale] = useState(0.25);
+  // Multiplier on top of the auto-fit scale — 1 = fit the whole workspace in
+  // the viewport, >1 lets the canvas overflow and be scrolled.
+  const [zoomFactor, setZoomFactor] = useState(1);
   const [saveState, setSaveState] = useState("idle"); // idle | saving | saved
   const [uploading, setUploading] = useState(false);
   const [errorMsg, setErrorMsg] = useState("");
   const [deleteArmedAssetId, setDeleteArmedAssetId] = useState(null);
+  const [mediaOpen, setMediaOpen] = useState(false);
 
   const viewportRef = useRef(null);
   const saveTimerRef = useRef(null);
   const layersRef = useRef(layers);
   layersRef.current = layers;
+  const scale = fitScale * zoomFactor;
 
   const refreshAssets = useCallback(() => {
     apiFetch("/overlay-builder/assets").then((r) => r.json()).then((data) => {
@@ -132,7 +159,9 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
     const compute = () => {
       const availW = el.clientWidth - 40;
       const availH = el.clientHeight - 40;
-      setFitScale(Math.max(0.05, Math.min(availW / CANVAS_W, availH / CANVAS_H)));
+      const totalW = CANVAS_W + WORKSPACE_MARGIN * 2;
+      const totalH = CANVAS_H + WORKSPACE_MARGIN * 2;
+      setFitScale(Math.max(0.05, Math.min(availW / totalW, availH / totalH)));
     };
     compute();
     const ro = new ResizeObserver(compute);
@@ -191,6 +220,21 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
     scheduleSave();
   };
 
+  const renameLayer = (id, name) => updateLayer(id, { name });
+
+  // Called by the Layers panel with ids in DISPLAY order (topmost first);
+  // the stored array is bottom-first paint order, hence the reverse.
+  const reorderLayers = (orderedIds) => {
+    setLayers((prev) => {
+      const byId = new Map(prev.map((l) => [l.id, l]));
+      const next = orderedIds.slice().reverse().map((id) => byId.get(id)).filter(Boolean);
+      // Defensive: keep any layer the list didn't know about, at the back.
+      const missing = prev.filter((l) => !orderedIds.includes(l.id));
+      return [...missing, ...next];
+    });
+    scheduleSave();
+  };
+
   const uploadImage = (file) => {
     if (file.size > MAX_UPLOAD_BYTES) return setErrorMsg(`Image must be under ${MAX_UPLOAD_LABEL}`);
     setUploading(true);
@@ -200,7 +244,7 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
         const res = await apiFetch("/overlay-builder/assets", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dataUrl: reader.result }),
+          body: JSON.stringify({ dataUrl: reader.result, name: file.name }),
         });
         const data = await res.json();
         if (!res.ok) return setErrorMsg(data.error || "Upload failed");
@@ -271,6 +315,22 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
     refreshLayout();
   };
 
+  // Renaming is metadata only — the manifest entry keeps its id/ext, so every
+  // layer already using the asset picks up the new name in the Layers panel.
+  const renameAsset = async (assetId, name) => {
+    const res = await apiFetch(`/overlay-builder/assets/${assetId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (!res.ok) {
+      const data = await res.json().catch(() => ({}));
+      setErrorMsg(data.error || "Could not rename asset");
+      return;
+    }
+    refreshAssets();
+  };
+
   const assetUrl = (assetId) => apiUrl(`/overlay/custom/asset/${assetId}?token=${token}`);
   const overlayUrl = (sourceId) => {
     const source = overlaySources.find((item) => item.id === sourceId);
@@ -286,57 +346,119 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
     return apiUrl(`${source.path}${sep}token=${encodeURIComponent(token)}&preview=1&v=2`);
   };
   const selectedLayer = layers.find((l) => l.id === selectedLayerId) || null;
+  const zoomBy = (factor) => setZoomFactor((z) => Math.min(ZOOM_MAX, Math.max(ZOOM_MIN, +(z * factor).toFixed(3))));
 
   return (
     <div style={styles.root}>
-      <Toolbar
-        onAddImage={uploadImage}
-        onAddVideo={uploadVideo}
-        onAddAudio={uploadAudio}
-        onAddText={addText}
-        onAddOverlay={addOverlay}
-        overlaySources={overlaySources}
-        uploading={uploading}
-        saveState={saveState}
-      />
+      <div style={styles.topBar}>
+        {brandSlot}
+        <Toolbar
+          onAddImage={uploadImage}
+          onAddVideo={uploadVideo}
+          onAddAudio={uploadAudio}
+          onAddText={addText}
+          onAddOverlay={addOverlay}
+          onOpenMedia={() => setMediaOpen(true)}
+          overlaySources={overlaySources}
+          uploading={uploading}
+          saveState={saveState}
+        />
+        <div style={styles.headerSpacer} />
+        {headerControls}
+      </div>
       {errorMsg && <div style={styles.errorBanner}>{errorMsg}</div>}
       <div style={styles.editorArea}>
-        <div ref={viewportRef} style={styles.viewport}>
-          {/* Flexbox centers based on the UNSCALED layout box (CSS transform
-              only affects paint, not layout) — so this wrapper is sized to
-              the already-scaled dimensions for centering to land correctly,
-              and the actual 1920x1080 canvas below fills it exactly via
-              scale + absolute positioning. */}
-          <div style={{ width: CANVAS_W * fitScale, height: CANVAS_H * fitScale, position: "relative", flexShrink: 0 }}>
+        <LayersSidebar
+          layers={layers}
+          assets={assets}
+          overlaySources={overlaySources}
+          assetUrl={assetUrl}
+          selectedLayerId={selectedLayerId}
+          onSelect={setSelectedLayerId}
+          onReorder={reorderLayers}
+          onRename={renameLayer}
+        />
+        <div style={styles.canvasArea}>
+          <div ref={viewportRef} data-canvas-viewport="" style={styles.viewport}>
+            {/* The wrapper is sized to the already-scaled workspace (CSS
+                transforms don't affect layout) and uses margin:auto rather than
+                the viewport centering it, so zooming past the viewport size
+                still lets every edge be scrolled to. The actual 1920x1080
+                canvas sits inside, offset by the pasteboard margin. */}
             <div
               style={{
-                width: CANVAS_W,
-                height: CANVAS_H,
-                position: "absolute",
-                top: 0,
-                left: 0,
-                transform: `scale(${fitScale})`,
-                transformOrigin: "top left",
-                ...styles.checkerboard,
+                width: (CANVAS_W + WORKSPACE_MARGIN * 2) * scale,
+                height: (CANVAS_H + WORKSPACE_MARGIN * 2) * scale,
+                position: "relative",
+                flexShrink: 0,
+                margin: "auto",
               }}
               onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedLayerId(null); }}
             >
-              {layers.map((layer) => (
-                <Rnd
-                  key={layer.id}
-                  size={{ width: layer.w, height: layer.h }}
-                  position={{ x: layer.x, y: layer.y }}
-                  scale={fitScale}
-                  bounds="parent"
-                  onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
-                  onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
-                  onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
-                  style={{ outline: layer.id === selectedLayerId ? "2px solid var(--accent, #e11d76)" : "1px dashed rgba(255,255,255,0.35)" }}
-                >
-                  <LayerContent layer={layer} assetUrl={assetUrl} overlayUrl={overlayUrl} overlaySources={overlaySources} latestByKind={latestByKind} />
-                </Rnd>
-              ))}
+              {/* Off-canvas pasteboard. pointerEvents:none keeps clicks landing
+                  on the wrapper above (which clears the selection). */}
+              <div style={styles.pasteboard} />
+              <div
+                style={{
+                  width: CANVAS_W,
+                  height: CANVAS_H,
+                  position: "absolute",
+                  top: WORKSPACE_MARGIN * scale,
+                  left: WORKSPACE_MARGIN * scale,
+                  transform: `scale(${scale})`,
+                  transformOrigin: "top left",
+                  ...styles.checkerboard,
+                }}
+                onMouseDown={(e) => { if (e.target === e.currentTarget) setSelectedLayerId(null); }}
+              >
+                {layers.map((layer) => (
+                  <Rnd
+                    key={layer.id}
+                    size={{ width: layer.w, height: layer.h }}
+                    position={{ x: layer.x, y: layer.y }}
+                    scale={scale}
+                    onDragStop={(e, d) => updateLayer(layer.id, { x: d.x, y: d.y })}
+                    onResizeStop={(e, dir, ref, delta, pos) => updateLayer(layer.id, { w: ref.offsetWidth, h: ref.offsetHeight, x: pos.x, y: pos.y })}
+                    onMouseDown={(e) => { e.stopPropagation(); setSelectedLayerId(layer.id); }}
+                    style={{ outline: layer.id === selectedLayerId ? "2px solid var(--accent, #e11d76)" : "1px dashed rgba(255,255,255,0.35)" }}
+                  >
+                    <LayerContent layer={layer} assetUrl={assetUrl} overlayUrl={overlayUrl} overlaySources={overlaySources} latestByKind={latestByKind} />
+                  </Rnd>
+                ))}
+              </div>
             </div>
+          </div>
+
+          {/* Sibling of the scrolling viewport (not a child), so it stays
+              pinned to the bottom-right corner when the zoomed canvas is
+              scrolled. */}
+          <div style={styles.zoomBar}>
+            <button
+              type="button"
+              style={styles.zoomBtn}
+              onClick={() => zoomBy(1 / ZOOM_STEP)}
+              disabled={zoomFactor <= ZOOM_MIN}
+              title="Zoom out"
+            >
+              <Minus size={14} />
+            </button>
+            <button
+              type="button"
+              style={styles.zoomPct}
+              onClick={() => setZoomFactor(1)}
+              title="Reset zoom to fit"
+            >
+              {Math.round(scale * 100)}%
+            </button>
+            <button
+              type="button"
+              style={styles.zoomBtn}
+              onClick={() => zoomBy(ZOOM_STEP)}
+              disabled={zoomFactor >= ZOOM_MAX}
+              title="Zoom in"
+            >
+              <Plus size={14} />
+            </button>
           </div>
         </div>
 
@@ -349,16 +471,212 @@ export default function OverlayCanvas({ layoutId, latestByKind }) {
             onDelete={() => selectedLayer && removeLayer(selectedLayer.id)}
             onReorder={(dir) => selectedLayer && reorderLayer(selectedLayer.id, dir)}
           />
-          <AssetsSidebar
-            assets={assets}
-            assetUrl={assetUrl}
-            onDelete={deleteAsset}
-            deleteArmedAssetId={deleteArmedAssetId}
-            usageBytes={usageBytes}
-            quotaBytes={quotaBytes}
-          />
         </div>
       </div>
+
+      {mediaOpen && (
+        <MediaLibraryModal
+          assets={assets}
+          assetUrl={assetUrl}
+          usageBytes={usageBytes}
+          quotaBytes={quotaBytes}
+          onDelete={deleteAsset}
+          onRename={renameAsset}
+          deleteArmedAssetId={deleteArmedAssetId}
+          onClose={() => { setMediaOpen(false); setDeleteArmedAssetId(null); }}
+        />
+      )}
+    </div>
+  );
+}
+
+// Left-hand layer list. The canvas itself is hit-tested top-down, so a layer
+// covered by another one can't be clicked there — this lists every layer by
+// name (topmost first, matching paint order) so it can still be selected and
+// edited from the properties panel. Image rows show a thumbnail so identical
+// "Image" entries can be told apart.
+const LAYER_TYPE_LABELS = { text: "Text", image: "Image", video: "Video", sound: "Sound", overlay: "App overlay" };
+function layerTypeIcon(type) {
+  if (type === "image") return <ImageIcon size={14} color="var(--accent)" />;
+  if (type === "video") return <Film size={14} color="var(--accent)" />;
+  if (type === "sound") return <Volume2 size={14} color="var(--accent)" />;
+  if (type === "overlay") return <PanelsTopLeft size={14} color="var(--accent)" />;
+  return <Type size={14} color="var(--accent)" />;
+}
+function isLayerOffCanvas(layer) {
+  return layer.x + layer.w <= 0 || layer.y + layer.h <= 0 || layer.x >= CANVAS_W || layer.y >= CANVAS_H;
+}
+function layerDefaultName(layer, sourceById, assetById) {
+  if (layer.type === "text") return (layer.text || "").trim() || "Text";
+  if (layer.type === "overlay") return sourceById.get(layer.sourceId)?.name || "App overlay";
+  const asset = layer.assetId ? assetById.get(layer.assetId) : null;
+  return asset?.name || LAYER_TYPE_LABELS[layer.type] || "Layer";
+}
+
+function LayersSidebar({ layers, assets, overlaySources, assetUrl, selectedLayerId, onSelect, onReorder, onRename }) {
+  const listRef = useRef(null);
+  const assetById = new Map(assets.map((a) => [a.id, a]));
+  const sourceById = new Map(overlaySources.map((s) => [s.id, s]));
+  const displayed = layers.slice().reverse();
+  const [dragId, setDragId] = useState(null);
+  const [dropHint, setDropHint] = useState(null); // { id, before }
+  const [renamingId, setRenamingId] = useState(null);
+  const [renameDraft, setRenameDraft] = useState("");
+  const renameFinishedRef = useRef(false);
+
+  useEffect(() => {
+    if (!selectedLayerId) return;
+    const row = listRef.current?.querySelector(`[data-layer-id="${selectedLayerId}"]`);
+    row?.scrollIntoView?.({ block: "nearest" });
+  }, [selectedLayerId]);
+
+  const clearDrag = () => { setDragId(null); setDropHint(null); };
+
+  // `before` is relative to the target row in display order (topmost first);
+  // onReorder expects that same display order.
+  const dropOn = (targetId, before) => {
+    if (!dragId || dragId === targetId) { clearDrag(); return; }
+    const ids = displayed.map((l) => l.id).filter((id) => id !== dragId);
+    const targetIndex = ids.indexOf(targetId);
+    if (targetIndex === -1) { clearDrag(); return; }
+    ids.splice(targetIndex + (before ? 0 : 1), 0, dragId);
+    onReorder(ids);
+    clearDrag();
+  };
+
+  const startRename = (layer) => {
+    onSelect(layer.id);
+    setRenamingId(layer.id);
+    // Empty means "no custom name"; the current automatic label is shown as
+    // the input's placeholder rather than pre-filled, so just pressing Enter
+    // doesn't freeze a derived label.
+    setRenameDraft(layer.name || "");
+    renameFinishedRef.current = false;
+  };
+
+  // Enter/blur commit; Escape cancels. The guard prevents the blur that fires
+  // after Enter/Escape from sending a second (or unintended) rename.
+  const finishRename = (commit) => {
+    if (renameFinishedRef.current) return;
+    renameFinishedRef.current = true;
+    if (commit && renamingId) onRename(renamingId, renameDraft.trim());
+    setRenamingId(null);
+  };
+
+  return (
+    <div style={styles.layersSidebar}>
+      <div style={styles.layersHeader}>
+        <div style={styles.panelTitle}>Layers</div>
+        <span style={styles.layersCount}>{layers.length}</span>
+      </div>
+      <div style={styles.layersHint}>Top of the list draws above the rest. Drag to reorder · double-click to rename · drag past the edge to go off-canvas.</div>
+      {layers.length === 0 ? (
+        <div style={styles.panelEmpty}>No layers yet.</div>
+      ) : (
+        <div
+          ref={listRef}
+          style={styles.layerList}
+          onDragLeave={(e) => { if (!e.currentTarget.contains(e.relatedTarget)) setDropHint(null); }}
+        >
+          {displayed.map((layer) => {
+            const selected = layer.id === selectedLayerId;
+            const asset = layer.assetId ? assetById.get(layer.assetId) : null;
+            const source = layer.sourceId ? sourceById.get(layer.sourceId) : null;
+            const typeLabel = LAYER_TYPE_LABELS[layer.type] || "Layer";
+            const primary = (layer.name || "").trim() || layerDefaultName(layer, sourceById, assetById);
+            const hint = dropHint?.id === layer.id ? dropHint : null;
+            const renaming = renamingId === layer.id;
+            return (
+              <div
+                key={layer.id}
+                data-layer-id={layer.id}
+                draggable={!renaming}
+                style={{
+                  ...styles.layerRow,
+                  ...(selected ? styles.layerRowSelected : null),
+                  ...(dragId === layer.id ? styles.layerRowDragging : null),
+                  ...(hint ? (hint.before ? styles.layerDropBefore : styles.layerDropAfter) : null),
+                }}
+                onDragStart={(e) => {
+                  setDragId(layer.id);
+                  e.dataTransfer.effectAllowed = "move";
+                  try { e.dataTransfer.setData("text/plain", layer.id); } catch { /* IE/edge cases */ }
+                }}
+                onDragOver={(e) => {
+                  if (!dragId || dragId === layer.id) return;
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = "move";
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  setDropHint({ id: layer.id, before: (e.clientY ?? 0) < rect.top + rect.height / 2 });
+                }}
+                onDrop={(e) => {
+                  if (!dragId || dragId === layer.id) return;
+                  e.preventDefault();
+                  const rect = e.currentTarget.getBoundingClientRect();
+                  dropOn(layer.id, (e.clientY ?? 0) < rect.top + rect.height / 2);
+                }}
+                onDragEnd={clearDrag}
+              >
+                {renaming ? (
+                  <input
+                    data-layer-rename=""
+                    autoFocus
+                    value={renameDraft}
+                    maxLength={80}
+                    placeholder={primary}
+                    style={styles.layerRenameInput}
+                    onChange={(e) => setRenameDraft(e.target.value)}
+                    onFocus={(e) => e.currentTarget.select()}
+                    onBlur={() => finishRename(true)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") { e.preventDefault(); finishRename(true); }
+                      else if (e.key === "Escape") { e.preventDefault(); finishRename(false); }
+                    }}
+                  />
+                ) : (
+                  <>
+                    <button
+                      type="button"
+                      data-layer-select=""
+                      style={styles.layerSelect}
+                      onClick={() => onSelect(layer.id)}
+                      onDoubleClick={() => startRename(layer)}
+                      title={`${primary} — double-click to rename`}
+                    >
+                      <span style={styles.layerThumb}>
+                        {layer.type === "image" && asset
+                          ? <img src={assetUrl(layer.assetId)} alt="" style={styles.layerThumbImg} draggable={false} />
+                          : layerTypeIcon(layer.type)}
+                      </span>
+                      <span style={styles.layerText}>
+                        <span style={styles.layerLabel}>{primary}</span>
+                        <span style={styles.layerMeta}>
+                          {typeLabel} · {Math.round(layer.w)}×{Math.round(layer.h)}
+                          {asset ? ` · ${formatBytes(asset.sizeBytes)}` : ""}
+                        </span>
+                      </span>
+                    </button>
+                    {isLayerOffCanvas(layer) && (
+                      <span style={styles.offCanvasBadge} title="Fully outside the canvas">
+                        <EyeOff size={12} />
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      style={styles.layerMiniBtn}
+                      onClick={() => startRename(layer)}
+                      title="Rename layer"
+                    >
+                      <Pencil size={12} />
+                    </button>
+                    <span style={styles.layerGrip} aria-hidden="true"><GripVertical size={13} /></span>
+                  </>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -427,13 +745,13 @@ function LayerContent({ layer, assetUrl, overlayUrl, overlaySources, latestByKin
   );
 }
 
-function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, onAddOverlay, overlaySources, uploading, saveState }) {
+function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, onAddOverlay, onOpenMedia, overlaySources, uploading, saveState }) {
   const imageInputRef = useRef(null);
   const videoInputRef = useRef(null);
   const audioInputRef = useRef(null);
 
   return (
-    <div style={styles.toolbar}>
+    <div style={styles.toolbarGroup}>
       <button style={styles.toolBtn} disabled={uploading} onClick={() => imageInputRef.current?.click()}><ImageIcon size={14} color="var(--accent)" /> Add Image</button>
       <input
         ref={imageInputRef}
@@ -460,12 +778,15 @@ function Toolbar({ onAddImage, onAddVideo, onAddAudio, onAddText, onAddOverlay, 
       />
       <button style={styles.toolBtn} onClick={onAddText}><Type size={14} color="var(--accent)" /> Add Text</button>
       <label style={styles.overlayPickerLabel}>
-        <PanelsTopLeft size={14} color="var(--accent)" /> Add app overlay
+        <PanelsTopLeft size={14} color="var(--accent)" />
         <select style={styles.overlayPicker} value="" onChange={(e) => { if (e.target.value) onAddOverlay(e.target.value); }}>
-          <option value="">Choose overlay…</option>
+          <option value="">Add app overlay…</option>
           {overlaySources.map((source) => <option key={source.id} value={source.id}>{source.name}</option>)}
         </select>
       </label>
+      <button style={styles.toolBtn} onClick={onOpenMedia} title="Media library">
+        <Images size={14} color="var(--accent)" /> Media
+      </button>
       <div style={styles.saveIndicator}>
         {uploading ? "Uploading…" : saveState === "saving" ? "Saving…" : saveState === "saved" ? "Saved" : ""}
       </div>
@@ -552,6 +873,17 @@ function PropertyPanel({ layer, assetUrl, overlaySources, onChange, onDelete, on
   return (
     <div style={styles.panel}>
       <div style={styles.panelTitle}>Properties — {layer.type}</div>
+
+      <label style={styles.label}>Layer name
+        <input
+          type="text"
+          style={styles.input}
+          value={layer.name || ""}
+          maxLength={80}
+          placeholder="Automatic"
+          onChange={(e) => onChange({ name: e.target.value })}
+        />
+      </label>
 
       {layer.type === "overlay" && (
         <>
@@ -707,46 +1039,114 @@ function PropertyPanel({ layer, assetUrl, overlaySources, onChange, onDelete, on
         <button style={styles.toolBtn} onClick={() => onReorder("back")}><ArrowDown size={14} color="var(--accent)" /> Send back</button>
         <button style={styles.toolBtn} onClick={() => onReorder("front")}><ArrowUp size={14} color="var(--accent)" /> Bring front</button>
       </div>
+      <button
+        style={styles.toolBtn}
+        onClick={() => onChange({ x: Math.round((CANVAS_W - layer.w) / 2), y: Math.round((CANVAS_H - layer.h) / 2) })}
+      >
+        <Crosshair size={14} color="var(--accent)" /> Center on canvas
+      </button>
       <button style={styles.deleteBtn} onClick={onDelete}><Trash2 size={14} /> Delete layer</button>
     </div>
   );
 }
 
-function AssetsSidebar({ assets, assetUrl, onDelete, deleteArmedAssetId, usageBytes, quotaBytes }) {
+function MediaLibraryModal({ assets, assetUrl, usageBytes, quotaBytes, onDelete, onRename, deleteArmedAssetId, onClose }) {
   const pct = quotaBytes ? Math.min(100, (usageBytes / quotaBytes) * 100) : 0;
   return (
-    <div style={styles.panel}>
-      <div style={styles.panelTitle}>Media Library</div>
-      <div style={styles.quotaRow}>
-        <div style={styles.quotaLabel}>{formatBytes(usageBytes)} / {formatBytes(quotaBytes)} used</div>
-        <div style={styles.quotaTrack}>
-          <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--accent)" }} />
+    <div style={styles.modalOverlay} onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+      <div style={styles.mediaModal}>
+        <div style={styles.mediaHeader}>
+          <div style={styles.mediaTitleRow}>
+            <div style={styles.panelTitle}>Media Library</div>
+            <button type="button" style={styles.mediaCloseBtn} onClick={onClose} title="Close">
+              <X size={16} color="var(--text)" />
+            </button>
+          </div>
+          <div style={styles.quotaRow}>
+            <div style={styles.quotaLabel}>{formatBytes(usageBytes)} / {formatBytes(quotaBytes)} used</div>
+            <div style={styles.quotaTrack}>
+              <div style={{ ...styles.quotaFill, width: `${pct}%`, background: pct >= 90 ? "var(--red)" : "var(--accent)" }} />
+            </div>
+          </div>
+        </div>
+        <div style={styles.mediaBody}>
+          {assets.length === 0 ? (
+            <div style={styles.panelEmpty}>No uploads yet. Use “Add Image”, “Add Video” or “Add Sound” to upload media.</div>
+          ) : (
+            <div style={styles.mediaGrid}>
+              {assets.map((asset) => (
+                <AssetCard
+                  key={asset.id}
+                  asset={asset}
+                  assetUrl={assetUrl}
+                  onRename={onRename}
+                  onDelete={onDelete}
+                  deleteArmed={deleteArmedAssetId === asset.id}
+                />
+              ))}
+            </div>
+          )}
         </div>
       </div>
-      {assets.length === 0 && <div style={styles.panelEmpty}>No uploads yet.</div>}
-      <div style={styles.assetGrid}>
-        {assets.map((a) => {
-          const armed = deleteArmedAssetId === a.id;
-          return (
-            <div key={a.id} style={styles.assetCard}>
-              {a.kind === "image" ? (
-                <img src={assetUrl(a.id)} alt="" style={styles.assetThumb} />
-              ) : (
-                <div style={styles.assetThumbVideo}>{a.kind === "video" ? <Film size={24} /> : <Volume2 size={24} />}</div>
-              )}
-              <div style={styles.assetMeta}>{formatBytes(a.sizeBytes)}</div>
-              <button
-                style={armed ? styles.assetDeleteBtnArmed : styles.assetDeleteBtn}
-                onClick={() => onDelete(a.id)}
-                onBlur={() => armed && onDelete(null)}
-                title={armed ? "Click again to confirm" : "Delete"}
-              >
-                {armed ? <Check size={14} color="var(--accent)" /> : <X size={14} color="var(--accent)" />}
-              </button>
-            </div>
-          );
-        })}
+    </div>
+  );
+}
+
+function AssetCard({ asset, assetUrl, onRename, onDelete, deleteArmed }) {
+  const [name, setName] = useState(asset.name || "");
+  const skipCommitRef = useRef(false);
+  useEffect(() => { setName(asset.name || ""); }, [asset.name]);
+
+  const commit = () => {
+    const trimmed = name.trim();
+    if (trimmed !== (asset.name || "").trim()) onRename(asset.id, trimmed);
+  };
+
+  return (
+    <div style={styles.assetCardModal}>
+      <div style={styles.assetPreview}>
+        {asset.kind === "image" ? (
+          <img src={assetUrl(asset.id)} alt="" style={styles.assetPreviewImg} />
+        ) : (
+          <div style={styles.assetPreviewPlaceholder}>
+            {asset.kind === "video" ? <Film size={30} /> : <Volume2 size={30} />}
+          </div>
+        )}
+        <span style={styles.assetKindBadge}>{asset.kind === "audio" ? "Audio" : asset.kind === "image" ? "Image" : "Video"}</span>
+        <button
+          type="button"
+          style={deleteArmed ? styles.assetDeleteBtnModalArmed : styles.assetDeleteBtnModal}
+          onClick={() => onDelete(asset.id)}
+          onBlur={() => deleteArmed && onDelete(null)}
+          title={deleteArmed ? "Click again to confirm" : "Delete asset"}
+        >
+          {deleteArmed ? <Check size={14} color="var(--accent)" /> : <X size={14} color="var(--accent)" />}
+        </button>
       </div>
+      <input
+        type="text"
+        style={styles.assetNameInput}
+        value={name}
+        maxLength={80}
+        placeholder="Unnamed asset"
+        title="Asset name"
+        onChange={(e) => setName(e.target.value)}
+        onFocus={(e) => e.currentTarget.select()}
+        onBlur={() => {
+          if (skipCommitRef.current) { skipCommitRef.current = false; return; }
+          commit();
+        }}
+        onKeyDown={(e) => {
+          if (e.key === "Enter") { e.preventDefault(); e.currentTarget.blur(); }
+          else if (e.key === "Escape") {
+            e.preventDefault();
+            skipCommitRef.current = true;
+            setName(asset.name || "");
+            e.currentTarget.blur();
+          }
+        }}
+      />
+      <div style={styles.assetMetaModal}>{formatBytes(asset.sizeBytes)} · {asset.mime}</div>
     </div>
   );
 }
@@ -758,18 +1158,33 @@ const styles = {
     flexDirection: "column",
     height: "100%",
   },
-  toolbar: {
+  topBar: {
+    display: "flex",
+    alignItems: "center",
+    gap: 10,
+    padding: "8px 14px",
+    background: "var(--surface)",
+    borderBottom: "1px solid var(--border)",
+    flexShrink: 0,
+    flexWrap: "wrap",
+  },
+  headerSpacer: {
+    flex: 1,
+    minWidth: 8,
+  },
+  toolbarGroup: {
     display: "flex",
     alignItems: "center",
     gap: 8,
-    padding: "8px 12px",
-    borderBottom: "1px solid var(--border)",
-    flexShrink: 0,
+    flexWrap: "wrap",
+    minWidth: 0,
   },
   toolBtn: {
     background: "var(--surface2)",
     color: "var(--text)",
     border: "1px solid var(--border)",
+    padding: "5px 10px",
+    flexShrink: 0,
   },
   overlayPickerLabel: {
     display: "inline-flex",
@@ -782,9 +1197,11 @@ const styles = {
     color: "var(--text)",
     fontSize: 13,
     fontFamily: "Quicksand, sans-serif",
+    flexShrink: 0,
   },
   overlayPicker: {
-    maxWidth: 155,
+    width: 168,
+    minWidth: 150,
     background: "var(--surface)",
     color: "var(--text)",
     border: "1px solid var(--border)",
@@ -792,22 +1209,227 @@ const styles = {
     padding: "4px 6px",
   },
   saveIndicator: {
-    marginLeft: "auto",
+    marginLeft: 2,
     fontSize: 12,
     color: "var(--text-muted)",
+    whiteSpace: "nowrap",
   },
   editorArea: {
     flex: 1,
     display: "flex",
     minHeight: 0,
   },
-  viewport: {
+  layersSidebar: {
+    width: 232,
+    flexShrink: 0,
+    borderRight: "1px solid var(--border)",
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    padding: "12px 10px",
+    overflowY: "auto",
+    background: "var(--surface)",
+  },
+  layersHeader: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+    gap: 8,
+  },
+  layersCount: {
+    fontSize: 10,
+    fontWeight: 700,
+    color: "var(--text-muted)",
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    borderRadius: 99,
+    padding: "0 6px",
+    lineHeight: "16px",
+  },
+  layersHint: {
+    fontSize: 10,
+    color: "var(--text-muted)",
+    lineHeight: 1.4,
+  },
+  layerList: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 3,
+  },
+  layerRow: {
+    display: "flex",
+    alignItems: "center",
+    gap: 8,
+    width: "100%",
+    padding: "5px 6px",
+    background: "transparent",
+    border: "1px solid transparent",
+    borderRadius: 6,
+    color: "var(--text)",
+    textAlign: "left",
+    fontFamily: "Nunito, system-ui, sans-serif",
+    fontWeight: 400,
+    cursor: "grab",
+  },
+  layerRowSelected: {
+    background: "color-mix(in srgb, var(--accent) 16%, transparent)",
+    border: "1px solid var(--accent)",
+  },
+  layerRowDragging: {
+    opacity: 0.4,
+  },
+  layerDropBefore: {
+    boxShadow: "inset 0 2px 0 0 var(--accent)",
+  },
+  layerDropAfter: {
+    boxShadow: "inset 0 -2px 0 0 var(--accent)",
+  },
+  layerGrip: {
+    display: "flex",
+    alignItems: "center",
+    flexShrink: 0,
+    color: "var(--text-muted)",
+    opacity: 0.55,
+  },
+  layerSelect: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "flex-start",
+    gap: 8,
     flex: 1,
+    minWidth: 0,
+    padding: 0,
+    background: "transparent",
+    border: "none",
+    borderRadius: 4,
+    color: "inherit",
+    textAlign: "left",
+    fontFamily: "Nunito, system-ui, sans-serif",
+    fontWeight: 400,
+  },
+  layerMiniBtn: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
+    flexShrink: 0,
+    padding: 2,
+    background: "transparent",
+    border: "none",
+    borderRadius: 4,
+    color: "var(--text-muted)",
+    opacity: 0.55,
+  },
+  layerRenameInput: {
+    width: "100%",
+    minWidth: 0,
+    background: "var(--surface2)",
+    color: "var(--text)",
+    border: "1px solid var(--accent)",
+    borderRadius: 4,
+    padding: "4px 6px",
+    fontFamily: "Nunito, system-ui, sans-serif",
+    fontSize: 12,
+    fontWeight: 600,
+  },
+  layerThumb: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 24,
+    height: 24,
+    flexShrink: 0,
+    borderRadius: 4,
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    overflow: "hidden",
+  },
+  layerThumbImg: {
+    width: "100%",
+    height: "100%",
+    objectFit: "cover",
+  },
+  layerText: {
+    display: "flex",
+    flexDirection: "column",
+    minWidth: 0,
+    flex: 1,
+  },
+  layerLabel: {
+    fontSize: 12,
+    fontWeight: 600,
+    color: "var(--text)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  layerMeta: {
+    fontSize: 9,
+    color: "var(--text-muted)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
+  },
+  offCanvasBadge: {
+    display: "flex",
+    alignItems: "center",
+    flexShrink: 0,
+    color: "var(--yellow)",
+  },
+  canvasArea: {
+    flex: 1,
+    minWidth: 0,
+    position: "relative",
+    display: "flex",
+  },
+  viewport: {
+    flex: 1,
+    display: "flex",
     overflow: "auto",
     padding: 20,
+    minWidth: 0,
+  },
+  zoomBar: {
+    position: "absolute",
+    bottom: 14,
+    right: 16,
+    zIndex: 5,
+    display: "flex",
+    alignItems: "center",
+    gap: 2,
+    padding: 3,
+    borderRadius: 9,
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    boxShadow: "var(--shadow)",
+  },
+  zoomBtn: {
+    padding: "4px 6px",
+    background: "transparent",
+    color: "var(--text)",
+    border: "none",
+    borderRadius: 6,
+    justifyContent: "center",
+  },
+  zoomPct: {
+    minWidth: 48,
+    padding: "4px 6px",
+    background: "transparent",
+    color: "var(--text)",
+    border: "none",
+    borderRadius: 6,
+    justifyContent: "center",
+    fontSize: 12,
+    fontVariantNumeric: "tabular-nums",
+  },
+  pasteboard: {
+    position: "absolute",
+    inset: 0,
+    borderRadius: 10,
+    background: "var(--surface2)",
+    border: "1px solid var(--border)",
+    backgroundImage: "radial-gradient(circle, color-mix(in srgb, var(--text-muted) 35%, transparent) 1px, transparent 1px)",
+    backgroundSize: "18px 18px",
+    pointerEvents: "none",
   },
   checkerboard: {
     backgroundImage:
@@ -991,69 +1613,150 @@ const styles = {
     height: "100%",
     transition: "width 0.3s ease",
   },
-  assetGrid: {
-    display: "grid",
-    gridTemplateColumns: "1fr 1fr",
+  modalOverlay: {
+    position: "fixed",
+    inset: 0,
+    zIndex: 100,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 20,
+    background: "rgba(0, 0, 0, 0.55)",
+  },
+  mediaModal: {
+    width: "min(860px, 94vw)",
+    maxHeight: "82vh",
+    display: "flex",
+    flexDirection: "column",
+    background: "var(--surface)",
+    border: "1px solid var(--border)",
+    borderRadius: 9,
+    boxShadow: "var(--shadow)",
+    overflow: "hidden",
+  },
+  mediaHeader: {
+    flexShrink: 0,
+    padding: "14px 16px",
+    borderBottom: "1px solid var(--border)",
+    display: "flex",
+    flexDirection: "column",
     gap: 8,
   },
-  assetCard: {
-    position: "relative",
-    aspectRatio: "1",
+  mediaTitleRow: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  mediaCloseBtn: {
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 4,
+    background: "transparent",
+    border: "none",
+    color: "var(--text)",
+    borderRadius: 6,
+  },
+  mediaBody: {
+    padding: 16,
+    overflowY: "auto",
+    minHeight: 120,
+  },
+  mediaGrid: {
+    display: "grid",
+    gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
+    gap: 14,
+  },
+  assetCardModal: {
+    display: "flex",
+    flexDirection: "column",
+    gap: 8,
+    padding: 10,
+    background: "var(--surface2)",
     border: "1px solid var(--border)",
+    borderRadius: 8,
+  },
+  assetPreview: {
+    position: "relative",
+    aspectRatio: "16 / 10",
     borderRadius: 6,
     overflow: "hidden",
-    background: "var(--surface2)",
+    background: "var(--bg)",
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
   },
-  assetThumb: {
+  assetPreviewImg: {
     width: "100%",
     height: "100%",
     objectFit: "cover",
   },
-  assetThumbVideo: {
-    width: "100%",
-    height: "100%",
+  assetPreviewPlaceholder: {
     display: "flex",
     alignItems: "center",
     justifyContent: "center",
-    fontSize: 24,
+    width: "100%",
+    height: "100%",
+    color: "var(--text-muted)",
   },
-  assetMeta: {
+  assetKindBadge: {
     position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
+    bottom: 6,
+    left: 6,
     fontSize: 9,
-    color: "#fff",
-    background: "rgba(0,0,0,0.6)",
-    padding: "1px 4px",
-  },
-  assetDeleteBtn: {
-    position: "absolute",
-    top: 2,
-    right: 2,
-    background: "rgba(0,0,0,0.6)",
-    color: "#fff",
-    border: "none",
+    fontWeight: 700,
+    color: "var(--text)",
+    background: "rgba(0, 0, 0, 0.65)",
+    border: "1px solid var(--border)",
     borderRadius: 4,
-    width: 18,
-    height: 18,
-    fontSize: 10,
-    lineHeight: "18px",
-    padding: 0,
+    padding: "1px 5px",
+    textTransform: "uppercase",
+    letterSpacing: 0.4,
   },
-  assetDeleteBtnArmed: {
+  assetDeleteBtnModal: {
     position: "absolute",
-    top: 2,
-    right: 2,
+    top: 6,
+    right: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 24,
+    height: 24,
+    padding: 0,
+    background: "rgba(0, 0, 0, 0.65)",
+    border: "none",
+    borderRadius: 5,
+  },
+  assetDeleteBtnModalArmed: {
+    position: "absolute",
+    top: 6,
+    right: 6,
+    display: "flex",
+    alignItems: "center",
+    justifyContent: "center",
+    width: 24,
+    height: 24,
+    padding: 0,
     background: "var(--red)",
-    color: "#fff",
     border: "none",
+    borderRadius: 5,
+  },
+  assetNameInput: {
+    width: "100%",
+    background: "var(--surface)",
+    color: "var(--text)",
+    border: "1px solid var(--border)",
     borderRadius: 4,
-    width: 18,
-    height: 18,
+    padding: "5px 7px",
+    fontFamily: "Nunito, system-ui, sans-serif",
+    fontSize: 12,
+  },
+  assetMetaModal: {
     fontSize: 10,
-    lineHeight: "18px",
-    padding: 0,
+    color: "var(--text-muted)",
+    overflow: "hidden",
+    textOverflow: "ellipsis",
+    whiteSpace: "nowrap",
   },
   errorBanner: {
     background: "var(--red)",

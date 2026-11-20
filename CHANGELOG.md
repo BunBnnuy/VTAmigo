@@ -1,5 +1,17 @@
 # Changelog
 
+## 2026-11-20
+
+- **Overlay Builder**: the layout picker, page actions and add-layer buttons now share a single header bar instead of two stacked full-width rows (the layout select no longer stretches across its row), giving the canvas noticeably more room. Added a zoom control at the bottom-right of the canvas (− / percentage / +); clicking the percentage resets the view to fit.
+- The **Layers** panel now supports drag-and-drop reordering: drag a row onto another to move the layer above or below it, with a drop indicator showing where it will land and a grip handle on each row. The order is saved like any other edit.
+- Layers can now be **renamed**: double-click a row (or use its pencil button) to edit the name inline, or use the new **Layer name** field in the Properties panel. Text/image/video/sound/overlay layers without a custom name keep their automatic label (text content, asset name, overlay name or type).
+- The **Media Library** is no longer an always-visible sidebar. A **Media** button in the top bar opens it as a modal, where each upload can be renamed in place (saved as metadata, defaulting to the original filename) and deleted with the existing two-click confirmation.
+- Overlay Builder uploads are now **content-addressed**: every file is SHA-256 hashed and stored once under `backend/data/overlayAssets/blobs/`, shared by every account that uploads identical bytes. Deleting an asset only removes the bytes when no other account references them, and existing per-asset files are migrated automatically on startup. Per-account quota accounting and the OBS asset URLs are unchanged.
+
+## 2026-11-19
+
+- **Overlay Builder**: layers are no longer trapped inside the 1920×1080 canvas — they can be dragged past its edge into the surrounding pasteboard (OBS still clips at the stream edge). A new **Layers** list on the left shows every layer, topmost first, so layers hidden behind others or placed off-canvas can be selected and edited; fully off-canvas layers are flagged, and the properties panel gains a **Center on canvas** action to bring one back.
+
 ## 2026-11-08
 
 - Added an optional **alert sound** to watch-streak alerts.

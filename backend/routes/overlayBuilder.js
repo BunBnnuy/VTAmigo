@@ -128,11 +128,11 @@ router.put("/overlay-builder/latest-activity/:kind", (req, res) => {
   }
 });
 
-// POST /overlay-builder/assets — { dataUrl } — image upload, same base64
-// pattern as /overlay/avatar/upload.
+// POST /overlay-builder/assets — { dataUrl, name? } — image upload, same
+// base64 pattern as /overlay/avatar/upload.
 router.post("/overlay-builder/assets", (req, res) => {
   try {
-    const asset = overlayAssets.saveImage(req.user.twitchId, req.body?.dataUrl);
+    const asset = overlayAssets.saveImage(req.user.twitchId, req.body?.dataUrl, req.body?.name);
     res.json({ asset });
   } catch (err) {
     if (err.message === "BAD_DATA_URL") return res.status(400).json({ error: "dataUrl is required" });
@@ -156,7 +156,7 @@ router.post("/overlay-builder/assets/video", (req, res) => {
     }
     if (!req.file) return res.status(400).json({ error: "video file is required" });
     try {
-      const asset = overlayAssets.saveVideo(req.user.twitchId, req.file.path, req.file.mimetype, req.file.size);
+      const asset = overlayAssets.saveVideo(req.user.twitchId, req.file.path, req.file.mimetype, req.file.size, req.file.originalname);
       res.json({ asset });
     } catch (saveErr) {
       if (saveErr.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Video must be MP4 or WebM" });
@@ -179,7 +179,7 @@ router.post("/overlay-builder/assets/audio", (req, res) => {
     }
     if (!req.file) return res.status(400).json({ error: "audio file is required" });
     try {
-      const asset = overlayAssets.saveAudio(req.user.twitchId, req.file.path, req.file.mimetype, req.file.size);
+      const asset = overlayAssets.saveAudio(req.user.twitchId, req.file.path, req.file.mimetype, req.file.size, req.file.originalname);
       res.json({ asset });
     } catch (saveErr) {
       if (saveErr.message === "UNSUPPORTED_TYPE") return res.status(400).json({ error: "Audio must be MP3, WAV, or OGG" });
@@ -189,6 +189,13 @@ router.post("/overlay-builder/assets/audio", (req, res) => {
       res.status(500).json({ error: saveErr.message });
     }
   });
+});
+
+// PATCH /overlay-builder/assets/:id — { name } — metadata-only rename.
+router.patch("/overlay-builder/assets/:id", (req, res) => {
+  const asset = overlayAssets.renameAsset(req.user.twitchId, req.params.id, req.body?.name);
+  if (!asset) return res.status(404).json({ error: "Not found" });
+  res.json({ asset });
 });
 
 router.delete("/overlay-builder/assets/:id", (req, res) => {
