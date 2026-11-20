@@ -158,38 +158,46 @@ function BuilderInner() {
 
   const selectedLayout = layouts?.find((l) => l.id === selectedId) || null;
 
+  const brand = (
+    <div style={styles.brand}>
+      <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
+      <span style={styles.brandName}>Overlay Studio</span>
+    </div>
+  );
+
+  // Layout management + page actions. Rendered by OverlayCanvas at the right
+  // edge of its single header bar when a layout is open, and by this
+  // component's own (slim) top bar for the loading/empty states.
+  const headerControls = (
+    <div style={styles.topRight}>
+      {layouts && layouts.length > 0 && (
+        <select
+          style={styles.select}
+          value={selectedId || ""}
+          onChange={(e) => { setSelectedId(e.target.value); setDeleteArmed(false); }}
+        >
+          {layouts.map((l) => (
+            <option key={l.id} value={l.id}>{l.name}</option>
+          ))}
+        </select>
+      )}
+      <button style={styles.btn} onClick={() => setNamePrompt("create")}>+ New Layout</button>
+      {selectedId && <button style={styles.btn} onClick={() => setNamePrompt("rename")}>Rename</button>}
+      {selectedId && (
+        <button style={deleteArmed ? styles.dangerBtn : styles.btn} onClick={deleteLayout} onBlur={() => setDeleteArmed(false)}>
+          {deleteArmed ? "Confirm delete?" : "Delete"}
+        </button>
+      )}
+      {selectedId && <button style={styles.primaryBtn} onClick={copyOverlayUrl}>Copy OBS URL</button>}
+      <button style={styles.btn} onClick={() => setShowLatestActivity(true)}><Clipboard size={14} color="var(--accent)" /> Latest Activity</button>
+      <a style={styles.backLink} href="/"><ArrowLeft size={14} color="var(--accent)" /> Back to app</a>
+    </div>
+  );
+
+  const hasOpenLayout = !!(selectedId && layouts && layouts.length);
+
   return (
     <div style={styles.root}>
-      <div style={styles.topBar}>
-        <div style={styles.brand}>
-          <img src={logo} alt="VTAmigo" style={styles.brandIcon} />
-          <span style={styles.brandName}>Overlay Studio</span>
-        </div>
-        <div style={styles.topRight}>
-          {layouts && layouts.length > 0 && (
-            <select
-              style={styles.select}
-              value={selectedId || ""}
-              onChange={(e) => { setSelectedId(e.target.value); setDeleteArmed(false); }}
-            >
-              {layouts.map((l) => (
-                <option key={l.id} value={l.id}>{l.name}</option>
-              ))}
-            </select>
-          )}
-          <button style={styles.btn} onClick={() => setNamePrompt("create")}>+ New Layout</button>
-          {selectedId && <button style={styles.btn} onClick={() => setNamePrompt("rename")}>Rename</button>}
-          {selectedId && (
-            <button style={deleteArmed ? styles.dangerBtn : styles.btn} onClick={deleteLayout} onBlur={() => setDeleteArmed(false)}>
-              {deleteArmed ? "Confirm delete?" : "Delete"}
-            </button>
-          )}
-          {selectedId && <button style={styles.primaryBtn} onClick={copyOverlayUrl}>Copy OBS URL</button>}
-          <button style={styles.btn} onClick={() => setShowLatestActivity(true)}><Clipboard size={14} color="var(--accent)" /> Latest Activity</button>
-          <a style={styles.backLink} href="/"><ArrowLeft size={14} color="var(--accent)" /> Back to app</a>
-        </div>
-      </div>
-
       {toast && <div style={styles.toast}>{toast}</div>}
 
       {namePrompt && (
@@ -209,20 +217,37 @@ function BuilderInner() {
         />
       )}
 
-      <div style={styles.body}>
-        {layouts === null ? (
-          <div style={styles.empty}>Loading…</div>
-        ) : layouts.length === 0 ? (
-          <div style={styles.empty}>
-            <p>No layouts yet.</p>
-            <button style={styles.primaryBtn} onClick={() => setNamePrompt("create")}>+ Create your first layout</button>
+      {hasOpenLayout ? (
+        <div style={styles.body}>
+          <OverlayCanvas
+            key={selectedId}
+            layoutId={selectedId}
+            latestByKind={latestByKind}
+            brandSlot={brand}
+            headerControls={headerControls}
+          />
+        </div>
+      ) : (
+        <>
+          <div style={styles.topBar}>
+            {brand}
+            <div style={{ flex: 1, minWidth: 8 }} />
+            {headerControls}
           </div>
-        ) : selectedId ? (
-          <OverlayCanvas key={selectedId} layoutId={selectedId} latestByKind={latestByKind} />
-        ) : (
-          <div style={styles.empty}>Select a layout above.</div>
-        )}
-      </div>
+          <div style={styles.body}>
+            {layouts === null ? (
+              <div style={styles.empty}>Loading…</div>
+            ) : layouts.length === 0 ? (
+              <div style={styles.empty}>
+                <p>No layouts yet.</p>
+                <button style={styles.primaryBtn} onClick={() => setNamePrompt("create")}>+ Create your first layout</button>
+              </div>
+            ) : (
+              <div style={styles.empty}>Select a layout above.</div>
+            )}
+          </div>
+        </>
+      )}
     </div>
   );
 }
@@ -310,12 +335,11 @@ const styles = {
   topBar: {
     display: "flex",
     alignItems: "center",
-    justifyContent: "space-between",
-    padding: "10px 16px",
+    padding: "8px 14px",
     background: "var(--surface)",
     borderBottom: "1px solid var(--border)",
     flexShrink: 0,
-    gap: 12,
+    gap: 10,
     flexWrap: "wrap",
   },
   brand: {
@@ -335,6 +359,9 @@ const styles = {
     gap: 8,
     alignItems: "center",
     flexWrap: "wrap",
+    // Keeps this group right-aligned when the header runs out of width and
+    // wraps it onto a second line.
+    marginLeft: "auto",
   },
   select: {
     background: "var(--surface2)",
@@ -342,30 +369,40 @@ const styles = {
     border: "1px solid var(--border)",
     borderRadius: 6,
     padding: "6px 8px",
+    width: 170,
+    minWidth: 140,
+    flexShrink: 0,
   },
   btn: {
     background: "var(--surface2)",
     color: "var(--text)",
     border: "1px solid var(--border)",
+    padding: "5px 10px",
+    flexShrink: 0,
   },
   primaryBtn: {
     background: "var(--accent)",
     color: "var(--on-accent)",
     border: "none",
+    padding: "5px 10px",
+    flexShrink: 0,
   },
   dangerBtn: {
     background: "var(--red)",
     color: "#fff",
     border: "none",
+    padding: "5px 10px",
+    flexShrink: 0,
   },
   backLink: {
     color: "var(--text-muted)",
     fontSize: 13,
     textDecoration: "none",
-    marginLeft: 8,
+    marginLeft: 4,
     display: "inline-flex",
     alignItems: "center",
     gap: 6,
+    flexShrink: 0,
   },
   toast: {
     position: "fixed",

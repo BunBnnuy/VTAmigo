@@ -43,6 +43,9 @@ function sanitizeLayer(raw) {
   const layer = {
     id: typeof raw.id === "string" && raw.id ? raw.id.slice(0, 64) : randomUUID(),
     type,
+    // Optional user-facing label for the Overlay Builder's Layers panel.
+    // Purely editorial — the live overlay renderer ignores it.
+    name: typeof raw.name === "string" ? raw.name.trim().slice(0, 80) : "",
     x: clampNum(raw.x, -CANVAS_W, CANVAS_W * 2, 0),
     y: clampNum(raw.y, -CANVAS_H, CANVAS_H * 2, 0),
     w: clampNum(raw.w, 1, CANVAS_W * 2, 200),
