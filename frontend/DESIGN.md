@@ -100,6 +100,28 @@ happen in one place.
   `display: "inline-flex", alignItems: "center", gap: 6` (or 4 for tight
   status text) to that element's own style when pairing icon + text.
 
+## Public landing page (`src/landing/`)
+
+The logged-out root (`Login.jsx` → `src/landing/Landing.jsx`) has its own
+visual language, scoped under `.landing` so it can't leak into the app panels.
+
+- **Typography**: the landing uses the same pairing as the app — Quicksand
+  (headings, buttons, labels) and Nunito (body copy) — at marketing scale.
+  `landing.css` exposes `--font-display` / `--font-ui` (Quicksand) and
+  `--font-body` (Nunito) inside `.landing`; both families are loaded in
+  `index.html` for the app already.
+- **Brand art**: `src/img/logo-cartoon.webp` (mark) and `src/img/mascot.webp`
+  (demo avatar) are landing-only. The in-app header keeps the pixel logo.
+- **Theme**: the page background, text, borders and controls use the shared
+  theme tokens (`--bg`, `--text`, `--border`, `--accent`...), so light/dark
+  both work. The OBS preview, hero demo and prompt mock stay dark in both
+  themes (`--d-*` tokens in `landing.css`): they are screenshots of dark
+  tools, and the mascot's line art needs that backdrop.
+- **Radius**: `8px` cards/mocks, `4px` controls, matching the marketing
+  layout rather than the `9px` panel chrome.
+- **Primary CTA** on the landing uses `--accent-dark`; the app's primary
+  button stays `--accent`.
+
 ## Notes for future visual changes
 - Prefer adding/adjusting a CSS var in `index.css` over hardcoding a hex
   value in a component — every themed color should flow through a token.

@@ -10,10 +10,13 @@
     "test:watch": "vitest"
   },
   "dependencies": {
+    "@pixiv/three-vrm": "^3.5.5",
+    "@pixiv/three-vrm-animation": "^3.5.5",
     "lucide-react": "^1.31.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
-    "react-rnd": "^10.5.3"
+    "react-rnd": "^10.5.3",
+    "three": "^0.187.0"
   },
   "devDependencies": {
     "@testing-library/jest-dom": "^6.9.1",

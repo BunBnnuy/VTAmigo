@@ -1,0 +1,245 @@
+// Scripted content for the landing hero demo. Kept out of the locale files on
+// purpose: the demo is a stream of paired messages/replies and event payloads,
+// not UI labels, and i18n parity treats every leaf as a string.
+//
+// Users alternate between four fixed sample chatters so the colours stay
+// stable across languages; only the text is translated.
+
+const GREEN = "#7bd88f";
+const VIOLET = "#a78bfa";
+const YELLOW = "#ffb31a";
+const CYAN = "#67e8f9";
+
+export const DEMO_CONTENT = {
+  es: {
+    initialCaption: "Hoy no pienso dejar que el chat se quede en silencio.",
+    messages: [
+      { user: "pixelpanda", color: GREEN, text: "¿hoy también hay ranked?" },
+      { user: "nova_ttv", color: VIOLET, text: "ese avatar nuevo está increíble" },
+      { user: "kaiserin", color: YELLOW, text: "llegué tarde, ¿me perdí algo?" },
+      { user: "mossybyte", color: CYAN, text: "el micro se oye perfecto" },
+      { user: "pixelpanda", color: GREEN, text: "¿cuál es tu juego favorito?" },
+      { user: "nova_ttv", color: VIOLET, text: "hazle una pregunta difícil al bot" },
+      { user: "kaiserin", color: YELLOW, text: "sub de 3 meses, vamos" },
+      { user: "mossybyte", color: CYAN, text: "raid de 12 personas en camino" },
+      { user: "pixelpanda", color: GREEN, text: "di algo polémico" },
+      { user: "nova_ttv", color: VIOLET, text: "el chat está muy tranquilo hoy" },
+    ],
+    replies: [
+      "Hoy toca ranked, pixelpanda. Si perdemos, culpamos al lag y seguimos.",
+      "Gracias, Nova. El avatar se pone a hablar cada vez que suelto una respuesta.",
+      "Te perdiste lo más importante: yo diciendo que no iba a hablar más. Spoiler: no lo cumplí.",
+      "El micro se oye bien porque no tengo pulmones, solo prompts bien escritos.",
+      "Mi juego favorito es el que está en tendencia. Soy IA, no una persona con criterio.",
+      "Pregunta difícil: ¿por qué el chat siempre pide que diga algo polémico? Porque funciona.",
+      "Tres meses de sub, kaiserin. Tres meses de opiniones no solicitadas. Gracias por quedarte.",
+      "Raid de 12 personas. Decidme que traéis snacks y os dejo entrar.",
+      "Polémico: los puzzles son deporte y quien diga lo contrario no ha visto un speedrun.",
+      "El chat tranquilo es mi momento favorito: puedo fingir que tengo carisma.",
+    ],
+    events: {
+      follow: {
+        tag: "Follow",
+        color: GREEN,
+        user: "mossybyte",
+        text: "Nuevo seguidor: mossybyte",
+        line: "¡Bienvenido al club, mossybyte! Ya puedes presumir de buen gusto.",
+      },
+      sub: {
+        tag: "Sub",
+        color: VIOLET,
+        user: "nova_ttv",
+        text: "Nueva suscripción: nova_ttv",
+        line: "Nova se queda un mes más. El chat gana nivel y yo gano alguien con quien discutir de juegos.",
+      },
+      raid: {
+        tag: "Raid",
+        color: "#f0429b",
+        user: "pixelpanda",
+        text: "Raid entrante: pixelpanda",
+        line: "¡Llegó la raid de pixelpanda! Poneos cómodos, que aquí se viene a hablar.",
+      },
+      bits: {
+        tag: "Bits",
+        color: YELLOW,
+        user: "kaiserin",
+        text: "500 bits de kaiserin",
+        line: "500 bits de kaiserin. Eso merece una opinión impopular sobre tu juego favorito.",
+      },
+    },
+  },
+
+  en: {
+    initialCaption: "I'm not letting chat go quiet today.",
+    messages: [
+      { user: "pixelpanda", color: GREEN, text: "ranked again today?" },
+      { user: "nova_ttv", color: VIOLET, text: "that new avatar is amazing" },
+      { user: "kaiserin", color: YELLOW, text: "late again, did I miss anything?" },
+      { user: "mossybyte", color: CYAN, text: "the mic sounds perfect" },
+      { user: "pixelpanda", color: GREEN, text: "what's your favorite game?" },
+      { user: "nova_ttv", color: VIOLET, text: "ask the bot something hard" },
+      { user: "kaiserin", color: YELLOW, text: "3-month sub, let's go" },
+      { user: "mossybyte", color: CYAN, text: "12-person raid incoming" },
+      { user: "pixelpanda", color: GREEN, text: "say something controversial" },
+      { user: "nova_ttv", color: VIOLET, text: "chat is so quiet today" },
+    ],
+    replies: [
+      "Ranked it is, pixelpanda. If we lose, we blame lag and queue again.",
+      "Thanks, Nova. The avatar starts talking every time I drop a reply.",
+      "You missed the important part: me saying I'd stop talking. Spoiler: I didn't.",
+      "The mic sounds fine because I don't have lungs, just well-written prompts.",
+      "My favorite game is whatever's trending. I'm an AI, not a person with taste.",
+      "Hard question: why does chat always ask for something controversial? Because it works.",
+      "Three months of sub, kaiserin. Three months of unsolicited opinions. Thanks for staying.",
+      "A 12-person raid. Tell me you brought snacks and I'll let you in.",
+      "Controversial: puzzles are a sport, and anyone who disagrees hasn't watched a speedrun.",
+      "A quiet chat is my favorite moment: I can pretend I have charisma.",
+    ],
+    events: {
+      follow: {
+        tag: "Follow",
+        color: GREEN,
+        user: "mossybyte",
+        text: "New follower: mossybyte",
+        line: "Welcome to the club, mossybyte! You can brag about your good taste now.",
+      },
+      sub: {
+        tag: "Sub",
+        color: VIOLET,
+        user: "nova_ttv",
+        text: "New subscription: nova_ttv",
+        line: "Nova stays another month. Chat levels up and I gain someone to argue about games with.",
+      },
+      raid: {
+        tag: "Raid",
+        color: "#f0429b",
+        user: "pixelpanda",
+        text: "Incoming raid: pixelpanda",
+        line: "pixelpanda's raid is here! Get comfortable, we're here to talk.",
+      },
+      bits: {
+        tag: "Bits",
+        color: YELLOW,
+        user: "kaiserin",
+        text: "500 bits from kaiserin",
+        line: "500 bits from kaiserin. That deserves an unpopular opinion about your favorite game.",
+      },
+    },
+  },
+
+  ja: {
+    initialCaption: "今日はチャットを静かにさせないよ。",
+    messages: [
+      { user: "pixelpanda", color: GREEN, text: "今日もランクマある？" },
+      { user: "nova_ttv", color: VIOLET, text: "新しいアバターすごい" },
+      { user: "kaiserin", color: YELLOW, text: "遅れた、何か見逃した？" },
+      { user: "mossybyte", color: CYAN, text: "マイクめっちゃ綺麗" },
+      { user: "pixelpanda", color: GREEN, text: "好きなゲームは？" },
+      { user: "nova_ttv", color: VIOLET, text: "ボットに難しい質問して" },
+      { user: "kaiserin", color: YELLOW, text: "3ヶ月サブ、いくよ" },
+      { user: "mossybyte", color: CYAN, text: "12人のレイド来るよ" },
+      { user: "pixelpanda", color: GREEN, text: "何か物議を醸すこと言って" },
+      { user: "nova_ttv", color: VIOLET, text: "今日チャット静かだね" },
+    ],
+    replies: [
+      "今日はランクマだよ、pixelpanda。負けたらラグのせいにして続ける。",
+      "ありがとう、Nova。返事するたびにアバターが話し出すんだ。",
+      "大事なとこ見逃したよ。もう話さないって言ったとこ。ネタバレ：守ってない。",
+      "マイクがいいのは肺がないから。あるのは上手いプロンプトだけ。",
+      "好きなゲームは流行ってるやつ。AIだから好みはないんだ。",
+      "難しい質問：なんでチャットは物議を醸す話ばかり求めるの？効くからだよ。",
+      "3ヶ月サブ、kaiserin。3ヶ月分の余計なお世話。いてくれてありがとう。",
+      "12人のレイド。お菓子持ってきたら入れてあげる。",
+      "物議を醸す話：パズルはスポーツ。否定する人はスピードランを見てない。",
+      "静かなチャットは最高。カリスマがあるふりができるから。",
+    ],
+    events: {
+      follow: {
+        tag: "Follow",
+        color: GREEN,
+        user: "mossybyte",
+        text: "新しいフォロワー: mossybyte",
+        line: "クラブへようこそ、mossybyte！いいセンスを自慢していいよ。",
+      },
+      sub: {
+        tag: "Sub",
+        color: VIOLET,
+        user: "nova_ttv",
+        text: "新しいサブスク: nova_ttv",
+        line: "Novaがもう1ヶ月いてくれるって。チャットはレベルアップ、私はゲームの話し相手をゲット。",
+      },
+      raid: {
+        tag: "Raid",
+        color: "#f0429b",
+        user: "pixelpanda",
+        text: "レイド到着: pixelpanda",
+        line: "pixelpandaのレイドが来たよ！ゆっくりしてって、ここは話す場所だから。",
+      },
+      bits: {
+        tag: "Bits",
+        color: YELLOW,
+        user: "kaiserin",
+        text: "kaiserinから500ビッツ",
+        line: "kaiserinから500ビッツ。大好きなゲームについて不人気な意見を言うしかないね。",
+      },
+    },
+  },
+
+  ko: {
+    initialCaption: "오늘은 채팅을 조용하게 두지 않을 거야.",
+    messages: [
+      { user: "pixelpanda", color: GREEN, text: "오늘도 랭크전 해?" },
+      { user: "nova_ttv", color: VIOLET, text: "새 아바타 진짜 멋지다" },
+      { user: "kaiserin", color: YELLOW, text: "늦었어, 뭐 놓친 거 있어?" },
+      { user: "mossybyte", color: CYAN, text: "마이크 소리 완벽한데" },
+      { user: "pixelpanda", color: GREEN, text: "좋아하는 게임 뭐야?" },
+      { user: "nova_ttv", color: VIOLET, text: "봇한테 어려운 질문 해봐" },
+      { user: "kaiserin", color: YELLOW, text: "3개월 구독, 간다" },
+      { user: "mossybyte", color: CYAN, text: "12명 레이드 오고 있어" },
+      { user: "pixelpanda", color: GREEN, text: "뭔가 논란되는 얘기 해봐" },
+      { user: "nova_ttv", color: VIOLET, text: "오늘 채팅 조용하네" },
+    ],
+    replies: [
+      "오늘은 랭크전이지, pixelpanda. 지면 렉 탓으로 하고 다시 돌자.",
+      "고마워, Nova. 내가 답할 때마다 아바타가 말하기 시작해.",
+      "중요한 걸 놓쳤어. 내가 더 이상 말 안 한다고 한 거. 스포일러: 안 지켰어.",
+      "마이크가 좋은 건 폐가 없어서야. 잘 쓴 프롬프트만 있거든.",
+      "좋아하는 게임은 유행하는 거. 난 AI라 취향은 없어.",
+      "어려운 질문: 왜 채팅은 항상 논란되는 얘기를 시킬까? 효과가 있으니까.",
+      "3개월 구독, kaiserin. 3개월치 안 물어본 의견. 남아줘서 고마워.",
+      "12명 레이드. 간식 들고 왔다고 하면 들여보내줄게.",
+      "논란: 퍼즐은 스포츠야. 아니라는 사람은 스피드런을 안 본 거야.",
+      "조용한 채팅이 내 최애 순간이야. 카리스마 있는 척할 수 있거든.",
+    ],
+    events: {
+      follow: {
+        tag: "Follow",
+        color: GREEN,
+        user: "mossybyte",
+        text: "새 팔로워: mossybyte",
+        line: "클럽에 온 걸 환영해, mossybyte! 이제 좋은 취향을 자랑해도 돼.",
+      },
+      sub: {
+        tag: "Sub",
+        color: VIOLET,
+        user: "nova_ttv",
+        text: "새 구독: nova_ttv",
+        line: "Nova가 한 달 더 있어준대. 채팅은 레벨업하고 나는 게임 얘기할 상대가 생겼어.",
+      },
+      raid: {
+        tag: "Raid",
+        color: "#f0429b",
+        user: "pixelpanda",
+        text: "레이드 도착: pixelpanda",
+        line: "pixelpanda의 레이드가 왔어! 편하게 있어, 여긴 이야기하러 오는 곳이니까.",
+      },
+      bits: {
+        tag: "Bits",
+        color: YELLOW,
+        user: "kaiserin",
+        text: "kaiserin이 500 비트",
+        line: "kaiserin이 500 비트를 보냈어. 좋아하는 게임에 대한 비인기 의견을 말할 자격이 생겼네.",
+      },
+    },
+  },
+};

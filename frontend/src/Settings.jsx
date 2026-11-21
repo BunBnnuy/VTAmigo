@@ -46,6 +46,8 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   const [kittenVoices, setKittenVoices] = useState([]);
   const [kittenStatus, setKittenStatus] = useState("");
   const [kokoroVoices, setKokoroVoices] = useState([]);
+  const [fishVoices, setFishVoices] = useState([]);
+  const [fishStatus, setFishStatus] = useState("loading");
   const [kokoroStatus, setKokoroStatus] = useState("");
   const [exportTarget, setExportTarget] = useState("");
   const [exportStatus, setExportStatus] = useState(null); // null | {running, pct, stage, error, mdPath}
@@ -395,12 +397,26 @@ export default function Settings({ settings, tier, onSave, onClose }) {
     }
   };
 
+  const loadFishVoices = async () => {
+    setFishStatus("loading");
+    try {
+      const res = await apiFetch("/tts/fish/voices");
+      const data = await res.json();
+      setFishVoices(data.voices || []);
+      setFishStatus(data.configured ? "ok" : "missing");
+    } catch (err) {
+      setFishVoices([]);
+      setFishStatus(err.message);
+    }
+  };
+
   useEffect(() => {
-    // The unified voice list shows every engine at once, so all three local
+    // The unified voice list shows every engine at once, so all the voice
     // lists load on mount (and the refresh button reloads them together).
     loadPiperVoices();
     loadKittenVoices();
     loadKokoroVoices();
+    loadFishVoices();
   }, []);
 
   useEffect(() => {
@@ -429,27 +445,30 @@ export default function Settings({ settings, tier, onSave, onClose }) {
   // selected value encodes both, so choosing a voice also chooses its engine.
   const voiceValue = selectedVoiceValue(form);
   const voiceOptions = withSelectedOption(
-    buildVoiceOptions({ voices, piperVoices, kittenVoices, kokoroVoices, t }),
+    buildVoiceOptions({ voices, piperVoices, kittenVoices, kokoroVoices, fishVoices, t }),
     voiceValue,
     t
   );
   const selectedProvider = parseVoiceValue(voiceValue).provider;
-  const providerStatus = { piper: piperStatus, kitten: kittenStatus, kokoro: kokoroStatus }[selectedProvider];
+  const providerStatus = { piper: piperStatus, kitten: kittenStatus, kokoro: kokoroStatus, fish: fishStatus }[selectedProvider];
   const providerMissing = {
     piper: t("settings.tts.piperMissing"),
     kitten: t("settings.tts.kittenMissing"),
     kokoro: t("settings.tts.kokoroMissing"),
+    fish: t("settings.tts.fishMissing"),
   }[selectedProvider];
   const providerHint = {
     piper: t("settings.tts.piperHint"),
     kitten: t("settings.tts.kittenHint"),
     kokoro: t("settings.tts.kokoroHint"),
+    fish: t("settings.tts.fishHint"),
   }[selectedProvider];
-  const loadingVoices = [piperStatus, kittenStatus, kokoroStatus].includes("loading");
+  const loadingVoices = [piperStatus, kittenStatus, kokoroStatus, fishStatus].includes("loading");
   const loadAllVoices = () => {
     loadPiperVoices();
     loadKittenVoices();
     loadKokoroVoices();
+    loadFishVoices();
   };
 
 
@@ -972,6 +991,18 @@ export default function Settings({ settings, tier, onSave, onClose }) {
               )}
               {providerHint && <span style={styles.hint}>{providerHint}</span>}
             </div>
+            {selectedProvider === "fish" && (
+              <div style={styles.field}>
+                <label>{t("settings.tts.fishVoiceId")}</label>
+                <input
+                  value={form.fishVoice || ""}
+                  placeholder={t("settings.tts.fishVoiceIdPlaceholder")}
+                  onChange={(e) => set("fishVoice", e.target.value)}
+                  onBlur={(e) => set("fishVoice", e.target.value.trim())}
+                />
+                <span style={styles.hint}>{t("settings.tts.fishVoiceIdHint")}</span>
+              </div>
+            )}
             <div style={styles.field}>
               <label>{t("settings.tts.output")}</label>
               <select

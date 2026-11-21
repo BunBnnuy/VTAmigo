@@ -43,6 +43,7 @@ class TTSController {
     this.piperVoice = "";
     this.kittenVoice = "";
     this.kokoroVoice = "";
+    this.fishVoice = "";
     this.currentAudio = null; // active remote-provider Audio element
     this.onStateChange = null; // () => void — called when playing/queue changes
   }
@@ -88,6 +89,10 @@ class TTSController {
 
   setKokoro({ voice }) {
     if (voice != null) this.kokoroVoice = voice;
+  }
+
+  setFish({ voice }) {
+    if (voice != null) this.fishVoice = voice;
   }
 
   setMuted(m) {
@@ -151,6 +156,7 @@ class TTSController {
         piperVoice: this.piperVoice || null,
         kittenVoice: this.kittenVoice || null,
         kokoroVoice: this.kokoroVoice || null,
+        fishVoice: this.fishVoice || null,
         ttsProvider: this.provider,
         rate: this.rate,
         volume: this.overlayVolume,
@@ -208,6 +214,10 @@ class TTSController {
     } else if (this.provider === "kokoro") {
       this._speakRemote(text, onDone, "Kokoro", "/tts/kokoro", {
         text, voice: this.kokoroVoice || undefined,
+      });
+    } else if (this.provider === "fish") {
+      this._speakRemote(text, onDone, "Fish Audio", "/tts/fish", {
+        text, voice: this.fishVoice || undefined,
       });
     } else {
       this._speakWindows(text, onDone);

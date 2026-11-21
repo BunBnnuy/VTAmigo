@@ -14,10 +14,13 @@
 const express = require("express");
 const path = require("path");
 const piper = require("../piper");
+const visemes = require("../visemes");
+const fish = require("../fish");
+const vrmConfig = require("../vrmConfig");
 const kitten = require("../kitten");
 const kokoro = require("../kokoro");
 const { aiLimiter } = require("../rateLimits");
-const { getApprovedUserFromCookieHeader, findUserByOverlayToken } = require("../auth");
+const { requireApprovedUser, getApprovedUserFromCookieHeader, findUserByOverlayToken } = require("../auth");
 const { broadcastToAccount } = require("../sessions");
 
 const router = express.Router();
@@ -94,6 +97,27 @@ router.post("/avatar/speaking/stop", (req, res) => {
   res.json({ ok: true });
 });
 
+// Fish Audio answers 401/402/429/503 with a JSON body; map them to something
+// the UI can show without leaking the API key or the raw upstream payload.
+function sendFishError(res, err) {
+  const code = (err.message || "").split(":")[0];
+  if (code === "FISH_NOT_CONFIGURED") {
+    return res.status(503).json({ error: "Fish Audio is not configured (set FISH_AUDIO_API_KEY)" });
+  }
+  if (code === "FISH_TEXT_TOO_LONG") {
+    return res.status(400).json({ error: `Text too long (max ${fish.MAX_TEXT_CHARS} characters)` });
+  }
+  if (code === "FISH_TIMEOUT") return res.status(504).json({ error: "Fish Audio took too long, try again" });
+  if (code === "FISH_HTTP_401" || code === "FISH_HTTP_403") {
+    return res.status(502).json({ error: "Fish Audio rejected the API key" });
+  }
+  if (code === "FISH_HTTP_402") return res.status(402).json({ error: "Fish Audio balance exhausted" });
+  if (code === "FISH_HTTP_429") return res.status(429).json({ error: "Fish Audio rate limit, slow down" });
+  if (code === "FISH_HTTP_503") return res.status(503).json({ error: "Fish Audio is overloaded, try again" });
+  console.error("[fish/tts]", err.message);
+  res.status(502).json({ error: err.message });
+}
+
 // ── Piper TTS (local CLI) ─────────────────────────────────────────────────────
 
 // GET /tts/piper/voices — { installed, voices: [{ id, name }] }
@@ -115,6 +139,22 @@ router.post("/tts/piper", aiLimiter, async (req, res) => {
   }
 });
 
+// POST /tts/visemes — { text, voice? } → JSON { audio (base64 wav), visemes }
+// Prototype for the VRM lab: the same Piper audio plus a lip-sync timeline
+// derived from the exact phonemes the voice model consumes. Kept in the same
+// router as /tts/piper so both share the aiLimiter budget (one Piper spawn
+// each) and the /tts auth gate in app.js.
+router.post("/tts/visemes", aiLimiter, async (req, res) => {
+  const { text, voice, provider, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    res.json(await visemes.speechWithVisemes({ text, voice, provider, speed }));
+  } catch (err) {
+    if (provider === "fish") return sendFishError(res, err);
+    sendPiperError(res, err);
+  }
+});
+
 // ── KittenTTS (local Python worker) ──────────────────────────────────────────
 
 // GET /tts/kitten/voices — { installed, voices: [{ id, name }] }
@@ -132,7 +172,7 @@ router.post("/tts/kitten", aiLimiter, async (req, res) => {
     res.set("Content-Type", "audio/wav");
     res.send(audio);
   } catch (err) {
-    sendWorkerError(res, err, "KittenTTS", kitten.MAX_TEXT_CHARS, "kitten/.venv");
+    sendWorkerError(res, err, "KittenTTS", kitten.maxTextChars, "kitten/.venv");
   }
 });
 
@@ -153,7 +193,85 @@ router.post("/tts/kokoro", aiLimiter, async (req, res) => {
     res.set("Content-Type", "audio/wav");
     res.send(audio);
   } catch (err) {
-    sendWorkerError(res, err, "Kokoro", kokoro.MAX_TEXT_CHARS, "kokoro");
+    sendWorkerError(res, err, "Kokoro", kokoro.maxTextChars, "kokoro");
+  }
+});
+
+// ── Fish Audio (hosted API) ──────────────────────────────────────────────────
+//
+// Free developer tier: the provider sends `model: s2.1-pro-free`, which Fish
+// lists at $0 per UTF-8 byte. Voices are reference ids, so `voice` is an opaque
+// model id rather than a local file. Without FISH_AUDIO_API_KEY the status
+// route says so and the rest of the app keeps using the local engines.
+
+router.get("/tts/fish/status", (req, res) => {
+  res.json(fish.status());
+});
+
+// GET /tts/fish/voices — account-owned voice models (clones). Cached for five
+// minutes in fish.js because Settings asks on mount and on every refresh.
+router.get("/tts/fish/voices", async (req, res) => {
+  if (!fish.isConfigured()) return res.json({ configured: false, voices: [] });
+  try {
+    res.json({ configured: true, voices: await fish.listVoices({ force: req.query.refresh === "1" }) });
+  } catch (err) {
+    res.json({ configured: true, voices: [], error: err.message });
+  }
+});
+
+// POST /tts/fish — { text, voice?, speed? } → audio/wav. Shares aiLimiter with
+// the other engines: each call is a paid (or free-tier) upstream request.
+router.post("/tts/fish", aiLimiter, async (req, res) => {
+  const { text, voice, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await fish.generateSpeech({ text, voice, speed });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    sendFishError(res, err);
+  }
+});
+
+// ── VRM overlay config ───────────────────────────────────────────────────────
+//
+// The lab (session auth) saves the model + idle choices; the OBS page (overlay
+// token) reads them so it reloads the same VRM without any manual step.
+
+router.get("/vrm-lab/config", requireApprovedUser, (req, res) => {
+  res.json(vrmConfig.get(req.user.twitchId));
+});
+
+router.post("/vrm-lab/config", requireApprovedUser, (req, res) => {
+  try {
+    res.json(vrmConfig.save(req.user.twitchId, req.body || {}));
+  } catch (err) {
+    res.status(400).json({ error: err.message });
+  }
+});
+
+router.get("/overlay/vrm/config", (req, res) => {
+  const user = overlayUser(req);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  res.json(vrmConfig.get(user.twitchId));
+});
+
+// POST /overlay/tts/visemes?token=... — { text, voice?, provider?, speed? } →
+// JSON with base64 WAV + viseme timeline. Same contract as /tts/visemes but
+// authenticated by the OBS overlay token and outside aiLimiter: the overlay is
+// the audible source and speaks far more than 5 lines/min.
+router.post("/overlay/tts/visemes", async (req, res) => {
+  const user = overlayUser(req);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const { text, voice, provider, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    res.json(await visemes.speechWithVisemes({ text, voice, provider, speed }));
+  } catch (err) {
+    if (provider === "fish") return sendFishError(res, err);
+    if (provider === "kitten") return sendWorkerError(res, err, "KittenTTS", kitten.maxTextChars, "kitten");
+    if (provider === "kokoro") return sendWorkerError(res, err, "Kokoro", kokoro.maxTextChars, "kokoro");
+    sendPiperError(res, err);
   }
 });
 
@@ -167,9 +285,9 @@ router.post("/tts/kokoro", aiLimiter, async (req, res) => {
 // Piper as the fallback that actually exists inside OBS's CEF), and reports
 // the audible window back so the avatar overlay keeps mouth-syncing.
 
-// POST /tts/speak — { text, voiceURI, piperVoice, kittenVoice, kokoroVoice, ttsProvider, rate, volume, forcePiper }
+// POST /tts/speak — { text, voiceURI, piperVoice, kittenVoice, kokoroVoice, fishVoice, ttsProvider, rate, volume, forcePiper }
 router.post("/tts/speak", (req, res) => {
-  const { text, voiceURI, piperVoice, kittenVoice, kokoroVoice, ttsProvider, rate, volume, forcePiper } = req.body || {};
+  const { text, voiceURI, piperVoice, kittenVoice, kokoroVoice, fishVoice, ttsProvider, rate, volume, forcePiper } = req.body || {};
   const clean = typeof text === "string" ? text.trim() : "";
   if (!clean) return res.status(400).json({ error: "text is required" });
 
@@ -180,9 +298,10 @@ router.post("/tts/speak", (req, res) => {
     piperVoice: piperVoice || null,
     kittenVoice: kittenVoice || null,
     kokoroVoice: kokoroVoice || null,
-    // Which engine the app picked. The overlay uses this to choose the local
-    // neural worker over its browser-voice/Piper fallback chain.
-    ttsProvider: ttsProvider === "kitten" || ttsProvider === "kokoro" ? ttsProvider : null,
+    fishVoice: fishVoice || null,
+    // Which engine the app picked. The overlay uses this to choose the
+    // neural/hosted engine over its browser-voice/Piper fallback chain.
+    ttsProvider: ["kitten", "kokoro", "fish"].includes(ttsProvider) ? ttsProvider : null,
     rate: clampNum(rate, 0.5, 2, 1),
     volume: clampNum(volume, 0, 1, 1),
     forcePiper: !!forcePiper,
@@ -267,7 +386,7 @@ router.post("/overlay/tts/kitten", async (req, res) => {
     res.set("Content-Type", "audio/wav");
     res.send(audio);
   } catch (err) {
-    sendWorkerError(res, err, "KittenTTS", kitten.MAX_TEXT_CHARS, "kitten/.venv");
+    sendWorkerError(res, err, "KittenTTS", kitten.maxTextChars, "kitten/.venv");
   }
 });
 
@@ -283,7 +402,25 @@ router.post("/overlay/tts/kokoro", async (req, res) => {
     res.set("Content-Type", "audio/wav");
     res.send(audio);
   } catch (err) {
-    sendWorkerError(res, err, "Kokoro", kokoro.MAX_TEXT_CHARS, "kokoro");
+    sendWorkerError(res, err, "Kokoro", kokoro.maxTextChars, "kokoro");
+  }
+});
+
+// POST /overlay/tts/fish?token=... — { text, voice, speed? } → audio/wav.
+// Same contract as /overlay/tts/kokoro: OBS token auth, no aiLimiter (the
+// upstream provider rate-limits by concurrency, and OBS speaks far more than
+// the app's 5/min budget).
+router.post("/overlay/tts/fish", async (req, res) => {
+  const user = overlayUser(req);
+  if (!user) return res.status(401).json({ error: "Not authorized" });
+  const { text, voice, speed } = req.body || {};
+  if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
+  try {
+    const audio = await fish.generateSpeech({ text, voice, speed });
+    res.set("Content-Type", "audio/wav");
+    res.send(audio);
+  } catch (err) {
+    sendFishError(res, err);
   }
 });
 

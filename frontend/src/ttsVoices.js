@@ -12,9 +12,10 @@ export const VOICE_FIELDS = {
   piper: "piperVoice",
   kitten: "kittenVoice",
   kokoro: "kokoroVoice",
+  fish: "fishVoice",
 };
 
-export const PROVIDERS = ["windows", "piper", "kitten", "kokoro"];
+export const PROVIDERS = ["windows", "piper", "kitten", "kokoro", "fish"];
 
 const PROVIDER_LABELS = {
   windows: "Windows",
@@ -22,6 +23,7 @@ const PROVIDER_LABELS = {
   piper: "Piper",
   kitten: "Kitten",
   kokoro: "Kokoro",
+  fish: "Fish Audio",
 };
 
 // Voice ids can contain ":" (browser voiceURIs occasionally do), so the
@@ -65,7 +67,7 @@ function label(provider, voice, t) {
 
 // Flat "Provider/Voice" list: Windows first (the default engine), then the
 // local engines in the order they were added.
-export function buildVoiceOptions({ voices = [], piperVoices = [], kittenVoices = [], kokoroVoices = [], t }) {
+export function buildVoiceOptions({ voices = [], piperVoices = [], kittenVoices = [], kokoroVoices = [], fishVoices = [], t }) {
   const options = [{ value: encodeVoiceValue("windows", ""), label: label("windows", "", t) }];
   for (const voice of voices) {
     // speechSynthesis mixes Windows SAPI voices with the browser's own ones
@@ -91,6 +93,12 @@ export function buildVoiceOptions({ voices = [], piperVoices = [], kittenVoices 
   options.push({ value: encodeVoiceValue("kokoro", ""), label: label("kokoro", "", t) });
   for (const voice of kokoroVoices) {
     options.push({ value: encodeVoiceValue("kokoro", voice.id), label: label("kokoro", voice.name, t) });
+  }
+
+  // Hosted voices last: with no API key the list is just the default entry.
+  options.push({ value: encodeVoiceValue("fish", ""), label: label("fish", "", t) });
+  for (const voice of fishVoices) {
+    options.push({ value: encodeVoiceValue("fish", voice.id), label: label("fish", voice.name, t) });
   }
 
   return options;

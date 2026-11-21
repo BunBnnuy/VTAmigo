@@ -1,0 +1,53 @@
+/* OBS browser source: transparent, no chrome, no scrollbars. */
+html,
+body,
+#root {
+  background: transparent;
+}
+
+.vrmOverlayRoot {
+  position: fixed;
+  inset: 0;
+  background: transparent;
+}
+
+.vrmOverlayCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.vrmOverlayCanvas canvas {
+  display: block;
+}
+
+/* Only rendered with ?debug=1 — never on stream otherwise. */
+.vrmOverlayHud {
+  position: absolute;
+  left: 12px;
+  bottom: 12px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.55);
+  color: #fff;
+  font: 12px/1.5 system-ui, sans-serif;
+  pointer-events: none;
+  max-width: 60vw;
+}
+
+.vrmOverlayHud .isError {
+  color: #ff8b8b;
+}
+
+/* Shown only when the socket is down for more than a few seconds, so a silent
+   overlay can be diagnosed from OBS itself. */
+.vrmOverlayAlert {
+  position: absolute;
+  right: 12px;
+  bottom: 12px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(160, 20, 30, 0.85);
+  color: #fff;
+  font: 12px/1.4 system-ui, sans-serif;
+  pointer-events: none;
+}

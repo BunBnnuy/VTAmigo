@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { Palette, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users, Eye, Timer, Trophy, Crown, X } from "lucide-react";
+import { Palette, ScanFace, Sun, Moon, Monitor, Settings as SettingsIcon, Music2, Pause, VolumeX, Volume2, Users, Eye, Timer, Trophy, Crown, X } from "lucide-react";
 import ChatFeed from "./ChatFeed.jsx";
 import ResponsePanel from "./ResponsePanel.jsx";
 import WindowManager, { DEFAULT_PANEL_LAYOUT, mergePanelLayout } from "./WindowManager.jsx";
@@ -47,6 +47,7 @@ const DEFAULT_SETTINGS = {
   piperVoice: "",
   kittenVoice: "",
   kokoroVoice: "",
+  fishVoice: "",
   // Where the bot's voice plays: "app" (this browser, default), "overlay" (the
   // Bot voice OBS browser source only) or "both".
   ttsOutput: "app",
@@ -225,7 +226,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       return migrateSettings({});
     }
   });
-  const { t } = useTranslation(settings.language);
+  const { t, lang: uiLang } = useTranslation(settings.language);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("theme") || "system";
@@ -245,6 +246,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       // localStorage unavailable — theme choice won't persist.
     }
   }, [theme]);
+  // Keep the document language in sync with the UI language once the app is
+  // behind the landing, which sets its own `lang` from the picker.
+  useEffect(() => {
+    document.documentElement.lang = uiLang;
+  }, [uiLang]);
   const cycleTheme = () => {
     setTheme((cur) => (cur === "system" ? "light" : cur === "light" ? "dark" : "system"));
   };
@@ -703,7 +709,8 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     tts.setPiper({ voice: settings.piperVoice });
     tts.setKitten({ voice: settings.kittenVoice });
     tts.setKokoro({ voice: settings.kokoroVoice });
-  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice, settings.kittenVoice, settings.kokoroVoice, settings.mixer, settings.ttsOutput]);
+    tts.setFish({ voice: settings.fishVoice });
+  }, [settings.voiceURI, settings.ttsRate, settings.ttsVolume, settings.ttsProvider, settings.piperVoice, settings.kittenVoice, settings.kokoroVoice, settings.fishVoice, settings.mixer, settings.ttsOutput]);
 
   // Chat command TTS is intentionally separate from the AI response TTS.
   useEffect(() => {
@@ -1226,6 +1233,13 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
         </div>
         <div style={styles.topRight}>
           <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} />
+          <button
+            style={styles.settingsBtn}
+            onClick={() => window.open("/vrm-lab.html", "_blank")}
+            title={t("app.vrmLabTitle")}
+          >
+            <ScanFace size={14} color="var(--accent)" /> {t("app.vrmLabBtn")}
+          </button>
           <button
             style={styles.settingsBtn}
             onClick={() => window.open("/overlay-builder", "_blank")}

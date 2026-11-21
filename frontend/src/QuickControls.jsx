@@ -3,7 +3,7 @@ import { apiFetch } from "./api.js";
 import { tts } from "./TTSController.js";
 import { buildVoiceOptions, parseVoiceValue, selectedVoiceValue, voiceSelectionPatch, withSelectedOption } from "./ttsVoices.js";
 import { useTranslation } from "./i18n/index.js";
-import { RefreshCw, AlertTriangle, SkipForward, Play } from "lucide-react";
+import { RefreshCw, AlertTriangle, SkipForward, Play, Check } from "lucide-react";
 
 function Toggle({ checked, onChange }) {
   return (
@@ -38,6 +38,11 @@ export default function QuickControls({
   queuedCount, onPruneQueue,
 }) {
   const { t } = useTranslation(lang);
+  const [fishDraft, setFishDraft] = useState("");
+
+  useEffect(() => {
+    setFishDraft(settings?.fishVoice || "");
+  }, [settings?.fishVoice]);
 
   // ── TTS provider / voice ─────────────────────────────────────────────────
   const [voices, setVoices] = useState([]);
@@ -46,6 +51,8 @@ export default function QuickControls({
   const [kittenVoices, setKittenVoices] = useState([]);
   const [kittenStatus, setKittenStatus] = useState("");
   const [kokoroVoices, setKokoroVoices] = useState([]);
+  const [fishVoices, setFishVoices] = useState([]);
+  const [fishStatus, setFishStatus] = useState("loading");
   const [kokoroStatus, setKokoroStatus] = useState("");
 
   useEffect(() => {
@@ -93,34 +100,50 @@ export default function QuickControls({
     }
   };
 
+  const loadFishVoices = async () => {
+    setFishStatus("loading");
+    try {
+      const res = await apiFetch("/tts/fish/voices");
+      const data = await res.json();
+      setFishVoices(data.voices || []);
+      setFishStatus(data.configured ? "ok" : "missing");
+    } catch (err) {
+      setFishVoices([]);
+      setFishStatus(err.message);
+    }
+  };
+
   useEffect(() => {
     if (!settings) return;
-    // The unified voice list shows every engine at once, so all three local
+    // The unified voice list shows every engine at once, so all the voice
     // lists load on mount (and the refresh button reloads them together).
     loadPiperVoices();
     loadKittenVoices();
     loadKokoroVoices();
+    loadFishVoices();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const voiceValue = settings ? selectedVoiceValue(settings) : "windows:";
   const voiceOptions = withSelectedOption(
-    buildVoiceOptions({ voices, piperVoices, kittenVoices, kokoroVoices, t }),
+    buildVoiceOptions({ voices, piperVoices, kittenVoices, kokoroVoices, fishVoices, t }),
     voiceValue,
     t
   );
   const selectedProvider = parseVoiceValue(voiceValue).provider;
-  const providerStatus = { piper: piperStatus, kitten: kittenStatus, kokoro: kokoroStatus }[selectedProvider];
+  const providerStatus = { piper: piperStatus, kitten: kittenStatus, kokoro: kokoroStatus, fish: fishStatus }[selectedProvider];
   const providerMissing = {
     piper: t("quickControls.piperMissing"),
     kitten: t("quickControls.kittenMissing"),
     kokoro: t("quickControls.kokoroMissing"),
+    fish: t("quickControls.fishMissing"),
   }[selectedProvider];
-  const loadingVoices = [piperStatus, kittenStatus, kokoroStatus].includes("loading");
+  const loadingVoices = [piperStatus, kittenStatus, kokoroStatus, fishStatus].includes("loading");
   const loadAllVoices = () => {
     loadPiperVoices();
     loadKittenVoices();
     loadKokoroVoices();
+    loadFishVoices();
   };
   const pickVoice = (value) => {
     const patch = voiceSelectionPatch(value);
@@ -131,6 +154,17 @@ export default function QuickControls({
         if (key !== "ttsProvider") onUpdateSetting(key, setting);
       });
     }
+  };
+
+  const applyFishVoice = () => {
+    const value = fishDraft.trim();
+    if (value === (settings?.fishVoice || "")) return;
+    if (onUpdateSettings) {
+      onUpdateSettings({ fishVoice: value, ttsProvider: "fish" });
+      return;
+    }
+    onUpdateSetting("fishVoice", value);
+    onUpdateSetting("ttsProvider", "fish");
   };
 
   return (
@@ -167,6 +201,24 @@ export default function QuickControls({
             <Toggle checked={!muted} onChange={onToggleMute} />
           </div>
         )}
+        {settings && (onUpdateSetting || onUpdateSettings) && (
+          <div style={styles.field}>
+            <label style={styles.fieldLabel}>{t("settings.tts.output")}</label>
+            <select
+              value={settings.ttsOutput || "app"}
+              onChange={(e) => {
+                if (onUpdateSetting) onUpdateSetting("ttsOutput", e.target.value);
+                else onUpdateSettings({ ttsOutput: e.target.value });
+              }}
+            >
+              <option value="app">{t("settings.tts.outputApp")}</option>
+              <option value="overlay">{t("settings.tts.outputOverlay")}</option>
+              <option value="both">{t("settings.tts.outputBoth")}</option>
+            </select>
+            <span style={styles.hint}>{t("settings.tts.outputHint")}</span>
+          </div>
+        )}
+
         {ttsPlaying && onSkipTts && (
           <button style={styles.actionBtn} onClick={onSkipTts} title={t("quickControls.skipTtsTitle")}>
             <SkipForward size={14} color="var(--accent)" /> {t("quickControls.skipTts")}
@@ -220,6 +272,31 @@ export default function QuickControls({
               <span style={styles.errorText}><AlertTriangle size={14} color="var(--yellow)" /> {providerStatus}</span>
             )}
             <span style={styles.hint}>{t("quickControls.voiceHint")}</span>
+
+            {selectedProvider === "fish" && (
+              <div style={{ marginTop: 8 }}>
+                <label style={styles.fieldLabel}>{t("quickControls.fishVoiceId")}</label>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <input
+                    value={fishDraft}
+                    placeholder={t("quickControls.fishVoiceIdPlaceholder")}
+                    onChange={(e) => setFishDraft(e.target.value)}
+                    onBlur={() => applyFishVoice()}
+                    onKeyDown={(e) => e.key === "Enter" && applyFishVoice()}
+                    style={{ flex: 1 }}
+                  />
+                  <button
+                    type="button"
+                    style={styles.smallBtn}
+                    onClick={applyFishVoice}
+                    title={t("quickControls.fishVoiceIdApply")}
+                  >
+                    <Check size={14} color="var(--accent)" />
+                  </button>
+                </div>
+                <span style={styles.hint}>{t("quickControls.fishVoiceIdHint")}</span>
+              </div>
+            )}
           </div>
         )}
       </div>
