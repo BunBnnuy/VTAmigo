@@ -6,13 +6,14 @@
  * --text, --accent...), except the OBS/demo/prompt mocks: those are
  * "screenshots" of dark tools and stay dark in both themes.
  *
- * Typography is landing-only (Outfit + Instrument Serif, loaded in
- * index.html); the app chrome keeps Quicksand/Nunito. See frontend/DESIGN.md.
+ * Typography is the app's Quicksand (headings, buttons, labels) + Nunito
+ * (body) pairing at marketing scale; see frontend/DESIGN.md.
  */
 
 .landing {
-  --font-display: "Instrument Serif", "Iowan Old Style", Georgia, serif;
-  --font-body: "Outfit", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Quicksand", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-ui: "Quicksand", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-body: "Nunito", system-ui, -apple-system, "Segoe UI", sans-serif;
   --font-code: ui-monospace, "SFMono-Regular", "Cascadia Mono", Menlo, Consolas, monospace;
   --l-max: 1120px;
   --l-gutter: 24px;
@@ -57,10 +58,10 @@
 .landing h3,
 .landing h4 {
   font-family: var(--font-display);
-  font-weight: 400;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   font-synthesis: none;
   line-height: 1.15;
-  letter-spacing: 0;
   margin: 0;
   text-wrap: balance;
 }
@@ -163,7 +164,7 @@
   padding: 12px 20px;
   border-radius: var(--l-radius);
   border: 1px solid transparent;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 600;
   cursor: pointer;
@@ -190,7 +191,7 @@
   align-items: center;
   min-height: 46px;
   padding: 0 4px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 15px;
   color: var(--text);
@@ -252,8 +253,8 @@
 }
 
 .landing .brand-name {
-  font-family: var(--font-body);
-  font-size: 1.2rem;
+  font-family: var(--font-ui);
+  font-size: 19px;
   font-weight: 700;
   letter-spacing: -0.02em;
 }
@@ -323,7 +324,7 @@
   align-items: center;
   min-height: 44px;
   padding: 0 2px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 15px;
   font-weight: 600;
   color: var(--text);
@@ -374,9 +375,9 @@
 .landing .mobile-nav a {
   display: block;
   padding: 13px 4px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-weight: 600;
-  font-size: 1rem;
+  font-size: 16px;
   color: var(--text);
   border-bottom: 1px solid var(--border);
 }
@@ -407,7 +408,7 @@
 }
 
 .landing .hero h1 {
-  font-size: clamp(2.5rem, 4vw, 3.25rem);
+  font-size: clamp(40px, 3.6vw, 48px);
   line-height: 1.16;
   max-width: 24ch;
 }
@@ -416,7 +417,7 @@
   margin-top: 22px;
   max-width: 47ch;
   color: var(--text-muted);
-  font-size: clamp(1.02rem, 1.35vw, 1.14rem);
+  font-size: clamp(16px, 1.35vw, 18px);
   line-height: 1.7;
 }
 
@@ -452,7 +453,7 @@
   padding: 10px 14px;
   background: var(--d-chip);
   border-bottom: 1px solid var(--d-line);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   color: var(--d-muted);
@@ -516,7 +517,7 @@
   justify-content: space-between;
   padding-bottom: 6px;
   border-bottom: 1px solid #1e1e24;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
   color: var(--d-muted-2);
@@ -579,7 +580,7 @@
 }
 
 .landing .sys-tag {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;
   color: var(--accent-light);
@@ -627,14 +628,14 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   white-space: nowrap;
 }
 
 .landing .avatar-tag {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
   color: var(--d-muted);
@@ -718,7 +719,7 @@
 }
 
 .landing .caption-label {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
   color: var(--accent-light);
@@ -743,7 +744,7 @@
 .landing .xp-head {
   display: flex;
   justify-content: space-between;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
   color: var(--d-muted);
@@ -785,7 +786,7 @@
   flex: none;
   padding: 2px 5px;
   border-radius: 2px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;
   color: #fff;
@@ -839,7 +840,7 @@
 
 .landing .controls-label {
   margin-right: 2px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   color: var(--d-muted);
@@ -855,7 +856,7 @@
   border: 1px solid var(--d-line-strong);
   background: #19191d;
   color: var(--d-text);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
@@ -906,7 +907,7 @@
   border-radius: var(--l-radius);
   background: transparent;
   color: var(--d-muted);
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 700;
   cursor: pointer;
@@ -938,7 +939,7 @@
 }
 
 .landing .section h2 {
-  font-size: clamp(1.85rem, 2.8vw, 2.35rem);
+  font-size: clamp(30px, 2.8vw, 38px);
   margin-bottom: 16px;
   max-width: 26ch;
 }
@@ -965,7 +966,7 @@
 
 .landing .step h3,
 .landing .feature-list h3 {
-  font-size: 1.45rem;
+  font-size: 23px;
   margin-bottom: 0;
 }
 
@@ -985,7 +986,7 @@
 }
 
 .landing .personality-copy h3 {
-  font-size: 1.7rem;
+  font-size: 27px;
   margin-bottom: 10px;
 }
 
@@ -1012,7 +1013,7 @@
   padding: 8px 12px;
   border-bottom: 1px solid #232329;
   background: #101014;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
   color: var(--d-muted);
@@ -1028,7 +1029,7 @@
 
 .landing .overlay-grid {
   display: grid;
-  grid-template-columns: 0.9fr 1.1fr;
+  grid-template-columns: 1fr 1fr;
   gap: 56px;
   align-items: start;
 }
@@ -1045,7 +1046,7 @@
 }
 
 .landing .overlay-points h3 {
-  font-size: 1.35rem;
+  font-size: 22px;
   margin-bottom: 4px;
 }
 
@@ -1071,7 +1072,7 @@
   align-items: center;
   justify-content: space-between;
   gap: 10px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   color: var(--d-muted);
@@ -1087,7 +1088,7 @@
   justify-content: space-between;
   gap: 10px;
   margin-bottom: 9px;
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 12px;
   font-weight: 600;
   color: var(--d-muted);
@@ -1101,7 +1102,7 @@
 }
 
 .landing .oc-level {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-weight: 600;
   font-size: 15px;
 }
@@ -1112,7 +1113,7 @@
 }
 
 .landing .oc-value {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   color: var(--d-muted);
@@ -1149,7 +1150,7 @@
 }
 
 .landing .rank-pos {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   color: var(--d-muted);
@@ -1163,7 +1164,7 @@
 }
 
 .landing .rank-xp {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-size: 13px;
   font-weight: 600;
   color: var(--d-muted);
@@ -1235,8 +1236,8 @@
   padding: 19px 44px 19px 0;
   cursor: pointer;
   list-style: none;
-  font-family: var(--font-body);
-  font-size: 1.05rem;
+  font-family: var(--font-ui);
+  font-size: 17px;
   font-weight: 600;
   color: var(--text);
 }
@@ -1285,7 +1286,7 @@
 }
 
 .landing .cta-copy h2 {
-  font-size: clamp(1.85rem, 2.8vw, 2.35rem);
+  font-size: clamp(30px, 2.8vw, 38px);
   margin-bottom: 14px;
   max-width: 18ch;
 }
@@ -1347,9 +1348,9 @@
 }
 
 .landing .footer-brand span {
-  font-family: var(--font-body);
+  font-family: var(--font-ui);
   font-weight: 700;
-  font-size: 1rem;
+  font-size: 16px;
 }
 
 .landing .footer-links {
@@ -1528,17 +1529,17 @@
   }
 
   .landing .hero h1 {
-    font-size: 2.15rem;
+    font-size: 34px;
     max-width: 20ch;
   }
 
   .landing .section h2,
   .landing .cta-copy h2 {
-    font-size: 1.65rem;
+    font-size: 26px;
   }
 
   .landing .hero-sub {
-    font-size: 1rem;
+    font-size: 16px;
   }
 
   .landing .hero-actions {
@@ -1613,7 +1614,7 @@
   }
 
   .landing .personality-copy h3 {
-    font-size: 1.45rem;
+    font-size: 23px;
   }
 
   .landing .cta-section {
@@ -1655,7 +1656,7 @@
 
 @media (max-width: 400px) {
   .landing .brand-name {
-    font-size: 1.18rem;
+    font-size: 19px;
   }
 
   .landing .avatar-frame {
