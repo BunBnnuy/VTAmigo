@@ -225,7 +225,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       return migrateSettings({});
     }
   });
-  const { t } = useTranslation(settings.language);
+  const { t, lang: uiLang } = useTranslation(settings.language);
   const [theme, setTheme] = useState(() => {
     try {
       return localStorage.getItem("theme") || "system";
@@ -245,6 +245,11 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
       // localStorage unavailable — theme choice won't persist.
     }
   }, [theme]);
+  // Keep the document language in sync with the UI language once the app is
+  // behind the landing, which sets its own `lang` from the picker.
+  useEffect(() => {
+    document.documentElement.lang = uiLang;
+  }, [uiLang]);
   const cycleTheme = () => {
     setTheme((cur) => (cur === "system" ? "light" : cur === "light" ? "dark" : "system"));
   };
