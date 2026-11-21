@@ -1,0 +1,254 @@
+[
+  {
+    "id": "neutral_idle",
+    "label": "Idle neutro",
+    "file": "animations/neutral_idle.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
+    "id": "idle_look",
+    "label": "Idle mirando",
+    "file": "animations/idle_look.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
+    "id": "idle_soft",
+    "label": "Idle suave",
+    "file": "animations/idle_soft.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
+    "id": "idle_still",
+    "label": "Idle quieto",
+    "file": "animations/idle_still.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
+    "id": "idle_standing",
+    "label": "Idle de pie",
+    "file": "animations/idle_standing.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
+    "id": "idle_standing2",
+    "label": "Idle de pie 2",
+    "file": "animations/idle_standing2.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
+    "id": "talking",
+    "label": "Hablando",
+    "file": "animations/talking.vrma",
+    "loop": true,
+    "category": "talk",
+    "acts": [
+      "neutral",
+      "question"
+    ],
+    "talk": true
+  },
+  {
+    "id": "wave",
+    "label": "Saludar",
+    "file": "animations/wave_fast.vrma",
+    "loop": false,
+    "category": "greet",
+    "acts": [
+      "greeting"
+    ]
+  },
+  {
+    "id": "wave_pose",
+    "label": "Saludar (pose)",
+    "file": "animations/wave_pose.vrma",
+    "loop": false,
+    "category": "greet",
+    "acts": [
+      "greeting"
+    ]
+  },
+  {
+    "id": "cheer",
+    "label": "Animar",
+    "file": "animations/cheer.vrma",
+    "loop": false,
+    "category": "greet",
+    "acts": [
+      "greeting",
+      "happy"
+    ]
+  },
+  {
+    "id": "excited",
+    "label": "Emoción",
+    "file": "animations/excited.vrma",
+    "loop": false,
+    "category": "happy",
+    "acts": [
+      "happy"
+    ]
+  },
+  {
+    "id": "joyful_jump",
+    "label": "Salto",
+    "file": "animations/joyful_jump.vrma",
+    "loop": false,
+    "category": "happy",
+    "acts": [
+      "happy"
+    ]
+  },
+  {
+    "id": "clapping",
+    "label": "Aplaudir",
+    "file": "animations/clapping.vrma",
+    "loop": false,
+    "category": "happy",
+    "acts": [
+      "happy"
+    ]
+  },
+  {
+    "id": "victory",
+    "label": "Victoria",
+    "file": "animations/victory.vrma",
+    "loop": false,
+    "category": "happy",
+    "acts": [
+      "happy"
+    ]
+  },
+  {
+    "id": "spin",
+    "label": "Girar",
+    "file": "animations/spin.vrma",
+    "loop": false,
+    "category": "happy",
+    "acts": [
+      "happy"
+    ]
+  },
+  {
+    "id": "thinking",
+    "label": "Pensar",
+    "file": "animations/thinking.vrma",
+    "loop": false,
+    "category": "think",
+    "acts": [
+      "thinking"
+    ]
+  },
+  {
+    "id": "think",
+    "label": "Pensar 2",
+    "file": "animations/think.vrma",
+    "loop": false,
+    "category": "think",
+    "acts": [
+      "thinking"
+    ],
+    "talk": true
+  },
+  {
+    "id": "shake_head",
+    "label": "Negar",
+    "file": "animations/shake_head.vrma",
+    "loop": false,
+    "category": "think"
+  },
+  {
+    "id": "thankful",
+    "label": "Gracias",
+    "file": "animations/thankful.vrma",
+    "loop": false,
+    "category": "thanks",
+    "acts": [
+      "thanks"
+    ]
+  },
+  {
+    "id": "agree",
+    "label": "Asentir",
+    "file": "animations/agree.vrma",
+    "loop": false,
+    "category": "thanks",
+    "acts": [
+      "question"
+    ],
+    "talk": true
+  },
+  {
+    "id": "droop",
+    "label": "Decaído",
+    "file": "animations/droop.vrma",
+    "loop": false,
+    "category": "sad",
+    "acts": [
+      "sad"
+    ]
+  },
+  {
+    "id": "stomp",
+    "label": "Enfado",
+    "file": "animations/stomp.vrma",
+    "loop": false,
+    "category": "angry",
+    "acts": [
+      "angry"
+    ]
+  },
+  {
+    "id": "surprised",
+    "label": "Sorpresa",
+    "file": "animations/surprised.vrma",
+    "loop": false,
+    "category": "surprise",
+    "acts": [
+      "surprised"
+    ]
+  },
+  {
+    "id": "startle",
+    "label": "Sobresalto",
+    "file": "animations/startle.vrma",
+    "loop": false,
+    "category": "surprise",
+    "acts": [
+      "surprised"
+    ]
+  },
+  {
+    "id": "fear",
+    "label": "Miedo",
+    "file": "animations/fear.vrma",
+    "loop": false,
+    "category": "surprise",
+    "acts": [
+      "surprised"
+    ]
+  },
+  {
+    "id": "sway",
+    "label": "Balanceo",
+    "file": "animations/sway.vrma",
+    "loop": false,
+    "category": "gesture",
+    "acts": [
+      "neutral"
+    ],
+    "talk": true
+  },
+  {
+    "id": "stretch",
+    "label": "Estirarse",
+    "file": "animations/stretch.vrma",
+    "loop": false,
+    "category": "gesture"
+  }
+]

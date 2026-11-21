@@ -1,8 +1,21 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { fileURLToPath } from "node:url";
 
 export default defineConfig({
   plugins: [react()],
+  build: {
+    rollupOptions: {
+      // The VRM lab is a standalone page, not a client-side route: giving it
+      // its own entry keeps three.js and @pixiv/three-vrm out of the main
+      // app bundle (see src/vrmLab/main.jsx).
+      input: {
+        main: fileURLToPath(new URL("./index.html", import.meta.url)),
+        vrmLab: fileURLToPath(new URL("./vrm-lab.html", import.meta.url)),
+        vrmOverlay: fileURLToPath(new URL("./vrm-overlay.html", import.meta.url)),
+      },
+    },
+  },
   server: {
     port: 5173,
     proxy: {

@@ -16,6 +16,7 @@ import ChatTTSPPanel from "./ChatTTSPPanel.jsx";
 import ReactiveAvatarPanel from "./ReactiveAvatarPanel.jsx";
 import ChatRankingPanel from "./ChatRankingPanel.jsx";
 import MixerPanel from "./MixerPanel.jsx";
+import VRMPanel from "./VRMPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
@@ -35,6 +36,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     shoutout:          { x: 520,  y: 960, w: 480, h: 340, z: 14, collapsed: false, closed: false },
     mixer:             { x: 20,   y: 600, w: 480, h: 360, z: 15, collapsed: false, closed: false },
     streak:            { x: 20,   y: 960, w: 480, h: 420, z: 16, collapsed: false, closed: false },
+    vrm:               { x: 1020, y: 1260, w: 300, h: 470, z: 17, collapsed: false, closed: false },
   },
 };
 
@@ -58,6 +60,7 @@ export const PANEL_META = [
   { id: "shoutout", titleKey: "shoutoutPanel.title", dataTour: null },
   { id: "streak", titleKey: "streakPanel.title", dataTour: null },
   { id: "mixer", titleKey: "mixerPanel.title", dataTour: null },
+  { id: "vrm", titleKey: "vrmPanel.title", dataTour: null },
 ];
 
 // Fills in any window key missing from a saved layout (new panel added in a
@@ -112,6 +115,7 @@ export default function WindowManager({
       case "shoutout": return <ShoutoutPanel {...shoutoutProps} lang={lang} />;
       case "streak": return <StreakPanel {...streakProps} lang={lang} />;
       case "mixer": return <MixerPanel {...mixerPanelProps} lang={lang} />;
+      case "vrm": return <VRMPanel lang={lang} />;
       default: return null;
     }
   };

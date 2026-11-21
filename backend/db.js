@@ -77,6 +77,18 @@ db.exec(`
     config TEXT NOT NULL
   );
 
+  -- Per-account VRM overlay settings (backend/vrmConfig.js): the model URL the
+  -- overlay loads on start plus its idle/act preferences. Separate from
+  -- user_settings so the app's periodic settings sync never clobbers it.
+  CREATE TABLE IF NOT EXISTS vrm_config (
+    twitchId TEXT PRIMARY KEY,
+    modelUrl TEXT NOT NULL DEFAULT '',
+    idleClip TEXT NOT NULL DEFAULT '',
+    autoClips INTEGER NOT NULL DEFAULT 1,
+    varyIdle INTEGER NOT NULL DEFAULT 0,
+    updatedAt TEXT NOT NULL
+  );
+
   CREATE TABLE IF NOT EXISTS site_config (
     id INTEGER PRIMARY KEY CHECK (id = 1),
     config TEXT NOT NULL

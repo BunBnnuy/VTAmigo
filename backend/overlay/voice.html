@@ -125,6 +125,11 @@
     if (item.ttsProvider === "kitten") {
       return speakNeural(item, gain, rate, "/overlay/tts/kitten", "kittenVoice", "KittenTTS").then((ok) => (ok ? undefined : fallback()));
     }
+    // Hosted Fish Audio: no local worker, so a 503 (no API key configured) or
+    // an upstream error falls through to the browser/Piper chain.
+    if (item.ttsProvider === "fish") {
+      return speakNeural(item, gain, rate, "/overlay/tts/fish", "fishVoice", "Fish Audio").then((ok) => (ok ? undefined : fallback()));
+    }
     return fallback();
   }
 

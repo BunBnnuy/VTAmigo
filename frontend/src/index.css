@@ -173,3 +173,14 @@ label { display: block; font-size: 12px; color: var(--text-muted); margin-bottom
 .admin-table tbody tr:nth-child(even) { background: var(--surface2); }
 .admin-table tbody tr:hover { background: color-mix(in srgb, var(--accent) 8%, transparent); }
 .admin-table th { position: sticky; top: 0; background: var(--surface); z-index: 1; }
+
+/* Generic spinner for icon-only loading states (see VRMPanel). */
+.spin {
+  animation: vtm-spin 1s linear infinite;
+}
+
+@keyframes vtm-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}

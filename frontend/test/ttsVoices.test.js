@@ -29,6 +29,7 @@ describe("selectedVoiceValue", () => {
   it("reads the voice field that belongs to the active provider", () => {
     expect(selectedVoiceValue({ ttsProvider: "piper", piperVoice: "es_dalia" })).toBe(encodeVoiceValue("piper", "es_dalia"));
     expect(selectedVoiceValue({ ttsProvider: "kokoro", kokoroVoice: "ef_dora" })).toBe(encodeVoiceValue("kokoro", "ef_dora"));
+    expect(selectedVoiceValue({ ttsProvider: "fish", fishVoice: "fish-1" })).toBe(encodeVoiceValue("fish", "fish-1"));
     expect(selectedVoiceValue({ ttsProvider: "windows", voiceURI: "Google español" })).toBe(encodeVoiceValue("windows", "Google español"));
   });
 
@@ -59,6 +60,7 @@ describe("buildVoiceOptions", () => {
     piperVoices: [{ id: "es_dalia", name: "Dalia" }],
     kittenVoices: [{ id: "Luna", name: "Luna" }],
     kokoroVoices: [{ id: "ef_dora", name: "Dora · ES" }],
+    fishVoices: [{ id: "fish-voice-1", name: "Clon propio" }],
     t,
   });
 
@@ -73,6 +75,8 @@ describe("buildVoiceOptions", () => {
       "Kitten/Luna",
       "Kokoro/Default",
       "Kokoro/Dora · ES",
+      "Fish Audio/Default",
+      "Fish Audio/Clon propio",
     ]);
   });
 

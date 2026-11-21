@@ -117,4 +117,17 @@ function generateSpeech({ text, voice }) {
   });
 }
 
-module.exports = { isInstalled, listVoices, generateSpeech, DEFAULT_VOICE, MAX_CONCURRENT_JOBS, MAX_TEXT_CHARS, tryAcquireSlot, releaseSlot };
+module.exports = {
+  isInstalled,
+  listVoices,
+  generateSpeech,
+  DEFAULT_VOICE,
+  MAX_CONCURRENT_JOBS,
+  MAX_TEXT_CHARS,
+  tryAcquireSlot,
+  releaseSlot,
+  // Paths are exported for visemes.js, which runs the bundled phonemizer
+  // (piper_phonemize + espeak-ng-data) from the same install directory.
+  PIPER_DIR,
+  PIPER_EXE,
+};

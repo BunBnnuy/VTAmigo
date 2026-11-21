@@ -1,0 +1,577 @@
+/* VRM lip-sync lab — standalone page, so it owns the viewport instead of
+   living inside a Window. Tokens come from index.css (DESIGN.md is the source
+   of truth); nothing here hardcodes a palette colour except the viseme hues,
+   which are data-driven (see visemeTimeline.js) rather than theme colours. */
+
+.vrmLab {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg);
+  color: var(--text);
+}
+
+/* ── Header ─────────────────────────────────────────────────────────────── */
+
+.vrmLabHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--surface);
+}
+
+.vrmLabTitle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.vrmLabMark {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: var(--on-accent);
+  flex-shrink: 0;
+}
+
+.vrmLabTitle h1 {
+  font-size: 15px;
+  line-height: 1.2;
+  letter-spacing: 0.2px;
+}
+
+.vrmLabTitle p {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.vrmLabBadges {
+  display: flex;
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.vrmLabBadge {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 16%, transparent);
+  color: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 40%, transparent);
+  font-family: "Quicksand", sans-serif;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.vrmLabBadgeMuted {
+  background: var(--surface2);
+  color: var(--text-muted);
+  border-color: var(--border);
+}
+
+/* ── Layout ─────────────────────────────────────────────────────────────── */
+
+.vrmLabMain {
+  flex: 1;
+  min-height: 0;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 400px;
+}
+
+@media (max-width: 900px) {
+  .vrmLabMain {
+    grid-template-columns: 1fr;
+    grid-template-rows: minmax(320px, 55vh) minmax(0, 1fr);
+  }
+}
+
+/* ── Stage ──────────────────────────────────────────────────────────────── */
+
+.vrmStage {
+  position: relative;
+  min-height: 0;
+  overflow: hidden;
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 30%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    radial-gradient(ellipse 80% 60% at 50% 110%, var(--surface2), transparent 70%),
+    var(--bg);
+}
+
+.vrmStage.isDragging {
+  outline: 2px dashed var(--accent);
+  outline-offset: -10px;
+}
+
+.vrmCanvas {
+  position: absolute;
+  inset: 0;
+}
+
+.vrmCanvas canvas {
+  display: block;
+}
+
+.vrmEmpty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 24px;
+  text-align: center;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.vrmEmpty > * {
+  pointer-events: auto;
+}
+
+.vrmEmpty h2 {
+  font-size: 17px;
+  color: var(--text);
+}
+
+.vrmEmpty p {
+  max-width: 360px;
+  font-size: 12.5px;
+  line-height: 1.55;
+}
+
+.vrmProgress {
+  width: min(280px, 70%);
+  height: 4px;
+  border-radius: 999px;
+  background: var(--border);
+  overflow: hidden;
+}
+
+.vrmProgress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.15s linear;
+}
+
+.vrmStageHud {
+  position: absolute;
+  top: 12px;
+  left: 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100% - 24px);
+  padding: 5px 10px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--surface) 82%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  font-size: 11.5px;
+  color: var(--text-muted);
+}
+
+.vrmStageHud strong {
+  color: var(--text);
+  font-family: "Quicksand", sans-serif;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.vrmDot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--border);
+  flex-shrink: 0;
+}
+
+.vrmDot[data-on="true"] {
+  background: var(--green);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--green) 25%, transparent);
+}
+
+.vrmDropVeil {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--accent) 18%, var(--bg));
+  color: var(--on-accent);
+  font-family: "Quicksand", sans-serif;
+  font-size: 18px;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* ── Timeline strip ─────────────────────────────────────────────────────── */
+
+.vrmTimeline {
+  position: absolute;
+  left: 14px;
+  right: 14px;
+  bottom: 14px;
+  height: 24px;
+  border-radius: 6px;
+  background: color-mix(in srgb, var(--surface) 78%, transparent);
+  border: 1px solid var(--border);
+  backdrop-filter: blur(8px);
+  overflow: hidden;
+}
+
+.vrmTimelineSegments {
+  position: absolute;
+  inset: 4px 0;
+}
+
+.vrmTimelineSeg {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 2px;
+  min-width: 1px;
+}
+
+.vrmPlayhead {
+  position: absolute;
+  top: -2px;
+  bottom: -2px;
+  left: 0;
+  width: 2px;
+  background: var(--text);
+  box-shadow: 0 0 6px color-mix(in srgb, var(--text) 55%, transparent);
+}
+
+/* ── Control panel ──────────────────────────────────────────────────────── */
+
+.vrmPanel {
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  background: var(--surface);
+  border-left: 1px solid var(--border);
+}
+
+@media (max-width: 900px) {
+  .vrmPanel {
+    border-left: none;
+    border-top: 1px solid var(--border);
+  }
+}
+
+.vrmSection {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--surface2);
+}
+
+.vrmSection h3 {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.vrmHint {
+  font-family: "Nunito", sans-serif;
+  text-transform: none;
+  letter-spacing: 0;
+  font-weight: 600;
+  color: var(--accent-light);
+}
+
+.vrmRow {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.vrmRow > input {
+  flex: 1;
+  min-width: 0;
+}
+
+.vrmRowEnd {
+  justify-content: flex-end;
+}
+
+.vrmCounter {
+  margin-right: auto;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vrmLabel {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.vrmPanel textarea {
+  width: 100%;
+  resize: vertical;
+  min-height: 84px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 12px;
+  font-family: "Nunito", sans-serif;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.vrmPanel textarea:focus,
+.vrmPanel input:focus,
+.vrmPanel select:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.vrmBtn {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 7px 12px;
+  font-family: "Quicksand", sans-serif;
+  font-size: 12.5px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: opacity 0.15s, background 0.15s;
+}
+
+.vrmBtn:hover:not(:disabled) {
+  opacity: 0.88;
+}
+
+.vrmBtn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.vrmBtnPrimary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--on-accent);
+}
+
+.vrmBtnGhost {
+  background: transparent;
+  color: var(--text-muted);
+}
+
+/* ── Live viseme bars ───────────────────────────────────────────────────── */
+
+.vrmBars {
+  display: flex;
+  gap: 6px;
+  align-items: flex-end;
+  height: 74px;
+  padding: 6px 2px 0;
+}
+
+.vrmBar {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  height: 100%;
+}
+
+.vrmBarTrack {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  border-radius: 5px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  overflow: hidden;
+}
+
+.vrmBarFill {
+  position: absolute;
+  inset: 0;
+  transform-origin: bottom;
+  transform: scaleY(0.02);
+  border-radius: 4px;
+  transition: transform 0.06s linear;
+}
+
+.vrmBar > span {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-muted);
+  font-family: "Quicksand", sans-serif;
+}
+
+.vrmMeters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 11px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.vrmMeters span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.vrmPhonemes {
+  max-height: 86px;
+  overflow-y: auto;
+  padding: 8px 10px;
+  border-radius: 7px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  font-family: "Nunito", monospace;
+  font-size: 12px;
+  line-height: 1.7;
+  word-break: break-word;
+  color: var(--text-muted);
+}
+
+.vrmNotice {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  padding: 9px 11px;
+  border-radius: 9px;
+  font-size: 12px;
+  line-height: 1.45;
+  background: color-mix(in srgb, var(--yellow) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--yellow) 45%, transparent);
+  color: var(--text);
+}
+
+.vrmNotice.isError {
+  background: color-mix(in srgb, var(--red) 14%, transparent);
+  border-color: color-mix(in srgb, var(--red) 45%, transparent);
+}
+
+.vrmNotice svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+
+.vrmFootnote {
+  font-size: 11px;
+  line-height: 1.55;
+  color: var(--text-muted);
+  padding: 0 2px;
+}
+
+.vrmSpin {
+  animation: vrmSpin 1s linear infinite;
+}
+
+@keyframes vrmSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Manual viseme preview (A/E/I/O/U chips) */
+.vrmPreview {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-top: 2px;
+}
+
+.vrmPreviewLabel {
+  margin-right: 2px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.vrmChip {
+  min-width: 30px;
+  padding: 4px 0;
+  border-radius: 7px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  color: var(--text-muted);
+  font-family: "Quicksand", sans-serif;
+  font-size: 11.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.vrmChip.isOn {
+  border-color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, transparent);
+  color: var(--accent-light);
+}
+
+/* Detected act badge in the stage HUD */
+.vrmActBadge {
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent) 20%, transparent);
+  color: var(--accent-light);
+  border: 1px solid color-mix(in srgb, var(--accent) 38%, transparent);
+  font-size: 10.5px;
+  font-weight: 700;
+}
+
+.vrmCheck {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-size: 11.5px;
+  line-height: 1.45;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.vrmCheck input {
+  margin-top: 2px;
+  accent-color: var(--accent);
+}
+
+/* Fish Audio provider state under the voice input */
+.vrmFishState {
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--text-muted);
+}
+
+.vrmFishState.isOn {
+  color: var(--green);
+}
