@@ -17,6 +17,7 @@ import ReactiveAvatarPanel from "./ReactiveAvatarPanel.jsx";
 import ChatRankingPanel from "./ChatRankingPanel.jsx";
 import MixerPanel from "./MixerPanel.jsx";
 import VRMPanel from "./VRMPanel.jsx";
+import ShowRunnerPanel from "./ShowRunnerPanel.jsx";
 
 export const DEFAULT_PANEL_LAYOUT = {
   windows: {
@@ -37,6 +38,7 @@ export const DEFAULT_PANEL_LAYOUT = {
     mixer:             { x: 20,   y: 600, w: 480, h: 360, z: 15, collapsed: false, closed: false },
     streak:            { x: 20,   y: 960, w: 480, h: 420, z: 16, collapsed: false, closed: false },
     vrm:               { x: 1020, y: 1260, w: 300, h: 470, z: 17, collapsed: false, closed: false },
+    showRunner:        { x: 1340, y: 800, w: 380, h: 560, z: 18, collapsed: false, closed: false },
   },
 };
 
@@ -60,7 +62,10 @@ export const PANEL_META = [
   { id: "shoutout", titleKey: "shoutoutPanel.title", dataTour: null },
   { id: "streak", titleKey: "streakPanel.title", dataTour: null },
   { id: "mixer", titleKey: "mixerPanel.title", dataTour: null },
-  { id: "vrm", titleKey: "vrmPanel.title", dataTour: null },
+  // Owner-only: not rendered for any other account (see the filter in both
+  // WindowManager and PanelsMenu, and requireOwner on the backend routes).
+  { id: "vrm", titleKey: "vrmPanel.title", dataTour: null, ownerOnly: true },
+  { id: "showRunner", titleKey: "showRunnerPanel.title", dataTour: null, ownerOnly: true },
 ];
 
 // Fills in any window key missing from a saved layout (new panel added in a
@@ -79,7 +84,7 @@ export default function WindowManager({
   panelLayout, onUpdateWindow, onFocusWindow, t,
   chatFeedProps, responsePanelProps, quickControlsProps, videoQueueProps,
   avatarPanelProps, activityPanelProps, achievementsPanelProps, chatTtsPanelProps,
-  shoutoutProps, streakProps, mixerPanelProps, lang,
+  shoutoutProps, streakProps, mixerPanelProps, showRunnerProps, isOwner, lang,
 }) {
   // `layout` is handed to panels that need to know whether they're actually on
   // screen — <Window> keeps collapsed children mounted (hidden with CSS) so
@@ -116,6 +121,7 @@ export default function WindowManager({
       case "streak": return <StreakPanel {...streakProps} lang={lang} />;
       case "mixer": return <MixerPanel {...mixerPanelProps} lang={lang} />;
       case "vrm": return <VRMPanel lang={lang} />;
+      case "showRunner": return <ShowRunnerPanel {...showRunnerProps} lang={lang} />;
       default: return null;
     }
   };
@@ -132,7 +138,7 @@ export default function WindowManager({
           minWidth/minHeight, until that let the whole page grow past the
           viewport and clip the top/bottom bars). */}
       <div style={styles.surface}>
-        {PANEL_META.map(({ id, titleKey, title, dataTour }) => {
+        {PANEL_META.filter((panel) => isOwner || !panel.ownerOnly).map(({ id, titleKey, title, dataTour }) => {
           const layout = panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id];
           if (layout.closed) return null;
           return (

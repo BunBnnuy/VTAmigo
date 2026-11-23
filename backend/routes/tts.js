@@ -13,6 +13,9 @@
 // answering 401 for the removed /tts/elevenlabs* routes.
 const express = require("express");
 const path = require("path");
+const fs = require("fs");
+const crypto = require("crypto");
+const multer = require("multer");
 const piper = require("../piper");
 const visemes = require("../visemes");
 const fish = require("../fish");
@@ -20,7 +23,7 @@ const vrmConfig = require("../vrmConfig");
 const kitten = require("../kitten");
 const kokoro = require("../kokoro");
 const { aiLimiter } = require("../rateLimits");
-const { requireApprovedUser, getApprovedUserFromCookieHeader, findUserByOverlayToken } = require("../auth");
+const { requireOwner, isOwner, getApprovedUserFromCookieHeader, findUserByOverlayToken } = require("../auth");
 const { broadcastToAccount } = require("../sessions");
 
 const router = express.Router();
@@ -144,7 +147,7 @@ router.post("/tts/piper", aiLimiter, async (req, res) => {
 // derived from the exact phonemes the voice model consumes. Kept in the same
 // router as /tts/piper so both share the aiLimiter budget (one Piper spawn
 // each) and the /tts auth gate in app.js.
-router.post("/tts/visemes", aiLimiter, async (req, res) => {
+router.post("/tts/visemes", requireOwner, aiLimiter, async (req, res) => {
   const { text, voice, provider, speed } = req.body || {};
   if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
   try {
@@ -238,11 +241,93 @@ router.post("/tts/fish", aiLimiter, async (req, res) => {
 // The lab (session auth) saves the model + idle choices; the OBS page (overlay
 // token) reads them so it reloads the same VRM without any manual step.
 
-router.get("/vrm-lab/config", requireApprovedUser, (req, res) => {
+// Uploaded VRM models. Runtime data (gitignored) on purpose: a 250 MB+ avatar
+// must never live in git or in frontend/dist. The URL stored in vrm_config is
+// a same-origin path served by the route below, not a data URL.
+const VRM_DIR = path.join(__dirname, "..", "data", "vrm");
+fs.mkdirSync(VRM_DIR, { recursive: true });
+
+// Chunked uploads. Cloudflare sits in front of the site and rejects a single
+// request body over its plan limit (100 MB on Free/Pro), so the browser sends
+// the model in 16 MB pieces and the server assembles them. This is also what
+// makes per-chunk retries and an honest progress bar possible.
+const VRM_CHUNK_DIR = path.join(VRM_DIR, ".uploads");
+fs.mkdirSync(VRM_CHUNK_DIR, { recursive: true });
+const VRM_UPLOAD_ID_RE = /^[a-f0-9-]{36}$/;
+const VRM_CHUNK_BYTES = 8 * 1024 * 1024;
+const VRM_MAX_CHUNKS = 20000; // ~320 GB sanity cap; not a practical limit
+
+// A crashed/aborted upload leaves a .part or a chunk dir behind; clean
+// anything stale periodically. Twelve hours is far longer than any real
+// upload, so this can never race an in-flight one.
+function cleanupStaleVrmUploads() {
+  try {
+    for (const name of fs.readdirSync(VRM_DIR)) {
+      if (!name.endsWith(".part")) continue;
+      const full = path.join(VRM_DIR, name);
+      if (Date.now() - fs.statSync(full).mtimeMs > 12 * 60 * 60 * 1000) fs.unlinkSync(full);
+    }
+  } catch {
+    /* best-effort housekeeping */
+  }
+  try {
+    for (const name of fs.readdirSync(VRM_CHUNK_DIR)) {
+      const full = path.join(VRM_CHUNK_DIR, name);
+      try {
+        if (Date.now() - fs.statSync(full).mtimeMs > 12 * 60 * 60 * 1000) {
+          fs.rmSync(full, { recursive: true, force: true });
+        }
+      } catch {
+        /* one bad entry must not stop the sweep */
+      }
+    }
+  } catch {
+    /* best-effort housekeeping */
+  }
+}
+cleanupStaleVrmUploads();
+// An abandoned 300 MB chunk set should not sit on disk for weeks.
+const vrmCleanupTimer = setInterval(cleanupStaleVrmUploads, 60 * 60 * 1000);
+vrmCleanupTimer.unref?.();
+
+const vrmStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, VRM_DIR),
+  filename: (req, file, cb) => {
+    const name = `${crypto.randomUUID()}.vrm.part`;
+    // Remember the partial path so an aborted request can delete it even
+    // before multer populates req.file.
+    req._vrmUploadPath = path.join(VRM_DIR, name);
+    cb(null, name);
+  },
+});
+
+// No `limits.fileSize`: the owner's VRMs can exceed 250 MB. The only cap is
+// the disk-space guard below, which is about protecting the server, not about
+// rejecting a legitimately large avatar.
+const vrmUpload = multer({ storage: vrmStorage });
+
+const chunkStorage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, req._chunkDir),
+  filename: (req, file, cb) => cb(null, `${req.params.index}.part`),
+});
+const chunkUpload = multer({ storage: chunkStorage });
+
+const VRM_FILE_RE = /^[a-f0-9-]{36}\.vrm$/;
+
+function freeVrmDiskBytes() {
+  try {
+    const st = fs.statfsSync(VRM_DIR);
+    return Number(st.bavail) * Number(st.bsize);
+  } catch {
+    return null; // unknown: let the upload try rather than block it
+  }
+}
+
+router.get("/vrm-lab/config", requireOwner, (req, res) => {
   res.json(vrmConfig.get(req.user.twitchId));
 });
 
-router.post("/vrm-lab/config", requireApprovedUser, (req, res) => {
+router.post("/vrm-lab/config", requireOwner, (req, res) => {
   try {
     res.json(vrmConfig.save(req.user.twitchId, req.body || {}));
   } catch (err) {
@@ -250,10 +335,293 @@ router.post("/vrm-lab/config", requireApprovedUser, (req, res) => {
   }
 });
 
+// POST /vrm-lab/model — multipart upload of a .vrm (GLB) file. Streams
+// straight to backend/data/vrm and answers the same-origin URL the config
+// should store. Owner-only: this is the streamer's own avatar, not a shared
+// asset library.
+router.post("/vrm-lab/model", requireOwner, (req, res) => {
+  // Keep at least 1 GB of headroom after this body. Uses Content-Length when
+  // present (normal browser upload) and a 2 GB floor for chunked bodies.
+  const free = freeVrmDiskBytes();
+  if (free != null) {
+    const declared = Number(req.headers["content-length"]);
+    const needed = (Number.isFinite(declared) && declared > 0 ? declared : 2 * 1024 ** 3) + 1024 ** 3;
+    if (free < needed) {
+      return res.status(507).json({ error: "No hay espacio suficiente en el servidor para este modelo" });
+    }
+  }
+
+  let finished = false;
+  const cleanup = () => {
+    if (finished) return;
+    finished = true;
+    const part = req._vrmUploadPath;
+    if (part) fs.unlink(part, () => {});
+  };
+  req.on("aborted", cleanup);
+  res.on("close", cleanup);
+
+  vrmUpload.single("file")(req, res, (err) => {
+    if (err) {
+      cleanup();
+      console.error("[vrm-upload]", err.message);
+      return res.status(400).json({ error: err.message || "Upload failed" });
+    }
+    if (!req.file) return res.status(400).json({ error: "file is required" });
+    finished = true;
+
+    const partPath = req.file.path;
+    try {
+      // VRM is a binary glTF: the first four bytes must be the GLB magic.
+      // This rejects an arbitrary file renamed to .vrm before it is served.
+      const fd = fs.openSync(partPath, "r");
+      const header = Buffer.alloc(12);
+      fs.readSync(fd, header, 0, 12, 0);
+      fs.closeSync(fd);
+      if (header.toString("ascii", 0, 4) !== "glTF") {
+        fs.unlinkSync(partPath);
+        return res.status(400).json({ error: "El archivo no es un VRM/GLB válido" });
+      }
+      const name = path.basename(partPath).replace(/\.part$/, "");
+      fs.renameSync(partPath, path.join(VRM_DIR, name));
+      res.json({
+        url: `/vrm-lab/models/${name}`,
+        name: req.file.originalname || name,
+        bytes: req.file.size,
+      });
+    } catch (uploadErr) {
+      try {
+        fs.unlinkSync(partPath);
+      } catch {
+        /* already gone */
+      }
+      console.error("[vrm-upload]", uploadErr.message);
+      res.status(500).json({ error: "No se pudo guardar el modelo" });
+    }
+  });
+});
+
+// POST /vrm-lab/model/init — start a chunked upload. The client declares the
+// total size first so the server can refuse a body that would fill the disk.
+router.post("/vrm-lab/model/init", requireOwner, (req, res) => {
+  const body = req.body || {};
+  const size = Number(body.size);
+  if (!Number.isFinite(size) || size <= 0) {
+    return res.status(400).json({ error: "size is required" });
+  }
+  const chunks = Math.ceil(size / VRM_CHUNK_BYTES);
+  if (chunks > VRM_MAX_CHUNKS) {
+    return res.status(400).json({ error: "El archivo es demasiado grande" });
+  }
+  const free = freeVrmDiskBytes();
+  if (free != null && free < size + 1024 ** 3) {
+    return res.status(507).json({ error: "No hay espacio suficiente en el servidor para este modelo" });
+  }
+  const uploadId = crypto.randomUUID();
+  const dir = path.join(VRM_CHUNK_DIR, uploadId);
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(
+    path.join(dir, "meta.json"),
+    JSON.stringify({
+      size,
+      chunks,
+      name: String(body.name || "").slice(0, 200),
+      owner: req.user.twitchId,
+      createdAt: Date.now(),
+    })
+  );
+  res.json({ uploadId, chunkSize: VRM_CHUNK_BYTES, chunks });
+});
+
+// POST /vrm-lab/model/chunk/:uploadId/:index — one 8 MB piece. The file field
+// is the only multipart part; the identifiers ride in the URL so multer can
+// pick its destination directory before parsing any fields.
+router.post("/vrm-lab/model/chunk/:uploadId/:index", requireOwner, (req, res) => {
+  const uploadId = String(req.params.uploadId || "");
+  const index = Number(req.params.index);
+  if (!VRM_UPLOAD_ID_RE.test(uploadId)) {
+    return res.status(400).json({ error: "Invalid upload" });
+  }
+  const dir = path.join(VRM_CHUNK_DIR, uploadId);
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8"));
+  } catch {
+    return res.status(404).json({ error: "Upload not found" });
+  }
+  if (!Number.isInteger(index) || index < 0 || index >= meta.chunks) {
+    return res.status(400).json({ error: "Invalid chunk" });
+  }
+  if (meta.owner && meta.owner !== req.user.twitchId) {
+    return res.status(404).json({ error: "Upload not found" });
+  }
+  req._chunkDir = dir;
+  chunkUpload.single("file")(req, res, (err) => {
+    if (err) {
+      console.error("[vrm-upload] chunk:", err.message);
+      return res.status(400).json({ error: err.message || "Chunk upload failed" });
+    }
+    if (!req.file) return res.status(400).json({ error: "file is required" });
+    res.json({ ok: true, index, bytes: req.file.size });
+  });
+});
+
+// POST /vrm-lab/model/complete — assemble the chunks, validate the GLB magic
+// and publish the model. Chunks are deleted as they are copied, so peak disk
+// use stays close to one copy of the file.
+router.post("/vrm-lab/model/complete", requireOwner, async (req, res) => {
+  const uploadId = String((req.body || {}).uploadId || "");
+  if (!VRM_UPLOAD_ID_RE.test(uploadId)) {
+    return res.status(400).json({ error: "Invalid upload" });
+  }
+  const dir = path.join(VRM_CHUNK_DIR, uploadId);
+  let meta;
+  try {
+    meta = JSON.parse(fs.readFileSync(path.join(dir, "meta.json"), "utf8"));
+  } catch {
+    return res.status(404).json({ error: "Upload not found" });
+  }
+
+  if (meta.owner && meta.owner !== req.user.twitchId) {
+    return res.status(404).json({ error: "Upload not found" });
+  }
+
+  const finalId = crypto.randomUUID();
+  const partPath = path.join(VRM_DIR, `${finalId}.vrm.part`);
+  let out = null;
+  try {
+    out = fs.createWriteStream(partPath);
+    const finished = new Promise((resolve, reject) => {
+      out.on("finish", resolve);
+      out.on("error", reject);
+    });
+    let total = 0;
+    for (let i = 0; i < meta.chunks; i++) {
+      const chunkPath = path.join(dir, `${i}.part`);
+      total += fs.statSync(chunkPath).size;
+      await new Promise((resolve, reject) => {
+        const rs = fs.createReadStream(chunkPath);
+        rs.on("error", reject);
+        rs.on("end", resolve);
+        rs.pipe(out, { end: false });
+      });
+      fs.unlinkSync(chunkPath);
+    }
+    out.end();
+    await finished;
+
+    if (total !== meta.size) throw new Error("SIZE_MISMATCH");
+
+    const fd = fs.openSync(partPath, "r");
+    const header = Buffer.alloc(12);
+    fs.readSync(fd, header, 0, 12, 0);
+    fs.closeSync(fd);
+    if (header.toString("ascii", 0, 4) !== "glTF") throw new Error("NOT_VRM");
+
+    fs.renameSync(partPath, path.join(VRM_DIR, `${finalId}.vrm`));
+    fs.rmSync(dir, { recursive: true, force: true });
+    res.json({
+      url: `/vrm-lab/models/${finalId}.vrm`,
+      name: meta.name || `${finalId}.vrm`,
+      bytes: total,
+    });
+  } catch (err) {
+    try {
+      out?.destroy();
+    } catch {
+      /* already closed */
+    }
+    try {
+      fs.rmSync(partPath, { force: true });
+    } catch {
+      /* already gone */
+    }
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch {
+      /* already gone */
+    }
+    if (err.code === "ENOENT") return res.status(400).json({ error: "Faltan trozos de la subida" });
+    if (err.message === "SIZE_MISMATCH") return res.status(400).json({ error: "El tamaño final no coincide" });
+    if (err.message === "NOT_VRM") return res.status(400).json({ error: "El archivo no es un VRM/GLB válido" });
+    console.error("[vrm-upload] complete:", err.message);
+    return res.status(500).json({ error: "No se pudo montar el modelo" });
+  }
+});
+
+// POST /vrm-lab/model/abort — drop a half-uploaded model and its chunks.
+router.post("/vrm-lab/model/abort", requireOwner, (req, res) => {
+  const uploadId = String((req.body || {}).uploadId || "");
+  if (!VRM_UPLOAD_ID_RE.test(uploadId)) {
+    return res.status(400).json({ error: "Invalid upload" });
+  }
+  let meta = null;
+  try {
+    meta = JSON.parse(fs.readFileSync(path.join(VRM_CHUNK_DIR, uploadId, "meta.json"), "utf8"));
+  } catch {
+    /* already gone: abort is idempotent */
+  }
+  if (meta?.owner && meta.owner !== req.user.twitchId) {
+    return res.status(404).json({ error: "Upload not found" });
+  }
+  try {
+    fs.rmSync(path.join(VRM_CHUNK_DIR, uploadId), { recursive: true, force: true });
+  } catch {
+    /* already gone */
+  }
+  res.json({ ok: true });
+});
+
+// GET /vrm-lab/models/:file — the stored model itself. Session cookie (lab)
+// or overlay token (OBS page), owner only. sendFile streams it and handles
+// Range requests, so a 300 MB VRM does not sit in memory.
+router.get("/vrm-lab/models/:file", (req, res) => {
+  const user = overlayUser(req);
+  if (!user || !isOwner(user)) return res.status(404).json({ error: "Not found" });
+  const name = String(req.params.file || "");
+  if (!VRM_FILE_RE.test(name)) return res.status(400).json({ error: "Invalid file" });
+  const full = path.join(VRM_DIR, name);
+  if (!fs.existsSync(full)) return res.status(404).json({ error: "Not found" });
+  res.sendFile(full, {
+    headers: {
+      "Content-Type": "model/gltf-binary",
+      // The filename is a UUID, so a new upload is a new URL: caching is safe.
+      "Cache-Control": "private, max-age=86400",
+    },
+  });
+});
+
+// The autonomous-host acts the VRM overlay knows how to perform. Kept here
+// (not free-form) so a compromised/buggy client can't send arbitrary labels
+// into the stage.
+const VRM_ACTS = new Set([
+  "neutral", "greeting", "thanks", "question", "thinking",
+  "listening", "happy", "surprised", "sad", "angry",
+]);
+
+// POST /vrm-lab/act — { act } → broadcast a one-shot gesture/expression to
+// this account's VRM overlay. This is the <1s visual acknowledgement: the
+// avatar reacts the moment a chat message arrives, long before the slow AI
+// reply has any audio. Owner-only, like the rest of the VRM surface.
+router.post("/vrm-lab/act", requireOwner, (req, res) => {
+  const act = String((req.body || {}).act || "");
+  if (!VRM_ACTS.has(act)) return res.status(400).json({ error: "Invalid act" });
+  broadcastToAccount(req.user.twitchId, { type: "bot_act", act });
+  res.json({ ok: true, act });
+});
+
 router.get("/overlay/vrm/config", (req, res) => {
   const user = overlayUser(req);
-  if (!user) return res.status(401).json({ error: "Not authorized" });
-  res.json(vrmConfig.get(user.twitchId));
+  if (!user || !isOwner(user)) return res.status(404).json({ error: "Not found" });
+  const config = vrmConfig.get(user.twitchId);
+  // Uploaded models live behind the owner-only route above. OBS cannot send
+  // the session cookie, so hand it the URL with its overlay token attached
+  // (works for both the same-origin path and an absolute backendUrl).
+  if (config.modelUrl && config.modelUrl.includes("/vrm-lab/models/") && req.query.token) {
+    const joiner = config.modelUrl.includes("?") ? "&" : "?";
+    config.modelUrl += `${joiner}token=${encodeURIComponent(req.query.token)}`;
+  }
+  res.json(config);
 });
 
 // POST /overlay/tts/visemes?token=... — { text, voice?, provider?, speed? } →
@@ -262,7 +630,7 @@ router.get("/overlay/vrm/config", (req, res) => {
 // the audible source and speaks far more than 5 lines/min.
 router.post("/overlay/tts/visemes", async (req, res) => {
   const user = overlayUser(req);
-  if (!user) return res.status(401).json({ error: "Not authorized" });
+  if (!user || !isOwner(user)) return res.status(404).json({ error: "Not found" });
   const { text, voice, provider, speed } = req.body || {};
   if (!text || !String(text).trim()) return res.status(400).json({ error: "text is required" });
   try {

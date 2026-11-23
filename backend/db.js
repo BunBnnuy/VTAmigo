@@ -30,6 +30,11 @@ db.exec(`
     profileImageUrl TEXT,
     approved INTEGER NOT NULL DEFAULT 0,
     tier TEXT,
+    -- "owner" unlocks owner-only surfaces (VRM avatar, autonomous host).
+    -- Deliberately separate from the tier column: tiers are billing/limits,
+    -- roles are who may see a feature at all. Only the password-protected
+    -- admin panel can change it. See auth.js requireOwner.
+    role TEXT NOT NULL DEFAULT 'user',
     createdAt TEXT,
     approvedAt TEXT,
     twitchAccessTokenEnc TEXT,
@@ -213,6 +218,33 @@ db.exec(`
     unlockedAt TEXT NOT NULL,
     PRIMARY KEY (twitchId, achievementId)
   );
+
+  -- Generated show decks for the owner-only autonomous host. One row per
+  -- generation; the beats column is the validated JSON array the playout
+  -- consumes and meta keeps the context (language, provider) for debugging.
+  -- Rolling pruning keeps only the newest handful per account (showScript.js).
+  CREATE TABLE IF NOT EXISTS show_scripts (
+    id TEXT PRIMARY KEY,
+    twitchId TEXT NOT NULL,
+    createdAt INTEGER NOT NULL,
+    beats TEXT NOT NULL,
+    meta TEXT
+  );
+  CREATE INDEX IF NOT EXISTS idx_show_scripts_twitchId_created
+    ON show_scripts (twitchId, createdAt);
+
+  -- Every beat that has actually been spoken, so the next deck cannot repeat
+  -- it. Separate from show_scripts because decks are pruned and the history
+  -- must outlive them.
+  CREATE TABLE IF NOT EXISTS show_script_history (
+    twitchId TEXT NOT NULL,
+    textHash TEXT NOT NULL,
+    text TEXT NOT NULL,
+    usedAt INTEGER NOT NULL,
+    PRIMARY KEY (twitchId, textHash)
+  );
+  CREATE INDEX IF NOT EXISTS idx_show_script_history_twitchId_used
+    ON show_script_history (twitchId, usedAt);
 `);
 
 // Device-code enrollment for the downloadable tunnel client was a desktop-era
@@ -233,5 +265,6 @@ function addColumnIfMissing(table, column, definition) {
 
 addColumnIfMissing("users", "overlayTokenVersion", "INTEGER NOT NULL DEFAULT 1");
 addColumnIfMissing("users", "sessionVersion", "INTEGER NOT NULL DEFAULT 1");
+addColumnIfMissing("users", "role", "TEXT NOT NULL DEFAULT 'user'");
 
 module.exports = { db, ENV, DB_PATH };

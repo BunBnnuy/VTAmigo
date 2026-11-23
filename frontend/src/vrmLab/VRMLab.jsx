@@ -13,6 +13,7 @@ import { VrmStage } from "./VrmStage.js";
 import { VISEME_COLORS, VISEME_NAMES } from "./visemeTimeline.js";
 import { ACT_LABELS, actFor } from "./performance.js";
 import { randomLine } from "./randomText.js";
+import { mirroredEntry } from "./mirrorAnimation.js";
 
 const DEFAULT_TEXT =
   "Hola, soy tu cohost. Esta boca no adivina por volumen: cada visema sale de los fonemas que pronuncia la voz.";
@@ -36,6 +37,7 @@ export default function VRMLab() {
   const mountRef = useRef(null);
   const stageRef = useRef(null);
   const fileRef = useRef(null);
+  const vrmaRef = useRef(null);
   const playheadRef = useRef(null);
   const weightsRef = useRef(null);
   const timeRef = useRef(null);
@@ -171,10 +173,13 @@ export default function VRMLab() {
         const actClips = {};
         for (const entry of entries) {
           for (const act of entry.acts || []) {
-            (actClips[act] ||= []).push(entry);
+            // Mirrors double every gesture without another download.
+            (actClips[act] ||= []).push(entry, mirroredEntry(entry));
           }
         }
-        const talkClips = entries.filter((entry) => entry.talk);
+        const talkClips = entries
+          .filter((entry) => entry.talk)
+          .flatMap((entry) => [entry, mirroredEntry(entry)]);
         stageRef.current?.setClipCatalog({ actClips, talkClips, autoClips: true });
         // Only the clips an act can trigger are warmed: the full catalogue is
         // ~4 MB and the rest can load on first click.
@@ -334,6 +339,26 @@ export default function VRMLab() {
     setError("");
     stageRef.current.playAnimation(clip).catch((err) => setError(err.message));
   }, [clips, previewClipId]);
+
+  const loadCustomVrma = useCallback((file) => {
+    if (!file || !stageRef.current) return;
+    if (!/\.vrma$/i.test(file.name)) {
+      setError("Suelta un archivo .vrma (VRM Animation).");
+      return;
+    }
+    const url = URL.createObjectURL(file);
+    const entry = {
+      id: `custom-${Date.now()}`,
+      label: file.name,
+      file: url,
+      loop: false,
+    };
+    setError("");
+    stageRef.current
+      .playAnimation(entry, { loop: false })
+      .catch((err) => setError(`No se pudo reproducir ${file.name}: ${err.message}`))
+      .finally(() => URL.revokeObjectURL(url));
+  }, []);
 
   const playRandomClip = useCallback(() => {
     if (!stageRef.current || !clips.length) return;
@@ -691,6 +716,23 @@ export default function VRMLab() {
                 title="Clip aleatorio"
               >
                 <Dices size={15} />
+              </button>
+            </div>
+            <div className="vrmRow">
+              <input
+                ref={vrmaRef}
+                type="file"
+                accept=".vrma"
+                hidden
+                onChange={(e) => loadCustomVrma(e.target.files?.[0])}
+              />
+              <button
+                className="vrmBtn vrmBtnGhost"
+                onClick={() => vrmaRef.current?.click()}
+                title="Reproducir un .vrma de tu equipo"
+                style={{ flex: 1 }}
+              >
+                <Upload size={14} /> Cargar .vrma
               </button>
             </div>
             <label className="vrmCheck">

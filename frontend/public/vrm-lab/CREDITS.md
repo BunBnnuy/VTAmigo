@@ -14,6 +14,8 @@ licence of each animation with its author.
 | `shake_head.vrma` | `Stroke Shaking Head.vrma` | yv-was-taken/desktop-waifu | MIT |
 | `spin.vrma` | `Spinning.vrma` | yv-was-taken/desktop-waifu | MIT |
 | `stretch.vrma` | `Arm Stretching.vrma` | yv-was-taken/desktop-waifu | MIT |
+| `peek.vrma` | `Femme Peek Around Corner.vrma` | yv-was-taken/desktop-waifu | MIT |
+| `cross_jumps.vrma` | `Cross Jumps.vrma` | yv-was-taken/desktop-waifu | MIT |
 | `wave_fast.vrma` | `wave_fast.vrma` | [Kiu-Q/hikari-archive](https://github.com/Kiu-Q/hikari-archive/tree/HEAD/vrma) | MIT |
 | `idle_look.vrma` | `idle_look.vrma` | Kiu-Q/hikari-archive | MIT |
 | `thankful.vrma` | `thankful.vrma` | [Enigma-EE/Cipher_Stage](https://github.com/Enigma-EE/Cipher_Stage/tree/HEAD/static/animations) | MIT |
@@ -34,6 +36,8 @@ licence of each animation with its author.
 | `idle_still.vrma` | `idle_pose.vrma` | LongbowXXX/ai-tuber | MIT |
 | `victory.vrma` | `victory_pose.vrma` | LongbowXXX/ai-tuber | MIT |
 | `fear.vrma` | `fear_pose.vrma` | LongbowXXX/ai-tuber | MIT |
+| `punch.vrma` | `punch_pose.vrma` | LongbowXXX/ai-tuber | MIT |
+| `idle_tour.vrma` | `idle.vrma` | [cnedmb-spec/AI-Tour-Guide](https://github.com/cnedmb-spec/AI-Tour-Guide/tree/HEAD/qx-rust/web/assets/models) | MIT |
 
 The chatter-agent clips are Apache-2.0: keep their attribution if this catalogue
 leaves the prototype. `@pixiv/three-vrm-animation` (loader + retargeting) is MIT.

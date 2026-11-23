@@ -13,6 +13,7 @@ export const ACT_LABELS = {
   thanks: "gracias",
   question: "pregunta",
   thinking: "pensando",
+  listening: "escuchando",
   happy: "alegre",
   surprised: "sorpresa",
   sad: "triste",
@@ -139,6 +140,15 @@ export function sampleAct(act, elapsed) {
       out.head.roll = 0.17 * e;
       out.head.yaw = 0.06 * e;
       out.head.pitch = -0.02 * e;
+      break;
+    }
+    // "I heard you" — a small attentive tilt used as the instant visual
+    // acknowledgement when a chat message arrives, before any audio exists.
+    case "listening": {
+      const e = envelope(t, 0.2, 1.5, 0.7);
+      out.head.roll = 0.11 * e;
+      out.head.yaw = -0.05 * e;
+      out.head.pitch = -0.03 * e;
       break;
     }
     case "thinking": {

@@ -75,6 +75,9 @@ beforeAll(async () => {
     login: "fishtester",
     displayName: "FishTester",
     approved: true,
+    // The VRM routes are owner-only (see ownerRole.test.js); this fixture is
+    // the account that exercises them.
+    role: "owner",
     createdAt: new Date().toISOString(),
   });
   writeUsers(users);
@@ -177,7 +180,7 @@ describe("VRM overlay routes", () => {
       varyIdle: true,
     });
 
-    await request(app).get("/overlay/vrm/config").expect(401);
+    await request(app).get("/overlay/vrm/config").expect(404);
   });
 
   it("rejects a model URL that is not http(s) or a path", async () => {
@@ -201,6 +204,6 @@ describe("VRM overlay routes", () => {
   });
 
   it("refuses the overlay timeline without a token", async () => {
-    await request(app).post("/overlay/tts/visemes").send({ text: "Hola" }).expect(401);
+    await request(app).post("/overlay/tts/visemes").send({ text: "Hola" }).expect(404);
   });
 });

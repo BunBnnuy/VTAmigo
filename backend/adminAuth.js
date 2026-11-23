@@ -2,7 +2,7 @@
 const express = require("express");
 const crypto = require("crypto");
 const jwt = require("jsonwebtoken");
-const { readUsers, writeUsers, clearTwitchTokens, deriveKey, normalizeSessionVersion } = require("./auth");
+const { readUsers, writeUsers, clearTwitchTokens, deriveKey, normalizeSessionVersion, normalizeRole } = require("./auth");
 const { adminLoginGlobalLimiter, adminLoginIpLimiter } = require("./rateLimits");
 const { db } = require("./db");
 const sysmonitor = require("./sysmonitor");
@@ -154,6 +154,7 @@ router.post("/admin/users/:twitchId/approve", requireAdmin, (req, res) => {
 });
 
 const VALID_TIERS = ["free", "basic", "advanced", "pro"];
+const VALID_ROLES = ["owner", "user"];
 
 router.post("/admin/users/:twitchId/tier", requireAdmin, (req, res) => {
   const { tier } = req.body || {};
@@ -162,6 +163,20 @@ router.post("/admin/users/:twitchId/tier", requireAdmin, (req, res) => {
   const user = users.find((u) => u.twitchId === req.params.twitchId);
   if (!user) return res.status(404).json({ error: "User not found" });
   user.tier = tier;
+  writeUsers(users);
+  res.json({ ok: true, user });
+});
+
+// Owner is an access role, not a tier: it unlocks surfaces that are hidden
+// from normal accounts (VRM avatar, autonomous host). Only this password-gated
+// admin panel can grant it; no user-facing route writes `role`.
+router.post("/admin/users/:twitchId/role", requireAdmin, (req, res) => {
+  const { role } = req.body || {};
+  if (!VALID_ROLES.includes(role)) return res.status(400).json({ error: "Invalid role" });
+  const users = readUsers();
+  const user = users.find((u) => u.twitchId === req.params.twitchId);
+  if (!user) return res.status(404).json({ error: "User not found" });
+  user.role = normalizeRole(role);
   writeUsers(users);
   res.json({ ok: true, user });
 });

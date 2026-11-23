@@ -4,7 +4,7 @@ import { PANEL_META, DEFAULT_PANEL_LAYOUT } from "./WindowManager.jsx";
 
 // Top-bar button + dropdown listing every dashboard window with a checkbox
 // to show/hide it — the only way to bring back a window closed via its X.
-export default function PanelsMenu({ panelLayout, onUpdateWindow, t }) {
+export default function PanelsMenu({ panelLayout, onUpdateWindow, t, isOwner }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
 
@@ -26,7 +26,7 @@ export default function PanelsMenu({ panelLayout, onUpdateWindow, t }) {
       </button>
       {open && (
         <div style={styles.dropdown}>
-          {PANEL_META.map(({ id, titleKey }) => {
+          {PANEL_META.filter((panel) => isOwner || !panel.ownerOnly).map(({ id, titleKey }) => {
             const layout = panelLayout.windows[id] || DEFAULT_PANEL_LAYOUT.windows[id];
             const closed = !!layout.closed;
             return (

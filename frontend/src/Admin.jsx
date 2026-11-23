@@ -236,6 +236,17 @@ export default function Admin() {
     loadUsers();
   };
 
+  // Owner unlocks owner-only surfaces (VRM avatar, autonomous host). Kept
+  // separate from tier so a plan change can never grant or revoke it.
+  const setRole = async (twitchId, role) => {
+    await apiFetch(`/admin/users/${twitchId}/role`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ role }),
+    });
+    loadUsers();
+  };
+
   if (checkingSession) {
     return <div style={styles.wrap} />;
   }
@@ -515,6 +526,7 @@ export default function Admin() {
                       <th style={styles.th}>User</th>
                       <th style={styles.th}>Status</th>
                       <th style={styles.th}>Tier</th>
+                      <th style={styles.th}>Role</th>
                       <th style={styles.th}>Since</th>
                       <th style={styles.th}>Today</th>
                       <th style={styles.th}>Week</th>
@@ -549,6 +561,16 @@ export default function Admin() {
                               <option value="basic">Basic</option>
                               <option value="advanced">Advanced</option>
                               <option value="pro">Pro</option>
+                            </select>
+                          </td>
+                          <td style={styles.td}>
+                            <select
+                              value={u.role || "user"}
+                              onChange={(e) => setRole(u.twitchId, e.target.value)}
+                              style={styles.tierSelect}
+                            >
+                              <option value="user">User</option>
+                              <option value="owner">Owner</option>
                             </select>
                           </td>
                           <td style={styles.td}>{new Date(u.createdAt).toLocaleString()}</td>

@@ -31,6 +31,7 @@ const { anonymousLimiter } = require("./rateLimits");
 const { router: adminRouter } = require("./adminAuth");
 const sessions = require("./sessions");
 const aiRouter = require("./routes/ai");
+const hostRouter = require("./routes/host");
 const chatRouter = require("./routes/chat");
 const xpRouter = require("./routes/xp");
 const achievementsRouter = require("./routes/achievements");
@@ -251,7 +252,7 @@ if (isProd) {
 // and shows the login/pending screen client-side, so this reveals no data.
 const PROTECTED_PREFIXES = [
   "/respond", "/memory", "/connect", "/disconnect", "/say",
-  "/event-response", "/xp", "/achievements", "/avatar", "/tts", "/video",
+  "/event-response", "/host", "/xp", "/achievements", "/avatar", "/tts", "/video",
   "/activity", "/overlay-builder",
 ];
 app.use((req, res, next) => {
@@ -279,6 +280,10 @@ app.use((req, res, next) => {
 });
 
 const server = http.createServer(app);
+// Long owner-only VRM uploads (hundreds of MB over a home upstream) exceed
+// Node's 5-minute default request timeout. nginx streams the body and has its
+// own 1-hour timeout, so the backend must not cut the connection first.
+server.requestTimeout = 60 * 60 * 1000;
 const wss = new WebSocketServer({ server, path: "/chat" });
 // Hand the shared state module the two objects only this file can build, so
 // every router's `require("../sessions")` can broadcast. Must happen before
@@ -292,6 +297,7 @@ sessions.attach({ server, wss });
 // stream, settings, and the OBS-facing exclusions) carry their own inline or
 // requireApprovedUser checks — see each file's header.
 app.use(aiRouter);            // /respond, /memory/*
+app.use(hostRouter);          // /host/script* (owner-only, autonomous host)
 app.use(chatRouter);          // /connect*, /disconnect*, /say*, /event-response
 app.use(xpRouter);            // /xp/*, /overlay/xp
 app.use(achievementsRouter);  // /achievements/*
