@@ -198,6 +198,18 @@ export default function ShowRunnerPanel({
             />
           </label>
           <label style={styles.numLabel}>
+            {t("showRunnerPanel.scriptPartGap")}
+            <input
+              type="number"
+              min={1}
+              max={10}
+              step={0.5}
+              value={host.scriptPartGapSec ?? 2.5}
+              onChange={(e) => patch({ scriptPartGapSec: Number(e.target.value) || 2.5 })}
+              style={styles.numInput}
+            />
+          </label>
+          <label style={styles.numLabel}>
             {t("showRunnerPanel.scriptEvery")}
             <input
               type="number"
@@ -253,7 +265,14 @@ export default function ShowRunnerPanel({
                 <span style={styles.kindBadge}>
                   {t(`showRunnerPanel.${KIND_KEYS[beat.kind] || "kindTopic"}`)}
                 </span>
-                <span style={styles.beatText}>{beat.text}</span>
+                <span style={styles.beatText}>
+                  {Array.isArray(beat.parts) && beat.parts.length ? beat.parts[0] : beat.text}
+                  {Array.isArray(beat.parts) && beat.parts.length > 1 ? (
+                    <span style={styles.partsCount}>
+                      {t("showRunnerPanel.scriptParts", { count: beat.parts.length })}
+                    </span>
+                  ) : null}
+                </span>
                 <button
                   style={styles.sayBtn}
                   onClick={() => onSpeakBeat(beat.deckId, beat.id)}
@@ -362,6 +381,7 @@ const styles = {
     fontSize: 9.5, fontWeight: 600, whiteSpace: "nowrap",
   },
   beatText: { flex: 1, minWidth: 0, color: "var(--text)", fontSize: 11, lineHeight: 1.4 },
+  partsCount: { marginLeft: 5, color: "var(--text-muted)", fontSize: 10, whiteSpace: "nowrap" },
   sayBtn: {
     flexShrink: 0, width: 24, height: 22, padding: 0,
     display: "inline-flex", alignItems: "center", justifyContent: "center",

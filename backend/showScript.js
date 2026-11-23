@@ -131,12 +131,27 @@ function parseDeck(raw, { avoid = [] } = {}) {
     const kind = String(item.kind || "").trim().toLowerCase();
     if (!KINDS.has(kind)) continue;
 
-    let body = String(item.text || "").replace(/\s+/g, " ").trim();
-    // TTS reads this aloud and it is also posted to chat: strip anything that
-    // renders as markup, leaks a URL, or is simply too long/short to be a line.
-    if (body.length < 12 || body.length > 240) continue;
-    if (/https?:\/\//i.test(body)) continue;
-    if (/[*_#`<>]/.test(body)) continue;
+    const rawParts = Array.isArray(item.parts)
+      ? item.parts
+      : typeof item.text === "string"
+        ? [item.text]
+        : [];
+    const parts = [];
+    for (const rawPart of rawParts.slice(0, 5)) {
+      const part = String(rawPart == null ? "" : rawPart).replace(/\s+/g, " ").trim();
+      // Each part is a spoken line: reject markup, URLs and lines that are
+      // too short/long before they can reach TTS or chat.
+      if (part.length < 12 || part.length > 240) continue;
+      if (/https?:\/\//i.test(part)) continue;
+      if (/[*_#`<>]/.test(part)) continue;
+      parts.push(part);
+    }
+    // New decks are multi-part stories (the prompt asks for 4-5). A legacy
+    // single-text beat is still accepted so decks generated before this
+    // change keep working.
+    if (Array.isArray(item.parts) && parts.length < 2) continue;
+    if (!parts.length) continue;
+    const body = parts.join(" ");
     if (isDuplicate(body, [...avoid, ...seen])) continue;
 
     const afterMin = clampInt(item.afterMin, 0, 30, 0);
@@ -147,6 +162,7 @@ function parseDeck(raw, { avoid = [] } = {}) {
       id: crypto.randomUUID(),
       kind,
       text: body,
+      parts,
       afterMin,
       beforeMin,
     });

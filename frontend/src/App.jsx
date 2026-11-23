@@ -53,6 +53,9 @@ const DEFAULT_HOST_MODE = {
   scriptNotes: "",
   scriptBeats: 14,
   scriptGapSec: 45,
+  // Each beat is a 4-5 part story; this is the pause between its parts, the
+  // natural window where chat can interrupt the bot.
+  scriptPartGapSec: 2.5,
   scriptEveryMin: 8,
   scriptLowWater: 5,
 };
@@ -489,6 +492,10 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
   const scriptLoadedRef = useRef(false);
   const scriptLastSpokeRef = useRef(0);
   const scriptLastQuestionRef = useRef(0);
+  // Active multi-part story: { deckId, beatId, parts, partIndex, startedAt,
+  // phase: "starting"|"speaking"|"gap", pendingSince, nextAt }. A story is
+  // spoken part by part with a short pause, so chat can interrupt it.
+  const storyRef = useRef(null);
   const ttsSpeakingRef = useRef(false);
   ttsSpeakingRef.current = ttsSpeaking;
   const loadingRef = useRef(false);
@@ -1025,6 +1032,9 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
 
   const consumeScriptBeat = useCallback((deckId, beatId) => {
     setScriptDecks((prev) => markBeatUsed(prev, deckId, beatId));
+    // Local continuation decks exist only in this tab; there is nothing to
+    // mark server-side for them.
+    if (deckId.startsWith("local-")) return;
     apiFetch("/host/script/used", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1032,17 +1042,73 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
     }).catch(() => {});
   }, []);
 
+  const beginStory = useCallback((deckId, beat) => {
+    const parts = Array.isArray(beat.parts) && beat.parts.length ? beat.parts : [beat.text];
+    if (!parts[0]) return false;
+    const now = Date.now();
+    storyRef.current = {
+      deckId,
+      beatId: beat.id,
+      parts,
+      partIndex: 0,
+      startedAt: now,
+      phase: "starting",
+      pendingSince: now,
+      nextAt: 0,
+    };
+    tts.enqueue(parts[0]);
+    scriptLastSpokeRef.current = now;
+    if (beat.kind === "question") scriptLastQuestionRef.current = now;
+    consumeScriptBeat(deckId, beat.id);
+    return true;
+  }, [consumeScriptBeat]);
+
+  // Ends the active story. On a chat interruption the unspoken parts are
+  // re-queued as a local deck (oldest, so it resumes before new topics), so a
+  // single message does not throw the rest of the anecdote away.
+  const finishStory = useCallback((reason) => {
+    const story = storyRef.current;
+    if (!story) return;
+    storyRef.current = null;
+    if (reason !== "interrupted") return;
+    const remaining = story.parts.slice(story.partIndex + 1);
+    if (!remaining.length) return;
+    const now = Date.now();
+    const rid = globalThis.crypto?.randomUUID?.() || `${now}-${Math.random().toString(36).slice(2)}`;
+    const localDeck = {
+      id: `local-${rid}`,
+      createdAt: now - 24 * 60 * 60 * 1000,
+      beats: [{
+        id: `local-beat-${rid}`,
+        kind: "topic",
+        text: remaining.join(" "),
+        parts: remaining,
+        afterMin: 0,
+        beforeMin: 0,
+      }],
+      meta: { local: true },
+    };
+    setScriptDecks((prev) => [localDeck, ...prev].slice(0, 8));
+  }, []);
+
   const speakScriptBeat = useCallback((deckId, beatId) => {
+    if (storyRef.current || tts.playing || ttsSpeakingRef.current) return;
     const deck = scriptDecksRef.current.find((d) => d.id === deckId);
     const beat = deck?.beats?.find((b) => b.id === beatId);
     if (!beat || beat.usedAt) return;
-    tts.enqueue(beat.text);
-    consumeScriptBeat(deckId, beatId);
-  }, [consumeScriptBeat]);
+    beginStory(deckId, beat);
+  }, [beginStory]);
 
   const discardScriptDeck = useCallback((deckId) => {
     setScriptDecks((prev) => prev.filter((d) => d.id !== deckId));
+    if (deckId.startsWith("local-")) return;
     apiFetch(`/host/script/${deckId}/discard`, { method: "POST" }).catch(() => {});
+  }, []);
+
+  const skipTts = useCallback(() => {
+    // A manual skip ends the story without re-queueing the rest.
+    storyRef.current = null;
+    tts.skip();
   }, []);
 
   function startCountdown() {
@@ -1151,17 +1217,72 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       scriptLoadedRef.current = false;
     };
   }, [isOwner]);
-  // Playout: one beat per silence. The worker ticker keeps this running while
-  // the dashboard tab is hidden for hours (a main-thread interval would be
-  // throttled to ~1/minute).
+  // Playout: a beat is a 4-5 part story. Parts are spoken back to back with
+  // a short pause between them; a new chat line (or a pending AI reply)
+  // interrupts after the current part and the unspoken parts are re-queued.
+  // The worker ticker keeps this running while the dashboard tab is hidden.
   useEffect(() => {
     if (!isOwner) return undefined;
     return startHostTicker(() => {
       const host = settingsRef.current.hostMode || {};
-      if (!host.enabled || host.scriptEnabled === false) return;
-      if (settingsRef.current.aiResponsesEnabled === false || tts.muted) return;
-      if (loadingRef.current || tts.playing || ttsSpeakingRef.current) return;
+      if (!host.enabled || host.scriptEnabled === false) {
+        storyRef.current = null;
+        return;
+      }
+      if (settingsRef.current.aiResponsesEnabled === false || tts.muted) {
+        storyRef.current = null;
+        return;
+      }
+
       const now = Date.now();
+      const story = storyRef.current;
+
+      if (story) {
+        // A new viewer message or a pending AI reply wins over the story.
+        if (lastChatAtRef.current > story.startedAt || loadingRef.current) {
+          finishStory("interrupted");
+          return;
+        }
+
+        const speaking = tts.playing || ttsSpeakingRef.current;
+
+        if (story.phase === "starting") {
+          if (speaking) story.phase = "speaking";
+          else if (now - story.pendingSince > 15000) {
+            // The provider never produced audio for this part; drop the story
+            // instead of looping on a broken line.
+            storyRef.current = null;
+          }
+          return;
+        }
+
+        if (story.phase === "speaking") {
+          if (!speaking) {
+            story.phase = "gap";
+            story.nextAt = now + Math.max(1, host.scriptPartGapSec ?? 2.5) * 1000;
+          }
+          return;
+        }
+
+        if (story.phase === "gap") {
+          if (now < story.nextAt) return;
+          const nextIndex = story.partIndex + 1;
+          if (nextIndex >= story.parts.length) {
+            storyRef.current = null;
+            scriptLastSpokeRef.current = now;
+            return;
+          }
+          story.partIndex = nextIndex;
+          story.phase = "starting";
+          story.pendingSince = now;
+          tts.enqueue(story.parts[nextIndex]);
+          return;
+        }
+        return;
+      }
+
+      // No story in flight: start one when the room has been quiet long enough.
+      if (loadingRef.current || tts.playing || ttsSpeakingRef.current) return;
       const gap = Math.max(10, host.scriptGapSec || 45) * 1000;
       if (now - lastChatAtRef.current < gap) return;
       if (now - scriptLastSpokeRef.current < gap) return;
@@ -1170,12 +1291,9 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
         lastQuestionAt: scriptLastQuestionRef.current,
       });
       if (!beat) return;
-      tts.enqueue(beat.text);
-      scriptLastSpokeRef.current = now;
-      if (beat.kind === "question") scriptLastQuestionRef.current = now;
-      consumeScriptBeat(beat.deckId, beat.id);
-    }, 5000);
-  }, [isOwner, consumeScriptBeat]);
+      beginStory(beat.deckId, beat);
+    }, 1000);
+  }, [isOwner, beginStory, finishStory]);
 
   // Rolling generation: refill before the deck runs dry. Low-water mark plus
   // a minimum interval keeps a 12-hour stream at a handful of calls per hour
@@ -1695,7 +1813,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
           muted,
           onToggleMute: toggleMute,
           ttsPlaying,
-          onSkipTts: () => tts.skip(),
+          onSkipTts: skipTts,
           nowDisabled,
           nowOnCooldown,
           nowRemainingSec,
