@@ -27,14 +27,41 @@ import { logError } from "./errorLogger.js";
 import { track } from "./analytics.js";
 import { detectLanguage, useTranslation } from "./i18n/index.js";
 import { tierLimits, clampToTier } from "./tiers.js";
+import { countUnplayed, markBeatUsed, pickNextBeat, previewBeats } from "./showScript.js";
+import { startHostTicker } from "./hostTicker.js";
 import logo from "./img/logo.png";
 
 const TIER_LABELS = { free: "Free", basic: "Basic", advanced: "Advanced", pro: "Pro" };
+
+// Owner-only autonomous-host defaults (ShowRunnerPanel + App's fast lane).
+// Kept as its own object so migrateSettings can merge a partial saved blob
+// instead of letting a missing key crash a read at stream time.
+const DEFAULT_HOST_MODE = {
+  enabled: false,
+  coldOpenEnabled: true,
+  coldOpenText: "¡Buenas! Ya estamos aquí un día más. Poneos cómodos y contadme en el chat qué queréis ver hoy.",
+  fastLaneEnabled: true,
+  fastLaneIdleSec: 45,
+  fastLaneCooldownSec: 30,
+  fastLaneLines: "¡Ey, {user}! Justo estábamos hablando de ti.\n{user} por aquí — bienvenido.\nTe leo, {user}.",
+  firstReplyFast: true,
+  firstReplyDelaySec: 2,
+  // Rolling live script: generate a deck when few beats remain, speak one per
+  // silence. 12-hour streams need this loop, not a single deck.
+  scriptEnabled: true,
+  scriptAuto: true,
+  scriptNotes: "",
+  scriptBeats: 14,
+  scriptGapSec: 45,
+  scriptEveryMin: 8,
+  scriptLowWater: 5,
+};
 
 const DEFAULT_SETTINGS = {
   language: detectLanguage(),
   panelLayout: DEFAULT_PANEL_LAYOUT,
   tiktokUsername: "",
+  hostMode: DEFAULT_HOST_MODE,
   batchWindow: 20,
   maxMessages: 20,
   style: "auto",
@@ -93,6 +120,11 @@ const LEGACY_CREDENTIAL_KEYS = ["botToken", "botUsername", "accessToken", "refre
 // understands: legacy shapes are migrated, unknown keys are discarded, and
 // anything missing falls back to DEFAULT_SETTINGS. Pure — exported so it can
 // be tested without mounting the app.
+function sanitizeHostMode(saved) {
+  const h = saved && typeof saved === "object" ? saved : {};
+  return { ...DEFAULT_HOST_MODE, ...h };
+}
+
 export function migrateSettings(saved) {
   const raw = saved && typeof saved === "object" ? saved : {};
   const kept = {};
@@ -108,6 +140,9 @@ export function migrateSettings(saved) {
     // Old on/off mic checkbox → the 4-way mic mode
     micMode: raw.micMode === undefined ? (raw.micEnabled ? "voice" : "off") : raw.micMode,
     panelLayout: mergePanelLayout(raw.panelLayout),
+    // Always a full host-mode object: a partially-saved blob (or a future
+    // key) must not make the fast lane read `undefined` mid-stream.
+    hostMode: sanitizeHostMode(raw.hostMode),
     // Always a full, clamped channel set — a partial/legacy blob can't drop a
     // channel or push a gain out of 0..1.
     mixer: sanitizeMixer(raw.mixer),
@@ -211,10 +246,14 @@ export default function App() {
   if (!authState.approved) {
     return <Pending displayName={authState.displayName} onLoggedOut={checkAuth} />;
   }
-  return <AppInner twitchLogin={authState.login} tier={authState.tier || "pro"} onRefreshAuth={checkAuth} />;
+  return <AppInner twitchLogin={authState.login} tier={authState.tier || "pro"} role={authState.role || "user"} onRefreshAuth={checkAuth} />;
 }
 
-function AppInner({ twitchLogin, tier, onRefreshAuth }) {
+function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
+  // Roles are a separate axis from tiers (see backend/auth.js requireOwner).
+  // `owner` is the only account that sees the VRM avatar and the autonomous
+  // host; every other account gets the normal co-host dashboard.
+  const isOwner = role === "owner";
   const [settings, setSettings] = useState(() => {
     try {
       // Scrub first so a legacy manually-pasted bot token is deleted from
@@ -404,9 +443,12 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   const [followerTotal, setFollowerTotal] = useState(null);
   // Viewers + session timer — always visible. Values update only while
   // live; offline we keep the last known viewers and freeze the timer.
-  const [viewerCount, setViewerCount] = useState(0);
-  const [streamStartedAt, setStreamStartedAt] = useState(null);
+  const [viewerCount, setViewerCount] = useState(0);  const [streamStartedAt, setStreamStartedAt] = useState(null);
   const [streamLive, setStreamLive] = useState(false);
+  // Rolling show-script decks (owner-only). Persisted server-side; the app
+  // keeps the newest few in memory for the playout and the panel preview.
+  const [scriptDecks, setScriptDecks] = useState([]);
+  const [scriptState, setScriptState] = useState({ generating: false, error: "", lastAt: 0 });
   const [sessionLabel, setSessionLabel] = useState("0:00:00");
   // Safety cap for when AI responses are toggled off for a long stretch —
   // messages keep queuing (nothing should be silently lost), but without a
@@ -427,6 +469,36 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
   }, []);
   const batchTimerRef = useRef(null);
   const burstTimerRef = useRef(null);
+  const firstReplyTimerRef = useRef(null);
+  // Autonomous host bookkeeping: when the last real chat line arrived, when
+  // the fast lane last spoke / the avatar last reacted (both throttled), who
+  // has already spoken this session, and whether the cold open has fired.
+  const lastChatAtRef = useRef(0);
+  const lastFastLaneAtRef = useRef(0);
+  const lastActAtRef = useRef(0);
+  const seenChattersRef = useRef(new Set());
+  const coldOpenFiredRef = useRef(false);
+  const lastStreamStartedRef = useRef(null);
+  // Live script bookkeeping. The refs mirror the latest state for the ticker
+  // closures, which are created once per mount and must not go stale.
+  const scriptDecksRef = useRef(scriptDecks);
+  scriptDecksRef.current = scriptDecks;
+  const scriptStateRef = useRef(scriptState);
+  scriptStateRef.current = scriptState;
+  const scriptBusyRef = useRef(false);
+  const scriptLoadedRef = useRef(false);
+  const scriptLastSpokeRef = useRef(0);
+  const scriptLastQuestionRef = useRef(0);
+  const ttsSpeakingRef = useRef(false);
+  ttsSpeakingRef.current = ttsSpeaking;
+  const loadingRef = useRef(false);
+  loadingRef.current = loading;
+  const connectedRef = useRef(false);
+  connectedRef.current = connected;
+  const streamLiveRef = useRef(false);
+  streamLiveRef.current = streamLive;
+  const hostContextRef = useRef({});
+  hostContextRef.current = { messages, videoState, streamStartedAt, viewerCount };
   const countdownIntervalRef = useRef(null);
   const settingsRef = useRef(settings);
   settingsRef.current = settings;
@@ -841,6 +913,138 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     }
   }, []);
 
+  // ── Autonomous host: fast lane + cold open ────────────────────────────────
+  // Owner-only (role === "owner"). These paths never call the AI: they speak
+  // an already-written line, so the first thing a new chatter hears is <1s
+  // away instead of the 15–30s CLI round trip. The AI reply still follows
+  // through the normal batch path below.
+
+  const postVrmAct = useCallback((act, force = false) => {
+    const now = Date.now();
+    if (!force && now - lastActAtRef.current < 4000) return;
+    lastActAtRef.current = now;
+    apiFetch("/vrm-lab/act", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ act }),
+    }).catch(() => {});
+  }, []);
+
+  const fastLaneLine = useCallback((username) => {
+    const host = settingsRef.current.hostMode || {};
+    if (host.fastLaneEnabled === false) return false;
+    const lines = String(host.fastLaneLines || "")
+      .split("\n")
+      .map((line) => line.trim())
+      .filter(Boolean);
+    if (!lines.length) return false;
+    const line = lines[Math.floor(Math.random() * lines.length)]
+      .replaceAll("{user}", username || "gente");
+    tts.enqueue(line);
+    lastFastLaneAtRef.current = Date.now();
+    return true;
+  }, []);
+
+  const fireColdOpen = useCallback(async () => {
+    const host = settingsRef.current.hostMode || {};
+    if (host.coldOpenEnabled === false) return false;
+    let text = String(host.coldOpenText || "").trim();
+    if (!text) return false;
+    // {game}/{title} come from Twitch's live channel info, fetched once at
+    // open time — facts only, never invented by the model. If Helix is
+    // unreachable the template speaks exactly as written.
+    try {
+      const res = await apiFetch("/stream/info");
+      if (res.ok) {
+        const info = await res.json();
+        text = text
+          .replaceAll("{game}", info.gameName || "")
+          .replaceAll("{title}", info.title || "");
+      }
+    } catch {
+      /* offline / missing scope: keep the template */
+    }
+    text = text.replace(/\s{2,}/g, " ").trim();
+    if (!text) return false;
+    tts.enqueue(text);
+    postVrmAct("greeting", true);
+    return true;
+  }, [postVrmAct]);
+
+  // ── Live show script: rolling generation + playout ────────────────────────
+  // Generation is a background call every few minutes; playback only speaks
+  // beats that were already validated. The model never runs at the moment the
+  // bot opens its mouth.
+
+  const generateScript = useCallback(async (reason = "manual") => {
+    if (!isOwner || scriptBusyRef.current) return null;
+    scriptBusyRef.current = true;
+    setScriptState((s) => ({ ...s, generating: true, error: "" }));
+    try {
+      const h = hostContextRef.current || {};
+      const host = settingsRef.current.hostMode || {};
+      const uptimeMin = h.streamStartedAt
+        ? Math.max(0, Math.round((Date.now() - new Date(h.streamStartedAt).getTime()) / 60000))
+        : 0;
+      const recentChat = (h.messages || [])
+        .filter((m) => !m.isEvent && !m.isBot && m.text)
+        .slice(-8)
+        .map((m) => ({ username: m.username, text: m.text }));
+      const res = await apiFetch("/host/script", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          language: settingsRef.current.language,
+          count: host.scriptBeats || 14,
+          context: {
+            uptimeMin,
+            viewerCount: h.viewerCount || 0,
+            nowPlaying: h.videoState?.nowPlaying || null,
+            queue: (h.videoState?.queue || []).slice(0, 5),
+            recentChat,
+            streamerNotes: host.scriptNotes || "",
+            isFirstDeck: scriptDecksRef.current.length === 0,
+            reason,
+          },
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+      if (data.deck) setScriptDecks((prev) => [data.deck, ...prev].slice(0, 8));
+      setScriptState((s) => ({ ...s, generating: false, error: "", lastAt: Date.now() }));
+      return data.deck || null;
+    } catch (err) {
+      // Back off for one interval instead of retrying every 30 s while the
+      // provider is down. The current deck keeps playing in the meantime.
+      setScriptState((s) => ({ ...s, generating: false, error: err.message, lastAt: Date.now() }));
+      return null;
+    } finally {
+      scriptBusyRef.current = false;
+    }
+  }, [isOwner]);
+
+  const consumeScriptBeat = useCallback((deckId, beatId) => {
+    setScriptDecks((prev) => markBeatUsed(prev, deckId, beatId));
+    apiFetch("/host/script/used", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ deckId, beatId }),
+    }).catch(() => {});
+  }, []);
+
+  const speakScriptBeat = useCallback((deckId, beatId) => {
+    const deck = scriptDecksRef.current.find((d) => d.id === deckId);
+    const beat = deck?.beats?.find((b) => b.id === beatId);
+    if (!beat || beat.usedAt) return;
+    tts.enqueue(beat.text);
+    consumeScriptBeat(deckId, beatId);
+  }, [consumeScriptBeat]);
+
+  const discardScriptDeck = useCallback((deckId) => {
+    setScriptDecks((prev) => prev.filter((d) => d.id !== deckId));
+    apiFetch(`/host/script/${deckId}/discard`, { method: "POST" }).catch(() => {});
+  }, []);
+
   function startCountdown() {
     clearInterval(countdownIntervalRef.current);
     const { batchWindow: windowSec } = clampToTier(tierRef.current, settingsRef.current);
@@ -870,6 +1074,127 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [settings.aiResponsesEnabled]);
+
+  // A new stream (Twitch's startedAt changes) re-arms the cold open and drops
+  // decks from the previous one. A mid-stream page reload keeps its startedAt,
+  // so the decks already generated for this stream survive.
+  useEffect(() => {
+    coldOpenFiredRef.current = false;
+    if (!streamStartedAt) return;
+    const started = new Date(streamStartedAt).getTime();
+    if (lastStreamStartedRef.current && started > lastStreamStartedRef.current + 10 * 60 * 1000) {
+      setScriptDecks([]);
+    }
+    lastStreamStartedRef.current = started;
+  }, [streamStartedAt]);
+
+  // Cold open: the first thing on stream, before anyone has typed. Fires once
+  // per live session a few seconds after the live flag flips, so the OBS
+  // sockets are connected. Editing the text while live just resets the timer.
+  useEffect(() => {
+    const host = settings.hostMode || {};
+    if (settings.aiResponsesEnabled === false) return undefined;
+    if (!isOwner || !host.enabled || host.coldOpenEnabled === false) return undefined;
+    if (!connected || !streamLive || coldOpenFiredRef.current) return undefined;
+    const key = streamStartedAt ? `hostColdOpen:${twitchLogin || "me"}:${streamStartedAt}` : null;
+    if (key) {
+      try {
+        if (localStorage.getItem(key) === "1") {
+          coldOpenFiredRef.current = true;
+          return undefined;
+        }
+      } catch {
+        /* storage unavailable: fall back to the in-memory guard */
+      }
+    }
+    const timer = setTimeout(async () => {
+      if (coldOpenFiredRef.current) return;
+      // Only mark it done once there was actually something to say, so an
+      // empty template (or enabling host mode mid-stream) can still fire.
+      const spoke = await fireColdOpen();
+      if (spoke) {
+        coldOpenFiredRef.current = true;
+        if (key) {
+          try {
+            localStorage.setItem(key, "1");
+          } catch {
+            /* ignore */
+          }
+        }
+      }
+    }, 3000);
+    return () => clearTimeout(timer);
+  }, [connected, streamLive, isOwner, settings.hostMode, settings.aiResponsesEnabled, fireColdOpen, streamStartedAt, twitchLogin]);
+
+  // Load any decks left from an earlier page load / earlier in the stream, so
+  // a refresh doesn't restart the show from zero.
+  useEffect(() => {
+    if (!isOwner) return undefined;
+    let cancelled = false;
+    apiFetch("/host/script")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (cancelled || !data?.decks) return;
+        // A deck from a previous day is not useful: its facts (game, songs,
+        // chat) are stale. Keep the last six hours.
+        const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+        const fresh = data.decks.filter((deck) => deck.createdAt >= cutoff);
+        setScriptDecks(fresh);
+        setScriptState((s) => ({ ...s, lastAt: fresh[0]?.createdAt || 0 }));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) scriptLoadedRef.current = true;
+      });
+    return () => {
+      cancelled = true;
+      scriptLoadedRef.current = false;
+    };
+  }, [isOwner]);
+  // Playout: one beat per silence. The worker ticker keeps this running while
+  // the dashboard tab is hidden for hours (a main-thread interval would be
+  // throttled to ~1/minute).
+  useEffect(() => {
+    if (!isOwner) return undefined;
+    return startHostTicker(() => {
+      const host = settingsRef.current.hostMode || {};
+      if (!host.enabled || host.scriptEnabled === false) return;
+      if (settingsRef.current.aiResponsesEnabled === false || tts.muted) return;
+      if (loadingRef.current || tts.playing || ttsSpeakingRef.current) return;
+      const now = Date.now();
+      const gap = Math.max(10, host.scriptGapSec || 45) * 1000;
+      if (now - lastChatAtRef.current < gap) return;
+      if (now - scriptLastSpokeRef.current < gap) return;
+      const beat = pickNextBeat(scriptDecksRef.current, now, {
+        viewerCount: hostContextRef.current?.viewerCount || 0,
+        lastQuestionAt: scriptLastQuestionRef.current,
+      });
+      if (!beat) return;
+      tts.enqueue(beat.text);
+      scriptLastSpokeRef.current = now;
+      if (beat.kind === "question") scriptLastQuestionRef.current = now;
+      consumeScriptBeat(beat.deckId, beat.id);
+    }, 5000);
+  }, [isOwner, consumeScriptBeat]);
+
+  // Rolling generation: refill before the deck runs dry. Low-water mark plus
+  // a minimum interval keeps a 12-hour stream at a handful of calls per hour
+  // instead of one per silence.
+  useEffect(() => {
+    if (!isOwner) return undefined;
+    return startHostTicker(() => {
+      const host = settingsRef.current.hostMode || {};
+      if (!host.enabled || host.scriptEnabled === false || host.scriptAuto === false) return;
+      if (settingsRef.current.aiResponsesEnabled === false) return;
+      if (!scriptLoadedRef.current) return;
+      if (!connectedRef.current || !streamLiveRef.current) return;
+      const now = Date.now();
+      const minGap = Math.max(3, host.scriptEveryMin || 8) * 60_000;
+      if (now - (scriptStateRef.current.lastAt || 0) < minGap) return;
+      if (countUnplayed(scriptDecksRef.current, now) > Math.max(1, host.scriptLowWater || 5)) return;
+      generateScript("auto");
+    }, 30_000);
+  }, [isOwner, generateScript]);
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
 
@@ -920,6 +1245,43 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
               rewardTitle: msg.rewardTitle,
               text: msg.text,
             }]);
+          }
+
+          // ── Autonomous host: react before the AI does ──────────────────
+          // The avatar acknowledges in the same frame; the fast lane speaks a
+          // canned line when the room has been quiet (or the chatter is new),
+          // and the first message after a long silence short-circuits the
+          // batch window instead of waiting it out. None of this touches the
+          // AI: it is what the viewer hears while the model is still thinking.
+          const host = settingsRef.current.hostMode || {};
+          if (isOwner && host.enabled && settingsRef.current.aiResponsesEnabled !== false) {
+            const now = Date.now();
+            const idleMs = now - (lastChatAtRef.current || 0);
+            const key = String(msg.username || "").toLowerCase();
+            const firstFromUser = !!key && !seenChattersRef.current.has(key);
+            if (key) seenChattersRef.current.add(key);
+            lastChatAtRef.current = now;
+
+            postVrmAct("listening");
+
+            const cooldownMs = Math.max(5, host.fastLaneCooldownSec || 30) * 1000;
+            if (
+              !appCommand &&
+              host.fastLaneEnabled !== false &&
+              (firstFromUser || idleMs > Math.max(5, host.fastLaneIdleSec || 45) * 1000) &&
+              now - lastFastLaneAtRef.current > cooldownMs
+            ) {
+              fastLaneLine(msg.username);
+            }
+
+            if (!appCommand && host.firstReplyFast !== false && idleMs > 60_000) {
+              clearTimeout(firstReplyTimerRef.current);
+              firstReplyTimerRef.current = setTimeout(() => {
+                if (bufferRef.current.length && settingsRef.current.aiResponsesEnabled !== false) {
+                  triggerResponse();
+                }
+              }, Math.max(1, host.firstReplyDelaySec || 2) * 1000);
+            }
           }
 
           // Burst detection: lots of hype → wait for silence then fire.
@@ -1007,7 +1369,7 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
     });
     wsRef.current = connection;
     connection.start();
-  }, [triggerResponse, pushToBuffer, triggerEventResponse, pushToast, fetchAchievements]);
+  }, [triggerResponse, pushToBuffer, triggerEventResponse, pushToast, fetchAchievements, fastLaneLine, postVrmAct, isOwner]);
 
   // ── Twitch connect / disconnect ───────────────────────────────────────────
 
@@ -1232,14 +1594,16 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           </span>
         </div>
         <div style={styles.topRight}>
-          <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} />
-          <button
-            style={styles.settingsBtn}
-            onClick={() => window.open("/vrm-lab.html", "_blank")}
-            title={t("app.vrmLabTitle")}
-          >
-            <ScanFace size={14} color="var(--accent)" /> {t("app.vrmLabBtn")}
-          </button>
+          <PanelsMenu panelLayout={settings.panelLayout} onUpdateWindow={updateWindowLayout} t={t} isOwner={isOwner} />
+          {isOwner && (
+            <button
+              style={styles.settingsBtn}
+              onClick={() => window.open("/vrm-lab.html", "_blank")}
+              title={t("app.vrmLabTitle")}
+            >
+              <ScanFace size={14} color="var(--accent)" /> {t("app.vrmLabBtn")}
+            </button>
+          )}
           <button
             style={styles.settingsBtn}
             onClick={() => window.open("/overlay-builder", "_blank")}
@@ -1367,6 +1731,20 @@ function AppInner({ twitchLogin, tier, onRefreshAuth }) {
           mixer: settings.mixer,
           onChange: updateMixer,
         }}
+        showRunnerProps={{
+          settings,
+          onUpdateSettings: updateSettings,
+          onTestGreeting: () => fastLaneLine(twitchLogin || "gente"),
+          onTestColdOpen: fireColdOpen,
+          onTestAct: () => postVrmAct("greeting", true),
+          streamLive,
+          scriptDecks,
+          scriptState,
+          onGenerateScript: () => generateScript("manual"),
+          onSpeakBeat: speakScriptBeat,
+          onDiscardDeck: discardScriptDeck,
+        }}
+        isOwner={isOwner}
       />
 
       {/* ── Bottom bar ── */}

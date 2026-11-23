@@ -172,12 +172,23 @@ function decryptToken(encoded) {
 }
 
 const USER_COLUMNS = [
-  "twitchId", "login", "displayName", "profileImageUrl", "approved", "tier",
+  "twitchId", "login", "displayName", "profileImageUrl", "approved", "tier", "role",
   "createdAt", "approvedAt", "twitchAccessTokenEnc", "twitchRefreshTokenEnc",
   "twitchTokenExpiresAt", "botTwitchId", "botLogin", "botAccessTokenEnc",
   "botRefreshTokenEnc", "botTokenExpiresAt", "botLinkedAt",
   "overlayTokenVersion", "sessionVersion",
 ];
+
+// Roles are a separate axis from tiers: `tier` is billing/limits, `role` is
+// who may see a feature at all. Anything that is not explicitly "owner" is a
+// normal user, so a bad/legacy value can never escalate access.
+function normalizeRole(value) {
+  return value === "owner" ? "owner" : "user";
+}
+
+function isOwner(user) {
+  return !!user && user.role === "owner";
+}
 
 // overlayTokenVersion / sessionVersion are NOT NULL DEFAULT 1 in the schema,
 // but writeUsers takes whole user objects from callers that never heard of
@@ -254,6 +265,7 @@ function writeUsers(users) {
       const row = {};
       for (const c of USER_COLUMNS) {
         if (c === "approved") row[c] = u[c] ? 1 : 0;
+        else if (c === "role") row[c] = normalizeRole(u[c]);
         else if (c === "overlayTokenVersion") row[c] = normalizeOverlayVersion(u[c]);
         else if (c === "sessionVersion") row[c] = normalizeSessionVersion(u[c]);
         else row[c] = u[c] === undefined ? null : u[c];
@@ -291,6 +303,7 @@ function upsertUser(profile) {
     // immediately, while the admin can still revoke access later.
     approved: true,
     tier: "free",
+    role: "user",
     createdAt,
     approvedAt: createdAt,
   };
@@ -535,6 +548,19 @@ function requireApprovedUser(req, res, next) {
   next();
 }
 
+// Owner-only gate for features that are not public yet (VRM avatar, the
+// autonomous host). Reads the role fresh from SQLite on every request — the
+// session JWT deliberately does not carry it, so demoting an account takes
+// effect on the very next call instead of waiting for the cookie to expire.
+// 404 (not 403) so a non-owner cannot even probe whether the surface exists.
+function requireOwner(req, res, next) {
+  const user = readSession(req);
+  if (!user || !user.approved) return res.status(401).json({ error: "Not authorized" });
+  if (!isOwner(user)) return res.status(404).json({ error: "Not found" });
+  req.user = user;
+  next();
+}
+
 // Stable per-account token for unauthenticated surfaces that can't carry the
 // session cookie (OBS Browser Source runs its own CEF instance with no
 // access to the streamer's browser cookies). Deterministic from twitchId plus
@@ -729,6 +755,7 @@ router.get("/auth/me", (req, res) => {
     // Users created before tiers existed have no `tier` field — default them
     // to "pro" so approval status quo (full access) doesn't change under them.
     tier: user.tier || "pro",
+    role: normalizeRole(user.role),
     botLogin: user.botLogin || null,
   });
 });
@@ -919,6 +946,9 @@ router.get("/auth/twitch/bot-callback", async (req, res) => {
 module.exports = {
   router,
   requireApprovedUser,
+  requireOwner,
+  isOwner,
+  normalizeRole,
   readSession,
   verifySessionToken,
   signSession,

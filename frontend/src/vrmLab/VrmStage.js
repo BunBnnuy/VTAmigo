@@ -18,6 +18,7 @@ import {
   smoothWeights,
 } from "./visemeTimeline.js";
 import { sampleAct, sampleIdle } from "./performance.js";
+import { mirrorVRMAnimation } from "./mirrorAnimation.js";
 
 const smooth = (x) => x * x * (3 - 2 * x);
 
@@ -61,7 +62,7 @@ export class VrmStage {
     this.activeClip = null; // catalogue entry
     this.actClips = {}; // act → [entries]
     this.talkClips = []; // generic gestures used while speaking
-    this._lastTalkId = null;
+    this._recentIds = []; // last few gestures, so nothing repeats immediately
     this._nextGestureAt = 0;
     this.idleClip = null; // looping entry used while silent
     this.autoClips = true; // let acts pick their clip when one exists
@@ -390,13 +391,34 @@ export class VrmStage {
   }
 
   async _loadAnimation(entry) {
-    const cached = this.animCache.get(entry.file);
-    if (cached) return cached;
-    const gltf = await this.animLoader.loadAsync(entry.file);
-    const anim = gltf.userData.vrmAnimations?.[0];
-    if (!anim) throw new Error("sin datos de animación VRM");
-    this.animCache.set(entry.file, anim);
-    return anim;
+    let base = this.animCache.get(entry.file);
+    if (!base) {
+      const gltf = await this.animLoader.loadAsync(entry.file);
+      base = gltf.userData.vrmAnimations?.[0];
+      if (!base) throw new Error("sin datos de animación VRM");
+      this.animCache.set(entry.file, base);
+    }
+    if (!entry.mirror) return base;
+
+    const key = `${entry.file}|mirror`;
+    let mirrored = this.animCache.get(key);
+    if (!mirrored) {
+      mirrored = mirrorVRMAnimation(base);
+      this.animCache.set(key, mirrored);
+    }
+    return mirrored;
+  }
+
+  // Avoids repeating any of the last four gestures; falls back to the whole
+  // pool once every option has been used recently.
+  _pickClip(pool) {
+    const recent = this._recentIds;
+    let candidates = pool.filter((entry) => !recent.includes(entry.id));
+    if (!candidates.length) candidates = pool;
+    const entry = candidates[Math.floor(Math.random() * candidates.length)];
+    recent.push(entry.id);
+    if (recent.length > 4) recent.shift();
+    return entry;
   }
 
   async playAnimation(entry, options = {}) {
@@ -556,8 +578,7 @@ export class VrmStage {
     const pool = actPool?.length ? actPool : this.autoClips ? this.talkClips : [];
     if (pool.length) {
       // Different takes keep repeated lines from looking identical.
-      const entry = pool[Math.floor(Math.random() * pool.length)];
-      this._lastTalkId = entry.id;
+      const entry = this._pickClip(pool);
       this.playAnimation(entry, { loop: false }).catch((err) => {
         this.onState?.({ type: "error", message: err.message });
       });
@@ -682,11 +703,7 @@ export class VrmStage {
       now >= this._nextGestureAt
     ) {
       this._nextGestureAt = now + 6200 + Math.random() * 2400;
-      const pool = this.talkClips.filter((entry) => entry.id !== this._lastTalkId);
-      const entry = (pool.length ? pool : this.talkClips)[
-        Math.floor(Math.random() * (pool.length || this.talkClips.length))
-      ];
-      this._lastTalkId = entry.id;
+      const entry = this._pickClip(this.talkClips);
       this.playAnimation(entry, { loop: false }).catch(() => {});
     }
 

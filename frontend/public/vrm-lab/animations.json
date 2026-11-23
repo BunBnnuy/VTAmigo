@@ -42,6 +42,13 @@
     "category": "idle"
   },
   {
+    "id": "idle_tour",
+    "label": "Idle tour",
+    "file": "animations/idle_tour.vrma",
+    "loop": true,
+    "category": "idle"
+  },
+  {
     "id": "talking",
     "label": "Hablando",
     "file": "animations/talking.vrma",
@@ -135,6 +142,16 @@
     ]
   },
   {
+    "id": "cross_jumps",
+    "label": "Saltos",
+    "file": "animations/cross_jumps.vrma",
+    "loop": false,
+    "category": "happy",
+    "acts": [
+      "happy"
+    ]
+  },
+  {
     "id": "thinking",
     "label": "Pensar",
     "file": "animations/thinking.vrma",
@@ -151,6 +168,19 @@
     "loop": false,
     "category": "think",
     "acts": [
+      "thinking",
+      "question"
+    ],
+    "talk": true
+  },
+  {
+    "id": "peek",
+    "label": "Asomarse",
+    "file": "animations/peek.vrma",
+    "loop": false,
+    "category": "think",
+    "acts": [
+      "question",
       "thinking"
     ],
     "talk": true
@@ -170,7 +200,8 @@
     "category": "thanks",
     "acts": [
       "thanks"
-    ]
+    ],
+    "talk": true
   },
   {
     "id": "agree",
@@ -179,7 +210,9 @@
     "loop": false,
     "category": "thanks",
     "acts": [
-      "question"
+      "question",
+      "neutral",
+      "thanks"
     ],
     "talk": true
   },
@@ -197,6 +230,16 @@
     "id": "stomp",
     "label": "Enfado",
     "file": "animations/stomp.vrma",
+    "loop": false,
+    "category": "angry",
+    "acts": [
+      "angry"
+    ]
+  },
+  {
+    "id": "punch",
+    "label": "Golpe",
+    "file": "animations/punch.vrma",
     "loop": false,
     "category": "angry",
     "acts": [

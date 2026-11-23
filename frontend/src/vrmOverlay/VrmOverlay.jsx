@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { VrmStage } from "../vrmLab/VrmStage.js";
 import { actFor } from "../vrmLab/performance.js";
+import { mirroredEntry } from "../vrmLab/mirrorAnimation.js";
 
 // OBS browser source for the VRM avatar. Transparent canvas, no UI, own audio.
 // It listens to the same `tts_speak` events the regular voice overlay uses, so
@@ -171,7 +172,13 @@ export default function VrmOverlay() {
         }
         if (data.type === "tts_speak") enqueue(data);
         else if (data.type === "tts_skip") skip();
-        else if (data.type === "mixer_state" && data.mixer) {
+        else if (data.type === "bot_act") {
+          // <1s visual acknowledgement from the app (new chat message, cold
+          // open, transition). Deliberately dropped while a clip is speaking:
+          // the talk animation already owns the body, and swapping acts mid
+          // sentence reads as a glitch.
+          if (!stage.isSpeaking) stage.setAct(data.act || "neutral");
+        } else if (data.type === "mixer_state" && data.mixer) {
           mixer = data.mixer;
           applyVolume();
         }
@@ -239,11 +246,15 @@ export default function VrmOverlay() {
 
       const actClips = {};
       for (const clip of clips) {
-        for (const act of clip.acts || []) (actClips[act] ||= []).push(clip);
+        for (const act of clip.acts || []) {
+          (actClips[act] ||= []).push(clip, mirroredEntry(clip));
+        }
       }
       stage.setClipCatalog({
         actClips,
-        talkClips: clips.filter((clip) => clip.talk),
+        talkClips: clips
+          .filter((clip) => clip.talk)
+          .flatMap((clip) => [clip, mirroredEntry(clip)]),
         autoClips: config?.autoClips !== false,
       });
       stage.preloadClips(clips.filter((clip) => clip.acts?.length));
