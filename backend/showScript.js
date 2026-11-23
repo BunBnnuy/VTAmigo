@@ -212,7 +212,7 @@ async function generateDeck(twitchId, { context = {}, language = "es", count = 1
 
   let raw;
   try {
-    raw = await runCLI(prompt, { provider, twitchId, model, session: false, timeoutMs: 90000 });
+    raw = await runCLI(prompt, { provider, twitchId, model, session: false, timeoutMs: 180000 });
   } catch (err) {
     if (err.message === "CLI_NOT_FOUND" || err.message === "TIMEOUT") throw err;
     throw new Error(`SCRIPT_CLI: ${err.message}`);
@@ -236,6 +236,95 @@ async function generateDeck(twitchId, { context = {}, language = "es", count = 1
   pruneDecksStmt.run(twitchId, twitchId);
 
   return { id, createdAt, beats, meta };
+}
+
+// ── Background generation jobs ─────────────────────────────────────────────
+// A 4-5 part story deck can take minutes to generate. The HTTP route starts a
+// job and returns immediately; the panel polls the status, so nginx/Cloudflare
+// never see a request that lasts long enough to time out.
+const jobs = new Map(); // jobId -> { id, twitchId, status, startedAt, finishedAt, deck, error }
+const activeJobByUser = new Map(); // twitchId -> jobId
+const JOB_TTL_MS = 30 * 60 * 1000;
+
+function scriptErrorMessage(err) {
+  const message = (err && err.message) || "";
+  if (message === "SCRIPT_BAD_JSON" || message === "SCRIPT_EMPTY") {
+    return "El modelo no devolvió un guion válido";
+  }
+  if (message === "TIMEOUT") return "El modelo tardó demasiado";
+  if (message === "CLI_NOT_FOUND") return "El CLI del proveedor no está instalado";
+  if (message.startsWith("SCRIPT_CLI:")) return message.slice(11).trim();
+  return message || "No se pudo generar el guion";
+}
+
+function pruneJobs() {
+  const cutoff = Date.now() - JOB_TTL_MS;
+  for (const [id, job] of jobs) {
+    if (job.finishedAt && job.finishedAt < cutoff) {
+      jobs.delete(id);
+      if (activeJobByUser.get(job.twitchId) === id) activeJobByUser.delete(job.twitchId);
+    }
+  }
+}
+
+function startGeneration(twitchId, options = {}) {
+  pruneJobs();
+  const activeId = activeJobByUser.get(twitchId);
+  if (activeId) {
+    const active = jobs.get(activeId);
+    if (active && active.status === "running") return { jobId: activeId, existing: true };
+  }
+
+  const jobId = crypto.randomUUID();
+  const job = {
+    id: jobId,
+    twitchId,
+    status: "running",
+    startedAt: Date.now(),
+    finishedAt: null,
+    deck: null,
+    error: null,
+  };
+  jobs.set(jobId, job);
+  activeJobByUser.set(twitchId, jobId);
+
+  generateDeck(twitchId, options)
+    .then((deck) => {
+      job.status = "done";
+      job.deck = deck;
+    })
+    .catch((err) => {
+      job.status = "error";
+      job.error = scriptErrorMessage(err);
+    })
+    .finally(() => {
+      job.finishedAt = Date.now();
+      if (activeJobByUser.get(twitchId) === jobId) activeJobByUser.delete(twitchId);
+      pruneJobs();
+    });
+
+  return { jobId, existing: false };
+}
+
+function getJob(twitchId, jobId) {
+  const job = jobs.get(String(jobId || ""));
+  if (!job || job.twitchId !== twitchId) return null;
+  return {
+    jobId: job.id,
+    status: job.status,
+    startedAt: job.startedAt,
+    finishedAt: job.finishedAt,
+    deck: job.status === "done" ? job.deck : undefined,
+    error: job.status === "error" ? job.error : undefined,
+  };
+}
+
+function getActiveJob(twitchId) {
+  const id = activeJobByUser.get(twitchId);
+  if (!id) return null;
+  const job = jobs.get(id);
+  if (!job || job.status !== "running") return null;
+  return { jobId: job.id, status: "running", startedAt: job.startedAt };
 }
 
 function markUsed(twitchId, { deckId, beatId, text } = {}) {
@@ -268,6 +357,10 @@ function discardDeck(twitchId, deckId) {
 
 module.exports = {
   generateDeck,
+  startGeneration,
+  getJob,
+  getActiveJob,
+  scriptErrorMessage,
   listDecks,
   markUsed,
   discardDeck,

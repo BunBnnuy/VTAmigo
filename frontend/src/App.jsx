@@ -452,6 +452,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
   // keeps the newest few in memory for the playout and the panel preview.
   const [scriptDecks, setScriptDecks] = useState([]);
   const [scriptState, setScriptState] = useState({ generating: false, error: "", lastAt: 0 });
+  const [scriptJob, setScriptJob] = useState(null);
   const [sessionLabel, setSessionLabel] = useState("0:00:00");
   // Safety cap for when AI responses are toggled off for a long stretch —
   // messages keep queuing (nothing should be silently lost), but without a
@@ -1017,16 +1018,15 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-      if (data.deck) setScriptDecks((prev) => [data.deck, ...prev].slice(0, 8));
-      setScriptState((s) => ({ ...s, generating: false, error: "", lastAt: Date.now() }));
-      return data.deck || null;
+      if (!data.jobId) throw new Error("El servidor no devolvió un trabajo de generación");
+      setScriptJob(data.jobId);
+      return data.jobId;
     } catch (err) {
       // Back off for one interval instead of retrying every 30 s while the
       // provider is down. The current deck keeps playing in the meantime.
+      scriptBusyRef.current = false;
       setScriptState((s) => ({ ...s, generating: false, error: err.message, lastAt: Date.now() }));
       return null;
-    } finally {
-      scriptBusyRef.current = false;
     }
   }, [isOwner]);
 
@@ -1193,20 +1193,30 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
   }, [connected, streamLive, isOwner, settings.hostMode, settings.aiResponsesEnabled, fireColdOpen, streamStartedAt, twitchLogin]);
 
   // Load any decks left from an earlier page load / earlier in the stream, so
-  // a refresh doesn't restart the show from zero.
+  // a refresh doesn't restart the show from zero. A running generation job is
+  // resumed too.
   useEffect(() => {
     if (!isOwner) return undefined;
     let cancelled = false;
-    apiFetch("/host/script")
-      .then((res) => (res.ok ? res.json() : null))
-      .then((data) => {
-        if (cancelled || !data?.decks) return;
-        // A deck from a previous day is not useful: its facts (game, songs,
-        // chat) are stale. Keep the last six hours.
-        const cutoff = Date.now() - 6 * 60 * 60 * 1000;
-        const fresh = data.decks.filter((deck) => deck.createdAt >= cutoff);
-        setScriptDecks(fresh);
-        setScriptState((s) => ({ ...s, lastAt: fresh[0]?.createdAt || 0 }));
+    Promise.all([
+      apiFetch("/host/script").then((res) => (res.ok ? res.json() : null)).catch(() => null),
+      apiFetch("/host/script/active").then((res) => (res.ok ? res.json() : null)).catch(() => null),
+    ])
+      .then(([data, active]) => {
+        if (cancelled) return;
+        if (data?.decks) {
+          // A deck from a previous day is not useful: its facts (game, songs,
+          // chat) are stale. Keep the last six hours.
+          const cutoff = Date.now() - 6 * 60 * 60 * 1000;
+          const fresh = data.decks.filter((deck) => deck.createdAt >= cutoff);
+          setScriptDecks(fresh);
+          setScriptState((s) => ({ ...s, lastAt: fresh[0]?.createdAt || 0 }));
+        }
+        if (active?.job?.jobId) {
+          scriptBusyRef.current = true;
+          setScriptState((s) => ({ ...s, generating: true, error: "" }));
+          setScriptJob(active.job.jobId);
+        }
       })
       .catch(() => {})
       .finally(() => {
@@ -1217,6 +1227,60 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       scriptLoadedRef.current = false;
     };
   }, [isOwner]);
+
+  // Poll the background generation job. The POST returns immediately, so a
+  // 2-3 minute story deck never holds an HTTP request open long enough for a
+  // proxy to 504 it.
+  useEffect(() => {
+    if (!scriptJob) return undefined;
+    let cancelled = false;
+    const startedAt = Date.now();
+    const finish = (patch) => {
+      if (cancelled) return;
+      scriptBusyRef.current = false;
+      setScriptJob(null);
+      setScriptState((s) => ({ ...s, ...patch }));
+    };
+    const tick = async () => {
+      try {
+        const res = await apiFetch(`/host/script/status/${encodeURIComponent(scriptJob)}`);
+        const data = await res.json().catch(() => ({}));
+        if (cancelled) return;
+        if (res.status === 404) {
+          finish({ generating: false, error: "La generación se perdió (el servidor se reinició)", lastAt: Date.now() });
+          return;
+        }
+        if (!res.ok) {
+          finish({ generating: false, error: data.error || `HTTP ${res.status}`, lastAt: Date.now() });
+          return;
+        }
+        if (data.status === "done" && data.deck) {
+          setScriptDecks((prev) =>
+            prev.some((deck) => deck.id === data.deck.id)
+              ? prev
+              : [data.deck, ...prev].slice(0, 8)
+          );
+          finish({ generating: false, error: "", lastAt: Date.now() });
+          return;
+        }
+        if (data.status === "error") {
+          finish({ generating: false, error: data.error || "El modelo no devolvió un guion válido", lastAt: Date.now() });
+          return;
+        }
+        if (Date.now() - startedAt > 5 * 60 * 1000) {
+          finish({ generating: false, error: "La generación tardó demasiado", lastAt: Date.now() });
+        }
+      } catch {
+        /* transient network error: keep polling */
+      }
+    };
+    tick();
+    const id = setInterval(tick, 2000);
+    return () => {
+      cancelled = true;
+      clearInterval(id);
+    };
+  }, [scriptJob]);
   // Playout: a beat is a 4-5 part story. Parts are spoken back to back with
   // a short pause between them; a new chat line (or a pending AI reply)
   // interrupts after the current part and the unspoken parts are re-queued.

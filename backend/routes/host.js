@@ -56,21 +56,35 @@ router.get("/host/script", requireOwner, (req, res) => {
   res.json({ decks: showScript.listDecks(req.user.twitchId) });
 });
 
-// POST /host/script — generate one deck now. Called manually from the panel
-// and automatically by the client when the current decks run low.
+// POST /host/script — start a background generation job. Returns immediately
+// (202) with a jobId; the panel polls /host/script/status/:jobId. This is what
+// keeps a 2-3 minute story-deck generation away from proxy timeouts.
 router.post("/host/script", requireOwner, aiLimiter, async (req, res) => {
   try {
     const context = await liveContext(req);
     const { language, count } = req.body || {};
-    const deck = await showScript.generateDeck(req.user.twitchId, {
+    const { jobId, existing } = showScript.startGeneration(req.user.twitchId, {
       context,
       language: typeof language === "string" ? language : "es",
       count: Number(count) || 14,
     });
-    res.json({ deck });
+    res.status(existing ? 200 : 202).json({ jobId, status: "running", existing });
   } catch (err) {
     sendScriptError(res, err);
   }
+});
+
+// GET /host/script/active — a running job for this account, so a page reload
+// resumes the "Generando…" state instead of losing it.
+router.get("/host/script/active", requireOwner, (req, res) => {
+  res.json({ job: showScript.getActiveJob(req.user.twitchId) });
+});
+
+// GET /host/script/status/:jobId — { status: "running"|"done"|"error", deck?, error? }.
+router.get("/host/script/status/:jobId", requireOwner, (req, res) => {
+  const job = showScript.getJob(req.user.twitchId, req.params.jobId);
+  if (!job) return res.status(404).json({ error: "Job not found" });
+  res.json(job);
 });
 
 // POST /host/script/used — { deckId, beatId }. Idempotent: a beat already
