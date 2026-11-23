@@ -1075,12 +1075,11 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       nextAt: 0,
     };
     tts.enqueue(parts[0]);
-    logHostLine(parts[0], { scriptKind: beat.kind, partIndex: 0, partCount: parts.length });
     scriptLastSpokeRef.current = now;
     if (beat.kind === "question") scriptLastQuestionRef.current = now;
     consumeScriptBeat(deckId, beat.id);
     return true;
-  }, [consumeScriptBeat, logHostLine]);
+  }, [consumeScriptBeat]);
 
   // Ends the active story. On a chat interruption the unspoken parts are
   // re-queued as a local deck (oldest, so it resumes before new topics), so a
@@ -1088,6 +1087,13 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
   const finishStory = useCallback((reason) => {
     const story = storyRef.current;
     if (!story) return;
+    if (reason === "interrupted" && story.phase === "starting") {
+      // The part is already queued. Let it become audible (and be logged in
+      // the Responses panel) before stopping; the ticker re-checks every
+      // second and finishes once it has actually started.
+      story.pendingInterrupt = true;
+      return;
+    }
     storyRef.current = null;
     if (reason !== "interrupted") return;
     const remaining = story.parts.slice(story.partIndex + 1);
@@ -1327,11 +1333,18 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
           return;
         }
 
-        const speaking = tts.playing || ttsSpeakingRef.current;
-
         if (story.phase === "starting") {
-          if (speaking) story.phase = "speaking";
-          else if (now - story.pendingSince > 15000) {
+          // Only log once the audio is actually audible, not when the part is
+          // queued: Fish/overlay synthesis can take a few seconds, and the
+          // Responses panel must mirror what the viewers are hearing.
+          if (ttsSpeakingRef.current) {
+            logHostLine(story.parts[story.partIndex], {
+              scriptKind: story.beatKind,
+              partIndex: story.partIndex,
+              partCount: story.parts.length,
+            });
+            story.phase = "speaking";
+          } else if (!tts.playing && now - story.pendingSince > 15000) {
             // The provider never produced audio for this part; drop the story
             // instead of looping on a broken line.
             storyRef.current = null;
@@ -1340,7 +1353,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
         }
 
         if (story.phase === "speaking") {
-          if (!speaking) {
+          if (!tts.playing && !ttsSpeakingRef.current) {
             story.phase = "gap";
             story.nextAt = now + Math.max(1, host.scriptPartGapSec ?? 2.5) * 1000;
           }
@@ -1358,13 +1371,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
           story.partIndex = nextIndex;
           story.phase = "starting";
           story.pendingSince = now;
-          const nextPart = story.parts[nextIndex];
-          tts.enqueue(nextPart);
-          logHostLine(nextPart, {
-            scriptKind: story.beatKind,
-            partIndex: nextIndex,
-            partCount: story.parts.length,
-          });
+          tts.enqueue(story.parts[nextIndex]);
           return;
         }
         return;
