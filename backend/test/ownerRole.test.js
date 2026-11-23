@@ -80,28 +80,51 @@ describe("autonomous host script", () => {
     expect((await authed(USER_ID, "post", "/host/script").send({})).status).toBe(404);
   });
 
-  it("lists decks and generates one for the owner", async () => {
-    const spy = vi.spyOn(showScript, "generateDeck").mockResolvedValue({
-      id: "deck-test-1",
-      createdAt: Date.now(),
-      beats: [{ id: "b1", kind: "topic", text: "Una frase de prueba.", afterMin: 0, beforeMin: 0 }],
-      meta: {},
+  it("lists decks and starts a generation job for the owner", async () => {
+    const startSpy = vi.spyOn(showScript, "startGeneration").mockReturnValue({
+      jobId: "job-test-1",
+      existing: false,
     });
     try {
       const generated = await authed(OWNER_ID, "post", "/host/script").send({ language: "es", count: 12 });
-      expect(generated.status).toBe(200);
-      expect(generated.body.deck.id).toBe("deck-test-1");
-      expect(spy).toHaveBeenCalledWith(
+      expect(generated.status).toBe(202);
+      expect(generated.body.jobId).toBe("job-test-1");
+      expect(startSpy).toHaveBeenCalledWith(
         OWNER_ID,
         expect.objectContaining({ language: "es", count: 12, context: expect.any(Object) })
       );
     } finally {
-      spy.mockRestore();
+      startSpy.mockRestore();
     }
 
     const list = await authed(OWNER_ID, "get", "/host/script");
     expect(list.status).toBe(200);
     expect(Array.isArray(list.body.decks)).toBe(true);
+  });
+
+  it("serves a job's status and the active job", async () => {
+    const getSpy = vi.spyOn(showScript, "getJob").mockReturnValue({
+      jobId: "job-test-1",
+      status: "done",
+      deck: { id: "deck-test-1", createdAt: Date.now(), beats: [], meta: {} },
+    });
+    const activeSpy = vi.spyOn(showScript, "getActiveJob").mockReturnValue({
+      jobId: "job-test-2",
+      status: "running",
+    });
+    try {
+      const status = await authed(OWNER_ID, "get", "/host/script/status/job-test-1");
+      expect(status.status).toBe(200);
+      expect(status.body.status).toBe("done");
+      expect(status.body.deck.id).toBe("deck-test-1");
+
+      const active = await authed(OWNER_ID, "get", "/host/script/active");
+      expect(active.status).toBe(200);
+      expect(active.body.job.jobId).toBe("job-test-2");
+    } finally {
+      getSpy.mockRestore();
+      activeSpy.mockRestore();
+    }
   });
 });
 
