@@ -533,6 +533,7 @@ export default {
     sendTitle: "Twitch 채팅으로 보내기",
     botNotConnected: "봇이 연결되지 않음",
     send: "보내기",
+    scriptLabel: "대본",
   },
 
   quickControls: {

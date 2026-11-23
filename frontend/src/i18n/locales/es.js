@@ -533,6 +533,7 @@ export default {
     sendTitle: "Enviar al chat de Twitch",
     botNotConnected: "Bot no conectado",
     send: "Enviar",
+    scriptLabel: "Guion",
   },
 
   quickControls: {

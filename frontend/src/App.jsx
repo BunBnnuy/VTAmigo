@@ -1042,6 +1042,23 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
     }).catch(() => {});
   }, []);
 
+  // The response feed is also the bot's transcript: every script part that is
+  // actually enqueued shows up there, marked with source "script" so the panel
+  // can label it as a live-script line instead of a chat reply.
+  const logHostLine = useCallback((text, meta = {}) => {
+    if (!text) return;
+    setResponses((prev) => [
+      ...prev.slice(-49),
+      {
+        id: uid(),
+        timestamp: Date.now(),
+        text,
+        source: "script",
+        ...meta,
+      },
+    ]);
+  }, []);
+
   const beginStory = useCallback((deckId, beat) => {
     const parts = Array.isArray(beat.parts) && beat.parts.length ? beat.parts : [beat.text];
     if (!parts[0]) return false;
@@ -1049,6 +1066,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
     storyRef.current = {
       deckId,
       beatId: beat.id,
+      beatKind: beat.kind,
       parts,
       partIndex: 0,
       startedAt: now,
@@ -1069,6 +1087,13 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
   const finishStory = useCallback((reason) => {
     const story = storyRef.current;
     if (!story) return;
+    if (reason === "interrupted" && story.phase === "starting") {
+      // The part is already queued. Let it become audible (and be logged in
+      // the Responses panel) before stopping; the ticker re-checks every
+      // second and finishes once it has actually started.
+      story.pendingInterrupt = true;
+      return;
+    }
     storyRef.current = null;
     if (reason !== "interrupted") return;
     const remaining = story.parts.slice(story.partIndex + 1);
@@ -1308,11 +1333,18 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
           return;
         }
 
-        const speaking = tts.playing || ttsSpeakingRef.current;
-
         if (story.phase === "starting") {
-          if (speaking) story.phase = "speaking";
-          else if (now - story.pendingSince > 15000) {
+          // Only log once the audio is actually audible, not when the part is
+          // queued: Fish/overlay synthesis can take a few seconds, and the
+          // Responses panel must mirror what the viewers are hearing.
+          if (ttsSpeakingRef.current) {
+            logHostLine(story.parts[story.partIndex], {
+              scriptKind: story.beatKind,
+              partIndex: story.partIndex,
+              partCount: story.parts.length,
+            });
+            story.phase = "speaking";
+          } else if (!tts.playing && now - story.pendingSince > 15000) {
             // The provider never produced audio for this part; drop the story
             // instead of looping on a broken line.
             storyRef.current = null;
@@ -1321,7 +1353,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
         }
 
         if (story.phase === "speaking") {
-          if (!speaking) {
+          if (!tts.playing && !ttsSpeakingRef.current) {
             story.phase = "gap";
             story.nextAt = now + Math.max(1, host.scriptPartGapSec ?? 2.5) * 1000;
           }
@@ -1357,7 +1389,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       if (!beat) return;
       beginStory(beat.deckId, beat);
     }, 1000);
-  }, [isOwner, beginStory, finishStory]);
+  }, [isOwner, beginStory, finishStory, logHostLine]);
 
   // Rolling generation: refill before the deck runs dry. Low-water mark plus
   // a minimum interval keeps a 12-hour stream at a handful of calls per hour
