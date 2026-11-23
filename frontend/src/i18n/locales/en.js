@@ -536,6 +536,7 @@ export default {
     sendTitle: "Send to Twitch chat",
     botNotConnected: "Bot not connected",
     send: "Send",
+    scriptLabel: "Script",
   },
 
   quickControls: {

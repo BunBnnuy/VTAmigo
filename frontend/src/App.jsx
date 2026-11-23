@@ -1042,6 +1042,23 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
     }).catch(() => {});
   }, []);
 
+  // The response feed is also the bot's transcript: every script part that is
+  // actually enqueued shows up there, marked with source "script" so the panel
+  // can label it as a live-script line instead of a chat reply.
+  const logHostLine = useCallback((text, meta = {}) => {
+    if (!text) return;
+    setResponses((prev) => [
+      ...prev.slice(-49),
+      {
+        id: uid(),
+        timestamp: Date.now(),
+        text,
+        source: "script",
+        ...meta,
+      },
+    ]);
+  }, []);
+
   const beginStory = useCallback((deckId, beat) => {
     const parts = Array.isArray(beat.parts) && beat.parts.length ? beat.parts : [beat.text];
     if (!parts[0]) return false;
@@ -1049,6 +1066,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
     storyRef.current = {
       deckId,
       beatId: beat.id,
+      beatKind: beat.kind,
       parts,
       partIndex: 0,
       startedAt: now,
@@ -1057,11 +1075,12 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       nextAt: 0,
     };
     tts.enqueue(parts[0]);
+    logHostLine(parts[0], { scriptKind: beat.kind, partIndex: 0, partCount: parts.length });
     scriptLastSpokeRef.current = now;
     if (beat.kind === "question") scriptLastQuestionRef.current = now;
     consumeScriptBeat(deckId, beat.id);
     return true;
-  }, [consumeScriptBeat]);
+  }, [consumeScriptBeat, logHostLine]);
 
   // Ends the active story. On a chat interruption the unspoken parts are
   // re-queued as a local deck (oldest, so it resumes before new topics), so a
@@ -1339,7 +1358,13 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
           story.partIndex = nextIndex;
           story.phase = "starting";
           story.pendingSince = now;
-          tts.enqueue(story.parts[nextIndex]);
+          const nextPart = story.parts[nextIndex];
+          tts.enqueue(nextPart);
+          logHostLine(nextPart, {
+            scriptKind: story.beatKind,
+            partIndex: nextIndex,
+            partCount: story.parts.length,
+          });
           return;
         }
         return;
@@ -1357,7 +1382,7 @@ function AppInner({ twitchLogin, tier, role, onRefreshAuth }) {
       if (!beat) return;
       beginStory(beat.deckId, beat);
     }, 1000);
-  }, [isOwner, beginStory, finishStory]);
+  }, [isOwner, beginStory, finishStory, logHostLine]);
 
   // Rolling generation: refill before the deck runs dry. Low-water mark plus
   // a minimum interval keeps a 12-hour stream at a handful of calls per hour

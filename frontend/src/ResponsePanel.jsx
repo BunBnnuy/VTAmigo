@@ -35,6 +35,12 @@ export default function ResponsePanel({
           <div key={r.id} style={{ ...styles.card, borderColor: r.error ? "var(--red)" : "var(--accent)" }}>
             <div style={styles.cardTime}>
               {formatTime(r.timestamp)}
+              {r.source === "script" && (
+                <span style={styles.scriptLabel}>
+                  {" · "}{t("responsePanel.scriptLabel")}
+                  {r.partCount > 1 ? ` ${Math.min((r.partIndex || 0) + 1, r.partCount)}/${r.partCount}` : ""}
+                </span>
+              )}
               {r.eventLabel && <span style={styles.eventLabel}> · {r.eventLabel}</span>}
             </div>
             <div style={r.error ? styles.errorText : styles.responseText}>{r.text}</div>
@@ -162,6 +168,10 @@ const styles = {
   },
   eventLabel: {
     color: "var(--yellow)",
+    fontWeight: 600,
+  },
+  scriptLabel: {
+    color: "var(--accent)",
     fontWeight: 600,
   },
   skeleton: {

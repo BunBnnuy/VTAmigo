@@ -533,6 +533,7 @@ export default {
     sendTitle: "Twitchチャットに送信",
     botNotConnected: "ボット未接続",
     send: "送信",
+    scriptLabel: "台本",
   },
 
   quickControls: {
