@@ -69,6 +69,50 @@ describe("parseDeck", () => {
     expect(beats[0].text).toContain("música");
   });
 
+  it("parses a multi-part story and joins its text for history/preview", () => {
+    const parts = [
+      "Primera parte de la historia con gancho suficiente.",
+      "Segunda parte que desarrolla lo que estaba contando.",
+      "Tercera parte con el giro inesperado de la anécdota.",
+      "Cuarta parte que cierra la historia con naturalidad.",
+    ];
+    const beats = parseDeck(JSON.stringify([{ kind: "topic", parts, afterMin: 0, beforeMin: 0 }]));
+    expect(beats).toHaveLength(1);
+    expect(beats[0].parts).toEqual(parts);
+    expect(beats[0].text).toBe(parts.join(" "));
+  });
+
+  it("drops a parts beat with fewer than two valid parts", () => {
+    const beats = parseDeck(
+      JSON.stringify([
+        { kind: "topic", parts: ["Una sola parte suficientemente larga para pasar el filtro."] },
+      ])
+    );
+    expect(beats).toHaveLength(0);
+  });
+
+  it("caps parts at five and drops an invalid part", () => {
+    const parts = [
+      "Parte uno con texto suficiente para el filtro.",
+      "Parte dos con texto suficiente para el filtro.",
+      "https://example.com no vale como parte.",
+      "Parte cuatro con texto suficiente para el filtro.",
+      "Parte cinco con texto suficiente para el filtro.",
+      "Parte seis que debería quedar fuera del límite.",
+    ];
+    const beats = parseDeck(JSON.stringify([{ kind: "topic", parts }]));
+    expect(beats).toHaveLength(1);
+    expect(beats[0].parts).toHaveLength(4);
+    expect(beats[0].parts.join(" ")).not.toContain("example.com");
+    expect(beats[0].parts.join(" ")).not.toContain("Parte seis");
+  });
+
+  it("accepts a legacy single-text beat", () => {
+    const beats = parseDeck(JSON.stringify([beat()]));
+    expect(beats).toHaveLength(1);
+    expect(beats[0].parts).toEqual([beat().text]);
+  });
+
   it("caps a runaway deck at 20 beats", () => {
     const many = Array.from({ length: 40 }, (_, i) =>
       beat({ text: `Beat número ${i} con una frase suficientemente larga para pasar el filtro.` })

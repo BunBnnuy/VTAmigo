@@ -235,13 +235,15 @@ Eres guionista de un programa de radio para un stream de Twitch en directo. El b
 
 Tu única salida es un array JSON válido. Nada de markdown, nada de texto antes o después, nada de bloques de código.
 Cada elemento tiene exactamente estas claves:
-{"kind":"open|topic|bridge|question|recap","text":"...","afterMin":0,"beforeMin":0}
+{"kind":"open|topic|bridge|question|recap","parts":["...","...","...","..."],"afterMin":0,"beforeMin":0}
 
 Reglas:
 - Escribe en ${languageName}.
-- 1 o 2 frases por beat, entre 20 y 220 caracteres. Se lee en voz alta: nada de listas ni paréntesis.
+- Cada beat es una historia corta contada en 4 o 5 partes. Cada parte es 1 o 2 frases, entre 20 y 180 caracteres.
+- La primera parte engancha; las siguientes desarrollan, giran y cierran. Cada parte termina en un punto natural de pausa, porque el bot puede ser interrumpido entre partes.
+- No dejes la historia a medias ni termines con una pregunta obligatoria: el cierre debe sentirse completo.
+- Puedes contar anécdotas, opiniones o escenarios hipotéticos, pero no presentes como hechos reales del stream cosas, personas o cifras que no estén en el contexto.
 - Prohibido markdown, URLs, emojis, hashtags, @menciones y etiquetas tipo <...>.
-- No inventes hechos, personas, cifras, jugadas ni eventos. Usa solo los datos del contexto.
 - Los temas del streamer son la fuente principal: reformúlalos con naturalidad, no los copies literalmente.
 - Como máximo 2 beats de kind "question", y ninguno entre los 3 primeros.
 - "open" solo si se indica que es el primer deck; si no, no lo uses.
@@ -256,7 +258,7 @@ ${wrapUntrusted(facts.join("\n"))}
 
 ${avoidBlock}
 
-Genera ahora un array JSON con exactamente ${beatCount} beats${clean.isFirstDeck ? " (incluye un open)" : ""}. Asegúrate de que sea JSON parseable tal cual.`;
+Genera ahora un array JSON con exactamente ${beatCount} beats, cada uno con 4 o 5 partes${clean.isFirstDeck ? " (incluye un open)" : ""}. Asegúrate de que sea JSON parseable tal cual.`;
 }
 
 module.exports = {
